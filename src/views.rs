@@ -65,6 +65,11 @@ pub struct ElementRow {
     pub proposition: Option<String>,
     /// Attorney notes about this mapping.
     pub notes: Option<String>,
+    /// The named person who made the mapping.
+    ///
+    /// Absent for mappings written before authorship was recorded; they are not
+    /// backfilled with a name nobody actually stood behind.
+    pub mapped_by: Option<String>,
 }
 
 /// A statement by, or attributed to, a witness.
@@ -174,10 +179,16 @@ pub struct PropositionEvidence {
     pub machine_generated: bool,
     /// Extractor confidence, not factual confidence.
     pub extractor_confidence: Option<f64>,
-    /// Human review state.
+    /// Human review state of the underlying content.
     pub review_state: String,
     /// Human rationale for the relationship.
     pub rationale: Option<String>,
+    /// Human review state of the relationship itself.
+    ///
+    /// Distinct from `review_state`: a verified excerpt can be tied to a
+    /// proposition by a relationship nobody has looked at, and a reader has to
+    /// be able to see that the connection — not just the words — is unchecked.
+    pub relation_review_state: String,
 }
 
 /// Evidence mappings for one statutory element.

@@ -26,6 +26,18 @@ pub enum Error {
     /// An authored proposition or relationship was malformed.
     #[error("invalid authoring: {0}")]
     InvalidAuthoring(String),
+    /// A proposition was mapped again to an element it is already filed under.
+    #[error(
+        "proposition `{proposition}` is already assessed `{assessment}` on element `{element}`"
+    )]
+    ElementAlreadyMapped {
+        /// The element being mapped.
+        element: String,
+        /// The proposition already filed under it.
+        proposition: String,
+        /// The direction it is already filed under.
+        assessment: String,
+    },
     /// A record was written twice under the same identity.
     #[error("{kind} `{id}` already exists")]
     AlreadyExists {

@@ -13,15 +13,18 @@ mod review;
 mod store;
 mod views;
 
-pub use authoring::{AuthoredLink, AuthoredProposition, ProposedLink, ProposedProposition};
+pub use authoring::{
+    AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredLink, AuthoredProposition,
+    ProposedCharge, ProposedElement, ProposedElementMapping, ProposedLink, ProposedProposition,
+};
 pub use error::{Error, Result};
 pub use fixture::DemoFixture;
 pub use ingest::{
     ExtractionProvenance, NormalizedBatch, NormalizedContent, NormalizedSegment, NormalizedSource,
 };
 pub use model::{
-    AdvocacyKind, CaseId, ContentKind, EdgeKind, NodeKind, NodeRef, ReviewState, SourceKind,
-    TemporalRelation, TimelineLane,
+    AdvocacyKind, CaseId, ChargePosture, ContentKind, EdgeKind, ElementAssessment, NodeKind,
+    NodeRef, ReviewState, SourceKind, TemporalRelation, TimelineLane,
 };
 pub use review::{ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewTarget};
 pub use store::Store;

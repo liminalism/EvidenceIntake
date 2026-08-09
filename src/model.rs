@@ -234,6 +234,73 @@ impl EdgeKind {
     }
 }
 
+/// How a charge stands in the case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChargePosture {
+    /// Actually charged by the state.
+    Charged,
+    /// A lesser offense the evidence might instead fit.
+    LesserCandidate,
+    /// Another offense worth comparing.
+    Alternative,
+    /// No longer live.
+    Dismissed,
+}
+
+impl ChargePosture {
+    /// Returns the stable database representation.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Charged => "charged",
+            Self::LesserCandidate => "lesser_candidate",
+            Self::Alternative => "alternative",
+            Self::Dismissed => "dismissed",
+        }
+    }
+}
+
+/// How a proposition bears on one statutory element.
+///
+/// This is a direction, not a weight. `uncertain` is a first-class answer and
+/// the honest one for most contested material; it is not a placeholder for an
+/// assessment somebody has yet to sharpen into support or opposition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ElementAssessment {
+    /// The proposition tends to establish the element.
+    Supports,
+    /// The proposition tends to defeat the element.
+    Opposes,
+    /// The proposition is material but its effect is unresolved.
+    Uncertain,
+    /// The proposition is set aside from the present analysis.
+    Excluded,
+}
+
+impl ElementAssessment {
+    /// Returns the stable database representation.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Supports => "supports",
+            Self::Opposes => "opposes",
+            Self::Uncertain => "uncertain",
+            Self::Excluded => "excluded",
+        }
+    }
+
+    /// Parses the stable database representation.
+    pub fn from_db(value: &str) -> Option<Self> {
+        match value {
+            "supports" => Some(Self::Supports),
+            "opposes" => Some(Self::Opposes),
+            "uncertain" => Some(Self::Uncertain),
+            "excluded" => Some(Self::Excluded),
+            _ => None,
+        }
+    }
+}
+
 /// Human review state. Machine suggestions cannot enter a confirmed state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

@@ -40,6 +40,36 @@ exists — even with differently worded reasoning — is refused, so the origina
 keeps its own rationale and its own review history. A reviewer should not face two
 rows saying the same thing, and no view should count it twice.
 
+## Charges and element mapping
+
+A charge is written with its statutory elements or not at all. A charge with no
+elements cannot be reasoned about — the element matrix, the offense comparison,
+and every question a defender asks of a charge are element-by-element — so at
+least one is required and they are written in the same transaction. Ordinals come
+from the order given rather than from the caller, because a statute's elements
+have an order and a gap in it would be a transcription error.
+
+`map_element` records how one proposition bears on one element. The assessment is
+a **direction, not a weight**: `supports`, `opposes`, `uncertain`, or `excluded`.
+Nothing aggregates them. An element with three supporting and three opposing
+propositions is reported as exactly that, and `uncertain` is the honest,
+first-class answer for most contested material rather than a placeholder for an
+assessment somebody has yet to sharpen.
+
+One proposition bears on one element in one direction. Filing the same
+proposition under an element as both `supports` and `opposes` is not a richer
+reading but a contradictory one, so the second is refused and names the direction
+already recorded. Changing an assessment is a real act that should leave a trace;
+until there is a path for it, the existing mapping stands.
+
+Every mapping names the person who made it, and the element matrix reports that
+name. Mappings written before authorship was recorded show no name rather than
+being backfilled with one nobody actually stood behind.
+
+Elements reach propositions through `element_links`, which carries no case column
+of its own. Both the mutation and the views that read it check the case
+explicitly, so one case's element matrix can never surface another's material.
+
 ## Commands
 
 ```sh
@@ -55,7 +85,24 @@ cargo run -- author case-hit-run-001 link \
   --author "A. Reyes"
 ```
 
-`--id` is available on both and is generated when omitted. `--relation` accepts
+```sh
+cargo run -- author case-hit-run-001 charge \
+  --label "Leaving the scene of an accident" \
+  --element "The defendant drove a vehicle." \
+  --element "The vehicle was involved in an accident." \
+  --element "The defendant left without identifying themselves." \
+  --citation "Example Code § 20-166" --grade misdemeanor
+
+cargo run -- author case-hit-run-001 mapping \
+  --element <element-id> --proposition hr-prop-property-damage \
+  --assessment supports \
+  --notes "Damage evidence is stronger than the injury evidence." \
+  --author "A. Reyes"
+```
+
+`--element` is repeated once per element, in statutory order; the ordinals and
+the element identifiers come back in the command's output. `--id` is available on
+each of these and is generated when omitted. `--relation` accepts
 any `EdgeKind`; `--from-kind` and `--to-kind` accept any node the `edges` table
 can point at — `content`, `source`, `proposition`, `event`, `edge`, `entity`, or
 `advocacy`. Charges and elements are deliberately absent: elements reach

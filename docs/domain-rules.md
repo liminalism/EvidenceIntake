@@ -57,4 +57,16 @@ These rules are invariants for the kernel and future UI.
     has no original of its own, so the rationale is the only thing a reviewer or
     later reader can weigh. The same claim is asserted once: repeating it is
     refused rather than written twice.
+22. An element assessment is a direction, not a weight. `supports`, `opposes`,
+    `uncertain`, and `excluded` are never aggregated, and `uncertain` is a
+    first-class answer rather than an unfinished one. One proposition bears on
+    one element in one direction; filing it under two is contradictory, not
+    richer.
+23. A charge is written with its elements or not at all, in statutory order. A
+    charge with no elements cannot be reasoned about, because every question a
+    defender asks of a charge is element-by-element.
+24. Case boundaries hold in the views as well as the writes. `element_links`
+    carries no case column, so both the mutation and the queries that read it
+    check the case explicitly: no case's workspace may surface another's
+    material.
 

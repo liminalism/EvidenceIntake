@@ -1,6 +1,48 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.mutation-api.element-mapping/1 : work {
+    title "Charge recording and element mapping"
+    state completed
+    scope [
+        path "migrations/**",
+        path "src/authoring.rs",
+        path "src/main.rs",
+        path "src/model.rs",
+        path "src/store.rs",
+        path "src/views.rs",
+        path "tests/authoring.rs"
+    ]
+    intent """
+        Let a person record a charge with its statutory elements and map propositions onto those elements, completing the element-by-element workspace the element matrix and offense comparison already render. Fix three defects found in the surrounding read paths while doing it.
+        """
+    claim assessment-is-a-direction {
+        text """
+            An element assessment records a direction, not a weight: supports, opposes, uncertain, excluded, never aggregated. `uncertain` is a first-class answer for contested material rather than an unfinished one.
+            """
+    }
+    claim case-boundaries-hold-in-views {
+        text """
+            element_links carries no case column, and element_matrix and offense_comparison joined propositions without constraining case_id. A row reaching another case's proposition would have surfaced that case's material in this one's workspace. Both queries now constrain it, independently of the mutation's own check.
+            """
+    }
+    claim charge-with-its-elements {
+        text """
+            A charge is written with at least one element, in one transaction, with ordinals assigned from the given order. Every question a defender asks of a charge is element-by-element, so a charge with no elements cannot be reasoned about, and a gap in the ordinals would be a transcription error.
+            """
+    }
+    claim element-mappings-name-their-author {
+        text """
+            element_links was the only record a person writes that carried no author. The column is added by Store::add_column_if_missing because SQLite has no re-runnable ALTER TABLE ADD COLUMN, is nullable because NOT NULL cannot be retrofitted, and is enforced forward by a trigger. Pre-existing rows keep a null author rather than being backfilled with a name nobody stood behind.
+            """
+    }
+    claim one-direction-per-proposition {
+        text """
+            One proposition bears on one element in one direction. The original UNIQUE(element_id, proposition_id, assessment) permitted the same proposition to be filed under an element as both supports and opposes, which is contradictory rather than richer; a unique index on (element_id, proposition_id) closes it.
+            """
+    }
+}
+
 record evidence-intake-project.mutation-api.proposition-authoring/1 : work {
     title "Proposition authoring and evidence linking"
     state completed

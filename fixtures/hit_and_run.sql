@@ -209,18 +209,18 @@ INSERT INTO elements (id, charge_id, ordinal, text) VALUES
   ('hr-el-pd-damage', 'hr-charge-property-flight', 3, 'The collision caused property damage.'),
   ('hr-el-pd-leave', 'hr-charge-property-flight', 4, 'Morgan failed to stop and provide required information.');
 
-INSERT INTO element_links (id, element_id, proposition_id, assessment, notes) VALUES
-  ('hr-link-fi-drive', 'hr-el-fi-drive', 'hr-prop-client-driver', 'uncertain', 'Ownership and broad admission do not yet fix route and time.'),
-  ('hr-link-fi-knowledge', 'hr-el-fi-knowledge', 'hr-prop-knowledge', 'uncertain', 'Impact and maneuver support inference; client disputes awareness.'),
-  ('hr-link-fi-injury', 'hr-el-fi-injury', 'hr-prop-injury', 'uncertain', 'Later soreness conflicts with contemporaneous no-injury report.'),
-  ('hr-link-fi-leave', 'hr-el-fi-leave', 'hr-prop-left', 'supports', 'Video and first account show departure.'),
-  ('hr-link-dui-drive', 'hr-el-dui-drive', 'hr-prop-client-driver', 'uncertain', 'Driving admitted broadly, exact collision-time identity unresolved.'),
-  ('hr-link-dui-impaired', 'hr-el-dui-impaired', 'hr-prop-impaired-driving', 'uncertain', 'No contemporaneous impairment evidence or retrograde estimate.'),
-  ('hr-link-dui-after', 'hr-el-dui-impaired', 'hr-prop-post-driving-alcohol', 'opposes', 'If corroborated, later drinking explains later observations.'),
-  ('hr-link-pd-drive', 'hr-el-pd-drive', 'hr-prop-client-driver', 'uncertain', 'Same driver-identity issue remains.'),
-  ('hr-link-pd-knowledge', 'hr-el-pd-knowledge', 'hr-prop-knowledge', 'uncertain', 'Brief pause and maneuver may support constructive knowledge.'),
-  ('hr-link-pd-damage', 'hr-el-pd-damage', 'hr-prop-property-damage', 'supports', 'Damage evidence is substantially stronger than injury evidence.'),
-  ('hr-link-pd-leave', 'hr-el-pd-leave', 'hr-prop-left', 'supports', 'Departure is recorded and contemporaneously reported.');
+INSERT INTO element_links (id, element_id, proposition_id, assessment, notes, created_by) VALUES
+  ('hr-link-fi-drive', 'hr-el-fi-drive', 'hr-prop-client-driver', 'uncertain', 'Ownership and broad admission do not yet fix route and time.', 'fixture-attorney'),
+  ('hr-link-fi-knowledge', 'hr-el-fi-knowledge', 'hr-prop-knowledge', 'uncertain', 'Impact and maneuver support inference; client disputes awareness.', 'fixture-attorney'),
+  ('hr-link-fi-injury', 'hr-el-fi-injury', 'hr-prop-injury', 'uncertain', 'Later soreness conflicts with contemporaneous no-injury report.', 'fixture-attorney'),
+  ('hr-link-fi-leave', 'hr-el-fi-leave', 'hr-prop-left', 'supports', 'Video and first account show departure.', 'fixture-attorney'),
+  ('hr-link-dui-drive', 'hr-el-dui-drive', 'hr-prop-client-driver', 'uncertain', 'Driving admitted broadly, exact collision-time identity unresolved.', 'fixture-attorney'),
+  ('hr-link-dui-impaired', 'hr-el-dui-impaired', 'hr-prop-impaired-driving', 'uncertain', 'No contemporaneous impairment evidence or retrograde estimate.', 'fixture-attorney'),
+  ('hr-link-dui-after', 'hr-el-dui-impaired', 'hr-prop-post-driving-alcohol', 'opposes', 'If corroborated, later drinking explains later observations.', 'fixture-attorney'),
+  ('hr-link-pd-drive', 'hr-el-pd-drive', 'hr-prop-client-driver', 'uncertain', 'Same driver-identity issue remains.', 'fixture-attorney'),
+  ('hr-link-pd-knowledge', 'hr-el-pd-knowledge', 'hr-prop-knowledge', 'uncertain', 'Brief pause and maneuver may support constructive knowledge.', 'fixture-attorney'),
+  ('hr-link-pd-damage', 'hr-el-pd-damage', 'hr-prop-property-damage', 'supports', 'Damage evidence is substantially stronger than injury evidence.', 'fixture-attorney'),
+  ('hr-link-pd-leave', 'hr-el-pd-leave', 'hr-prop-left', 'supports', 'Departure is recorded and contemporaneously reported.', 'fixture-attorney');
 
 INSERT INTO events
   (id, case_id, label, lane, raw_time, normalized_start, normalized_end, time_basis, location_text, proposition_id, review_state)

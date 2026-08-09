@@ -6,11 +6,12 @@ use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
 use crate::{
-    AuthoredLink, AuthoredProposition, CaseId, DecisionBrief, DiscoveryItem, ElementCoverage,
-    ElementRow, Error, IssueWorkspace, NodeKind, NodeRef, NormalizedBatch, OffenseComparison,
-    Overview, ProposedLink, ProposedProposition, PropositionEvidence, Result, ReviewDecision,
-    ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, TimelineEntry, WitnessStatement,
-    review::transition_allowed,
+    AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredLink, AuthoredProposition,
+    CaseId, DecisionBrief, DiscoveryItem, ElementAssessment, ElementCoverage, ElementRow, Error,
+    IssueWorkspace, NodeKind, NodeRef, NormalizedBatch, OffenseComparison, Overview,
+    ProposedCharge, ProposedElementMapping, ProposedLink, ProposedProposition, PropositionEvidence,
+    Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, TimelineEntry,
+    WitnessStatement, review::transition_allowed,
 };
 
 /// A local SQLite case store.
@@ -42,7 +43,38 @@ impl Store {
         connection.execute_batch(include_str!("../migrations/0001_collation.sql"))?;
         connection.execute_batch(include_str!("../migrations/0002_review.sql"))?;
         connection.execute_batch(include_str!("../migrations/0003_authoring.sql"))?;
+        Self::add_column_if_missing(&connection, "element_links", "created_by", "TEXT")?;
+        connection.execute_batch(include_str!("../migrations/0004_element_mapping.sql"))?;
         Ok(Self { connection })
+    }
+
+    /// Adds a column only when it is absent, so migrations stay re-runnable.
+    ///
+    /// Every migration here executes on every open, which `CREATE ... IF NOT
+    /// EXISTS` makes safe. SQLite has no such form of `ALTER TABLE ADD COLUMN`
+    /// and cannot retrofit a `NOT NULL` constraint onto an existing table, so a
+    /// column added this way is nullable and its guarantee is enforced forward
+    /// by a trigger. Prefer a new table over this when the choice exists.
+    fn add_column_if_missing(
+        connection: &Connection,
+        table: &str,
+        column: &str,
+        definition: &str,
+    ) -> Result<()> {
+        let present = connection
+            .query_row(
+                "SELECT 1 FROM pragma_table_info(?1) WHERE name = ?2",
+                params![table, column],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some();
+        if !present {
+            connection.execute_batch(&format!(
+                "ALTER TABLE {table} ADD COLUMN {column} {definition}"
+            ))?;
+        }
+        Ok(())
     }
 
     /// Returns all cases in stable name order.
@@ -252,12 +284,16 @@ impl Store {
     pub fn element_matrix(&self, case_id: &CaseId) -> Result<Vec<ElementRow>> {
         self.require_case(case_id)?;
         let mut statement = self.connection.prepare(
+            // `prop.case_id` is constrained as well as `ch.case_id`: elements
+            // reach propositions through a table with no case column of its
+            // own, and one case's matrix must never surface another's text.
             "SELECT ch.label, ch.citation, el.ordinal, el.text,
-                    link.assessment, prop.text, link.notes
+                    link.assessment, prop.text, link.notes, link.created_by
              FROM charges ch
              JOIN elements el ON el.charge_id = ch.id
              LEFT JOIN element_links link ON link.element_id = el.id
-             LEFT JOIN propositions prop ON prop.id = link.proposition_id
+             LEFT JOIN propositions prop
+               ON prop.id = link.proposition_id AND prop.case_id = ch.case_id
              WHERE ch.case_id = ?1
              ORDER BY ch.label, el.ordinal,
                CASE link.assessment
@@ -273,6 +309,7 @@ impl Store {
                 assessment: row.get(4)?,
                 proposition: row.get(5)?,
                 notes: row.get(6)?,
+                mapped_by: row.get(7)?,
             })
         })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
@@ -457,7 +494,8 @@ impl Store {
                     COALESCE(content.content_created_at, content.raw_time),
                     content.asserted_time, content.normalized_start,
                     content.extractor, content.extractor_version, content.machine_generated,
-                    content.extractor_confidence, content.review_state, edge.rationale
+                    content.extractor_confidence, content.review_state, edge.rationale,
+                    edge.review_state
              FROM edges edge
              JOIN content ON edge.source_kind = 'content' AND content.id = edge.source_id
              JOIN source_segments segment ON segment.id = content.segment_id
@@ -482,6 +520,7 @@ impl Store {
                 extractor_confidence: row.get(10)?,
                 review_state: row.get(11)?,
                 rationale: row.get(12)?,
+                relation_review_state: row.get(13)?,
             })
         })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
@@ -540,22 +579,29 @@ impl Store {
                             "SELECT link.assessment, prop.text
                              FROM element_links link
                              JOIN propositions prop ON prop.id = link.proposition_id
-                             WHERE link.element_id = ?1
+                             WHERE link.element_id = ?1 AND prop.case_id = ?2
                              ORDER BY link.assessment, prop.text",
                         )?;
                         let assessments = links
-                            .query_map([element_id], |row| {
+                            .query_map(params![element_id, case_id.0], |row| {
                                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
                             })?
                             .collect::<std::result::Result<Vec<_>, _>>()?;
                         for (assessment, proposition) in assessments {
-                            match assessment.as_str() {
-                                "supports" => coverage.supporting.push(proposition),
-                                "opposes" => coverage.opposing.push(proposition),
-                                "uncertain" => coverage.uncertain.push(proposition),
-                                "excluded" => coverage.excluded.push(proposition),
-                                _ => unreachable!("assessment constrained by SQLite"),
+                            let direction =
+                                ElementAssessment::from_db(&assessment).ok_or_else(|| {
+                                    Error::InvalidAuthoring(format!(
+                                        "element `{element_id}` holds unrecognized \
+                                         assessment `{assessment}`"
+                                    ))
+                                })?;
+                            match direction {
+                                ElementAssessment::Supports => &mut coverage.supporting,
+                                ElementAssessment::Opposes => &mut coverage.opposing,
+                                ElementAssessment::Uncertain => &mut coverage.uncertain,
+                                ElementAssessment::Excluded => &mut coverage.excluded,
                             }
+                            .push(proposition);
                         }
                         Ok(coverage)
                     })
@@ -846,21 +892,217 @@ impl Store {
         })
     }
 
-    /// Refuses an identifier already in use, rather than replacing the record.
-    fn refuse_existing_id(&self, kind: NodeKind, id: &str) -> Result<()> {
-        let sql = format!("SELECT 1 FROM {} WHERE id = ?1", kind.table());
-        let taken = self
+    /// Records a charge and its statutory elements in statutory order.
+    ///
+    /// A charge with no elements cannot be reasoned about — the element matrix,
+    /// the offense comparison, and every question a defender asks of a charge
+    /// are element-by-element — so at least one is required, and they are
+    /// written in one transaction with it. Ordinals are assigned from the given
+    /// order rather than accepted from the caller, because a statute's elements
+    /// have an order and a gap in it would be a transcription error.
+    pub fn record_charge(
+        &mut self,
+        case_id: &CaseId,
+        proposal: &ProposedCharge,
+    ) -> Result<AuthoredCharge> {
+        self.require_case(case_id)?;
+        let label = proposal.label.trim();
+        if label.is_empty() {
+            return Err(Error::InvalidAuthoring(
+                "a charge must name an offense".to_owned(),
+            ));
+        }
+        if proposal.elements.is_empty() {
+            return Err(Error::InvalidAuthoring(format!(
+                "charge `{label}` needs at least one element; a charge with none \
+                 cannot be reasoned about element by element"
+            )));
+        }
+
+        let charge_id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_row("charge", "charges", supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+
+        let mut elements = Vec::with_capacity(proposal.elements.len());
+        for (index, element) in proposal.elements.iter().enumerate() {
+            let text = element.text.trim();
+            if text.is_empty() {
+                return Err(Error::InvalidAuthoring(format!(
+                    "element {} of charge `{label}` must say something",
+                    index + 1
+                )));
+            }
+            let id = match element.id.as_deref().map(str::trim) {
+                Some(supplied) if !supplied.is_empty() => {
+                    self.refuse_existing_row("element", "elements", supplied)?;
+                    supplied.to_owned()
+                }
+                _ => Uuid::now_v7().to_string(),
+            };
+            let ordinal = u32::try_from(index + 1).map_err(|_| {
+                Error::InvalidAuthoring("a charge cannot have that many elements".to_owned())
+            })?;
+            elements.push(AuthoredElement {
+                id,
+                ordinal,
+                text: text.to_owned(),
+            });
+        }
+
+        let citation = trimmed(proposal.citation.as_deref());
+        let grade = trimmed(proposal.grade.as_deref());
+        let transaction = self.connection.transaction()?;
+        transaction.execute(
+            "INSERT INTO charges (id, case_id, label, citation, posture, grade)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                charge_id,
+                case_id.0,
+                label,
+                citation,
+                proposal.posture.as_str(),
+                grade
+            ],
+        )?;
+        for element in &elements {
+            transaction.execute(
+                "INSERT INTO elements (id, charge_id, ordinal, text) VALUES (?1, ?2, ?3, ?4)",
+                params![element.id, charge_id, element.ordinal, element.text],
+            )?;
+        }
+        transaction.commit()?;
+
+        Ok(AuthoredCharge {
+            id: charge_id,
+            label: label.to_owned(),
+            citation,
+            posture: proposal.posture.as_str().to_owned(),
+            grade,
+            elements,
+        })
+    }
+
+    /// Records how one proposition bears on one statutory element.
+    ///
+    /// The assessment is a direction, not a weight, and `uncertain` is a
+    /// first-class answer rather than an unfinished one. Nothing aggregates
+    /// these: an element with three supporting and three opposing propositions
+    /// is reported as exactly that.
+    ///
+    /// One proposition bears on one element in one direction, so a proposition
+    /// already mapped to the element is refused rather than filed a second time
+    /// under a contradictory heading.
+    pub fn map_element(
+        &mut self,
+        case_id: &CaseId,
+        proposal: &ProposedElementMapping,
+    ) -> Result<AuthoredElementMapping> {
+        self.require_case(case_id)?;
+        let author = require_named_person(&proposal.author)?;
+
+        // Elements are scoped to a case through their charge, not directly.
+        self.connection
+            .query_row(
+                "SELECT 1 FROM elements el
+                 JOIN charges ch ON ch.id = el.charge_id
+                 WHERE el.id = ?1 AND ch.case_id = ?2",
+                params![proposal.element_id, case_id.0],
+                |_| Ok(()),
+            )
+            .optional()?
+            .ok_or_else(|| Error::NotFound {
+                kind: "element",
+                id: proposal.element_id.clone(),
+            })?;
+        self.require_node(
+            case_id,
+            &NodeRef::new(NodeKind::Proposition, &proposal.proposition_id),
+        )?;
+
+        if let Some(existing) =
+            self.existing_assessment(&proposal.element_id, &proposal.proposition_id)?
+        {
+            return Err(Error::ElementAlreadyMapped {
+                element: proposal.element_id.clone(),
+                proposition: proposal.proposition_id.clone(),
+                assessment: existing,
+            });
+        }
+
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_row("element mapping", "element_links", supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+        let notes = trimmed(proposal.notes.as_deref());
+
+        self.connection.execute(
+            "INSERT INTO element_links
+               (id, element_id, proposition_id, assessment, notes, created_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                id,
+                proposal.element_id,
+                proposal.proposition_id,
+                proposal.assessment.as_str(),
+                notes,
+                author
+            ],
+        )?;
+
+        Ok(AuthoredElementMapping {
+            id,
+            element_id: proposal.element_id.clone(),
+            proposition_id: proposal.proposition_id.clone(),
+            assessment: proposal.assessment.as_str().to_owned(),
+            notes,
+            created_by: author.to_owned(),
+        })
+    }
+
+    /// Returns the direction a proposition is already filed under, if any.
+    fn existing_assessment(
+        &self,
+        element_id: &str,
+        proposition_id: &str,
+    ) -> Result<Option<String>> {
+        self.connection
+            .query_row(
+                "SELECT assessment FROM element_links
+                 WHERE element_id = ?1 AND proposition_id = ?2",
+                params![element_id, proposition_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
+    /// Refuses an identifier already in use in a table that is not a graph node.
+    fn refuse_existing_row(&self, kind: &'static str, table: &str, id: &str) -> Result<()> {
+        let sql = format!("SELECT 1 FROM {table} WHERE id = ?1");
+        if self
             .connection
             .query_row(&sql, [id], |_| Ok(()))
             .optional()?
-            .is_some();
-        if taken {
+            .is_some()
+        {
             return Err(Error::AlreadyExists {
-                kind: kind.as_str(),
+                kind,
                 id: id.to_owned(),
             });
         }
         Ok(())
+    }
+
+    /// Refuses a node identifier already in use, rather than replacing the record.
+    fn refuse_existing_id(&self, kind: NodeKind, id: &str) -> Result<()> {
+        self.refuse_existing_row(kind.as_str(), kind.table(), id)
     }
 
     /// Requires that a node exists and belongs to the case being worked on.
@@ -982,6 +1224,17 @@ impl Store {
                 id: case_id.0.clone(),
             })
     }
+}
+
+/// Returns an optional free-text field with surrounding space and blanks removed.
+///
+/// A field a person left blank and a field they filled with spaces mean the same
+/// thing, and neither should be stored as if something had been written.
+fn trimmed(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 /// Requires that a named person stands behind a mutation.
@@ -1133,6 +1386,91 @@ mod schema {
             .seed(&mut store)
             .expect("seed hit-and-run");
         store
+    }
+
+    fn both_cases() -> Store {
+        let mut store = seeded();
+        crate::DemoFixture::VehicleStop
+            .seed(&mut store)
+            .expect("seed vehicle-stop");
+        store
+    }
+
+    #[test]
+    fn an_element_mapping_cannot_be_written_without_an_author() {
+        let store = seeded();
+        for author in ["NULL", "'   '"] {
+            let error = store
+                .connection
+                .execute(
+                    &format!(
+                        "INSERT INTO element_links
+                           (id, element_id, proposition_id, assessment, created_by)
+                         VALUES ('anonymous', 'hr-el-fi-drive', 'hr-prop-injury',
+                                 'supports', {author})"
+                    ),
+                    [],
+                )
+                .expect_err("an unattributed mapping must be refused");
+            assert!(
+                error.to_string().contains("must name the person"),
+                "{error}"
+            );
+        }
+    }
+
+    /// The store refuses to write one, but the view must not depend on that: a
+    /// row reaching another case's proposition is exactly the kind of thing a
+    /// future writer, an import, or a hand-edited database could introduce, and
+    /// it would put privileged material from one case into another's matrix.
+    #[test]
+    fn a_cross_case_element_mapping_never_surfaces_in_a_view() {
+        let store = both_cases();
+        store
+            .connection
+            .execute(
+                "INSERT INTO element_links
+                   (id, element_id, proposition_id, assessment, created_by)
+                 VALUES ('smuggled', 'hr-el-fi-drive', 'prop-consent', 'supports', 'nobody')",
+                [],
+            )
+            .expect("the schema alone does not stop this");
+
+        let hit_run = crate::CaseId("case-hit-run-001".to_owned());
+        let leaked = store
+            .connection
+            .query_row(
+                "SELECT text FROM propositions WHERE id = 'prop-consent'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("the other case's proposition");
+
+        assert!(
+            store
+                .element_matrix(&hit_run)
+                .expect("matrix")
+                .iter()
+                .all(|row| row.proposition.as_deref() != Some(leaked.as_str())),
+            "the element matrix must not surface another case's proposition"
+        );
+        assert!(
+            store
+                .offense_comparison(&hit_run)
+                .expect("offenses")
+                .iter()
+                .flat_map(|charge| &charge.elements)
+                .flat_map(|element| {
+                    element
+                        .supporting
+                        .iter()
+                        .chain(&element.opposing)
+                        .chain(&element.uncertain)
+                        .chain(&element.excluded)
+                })
+                .all(|proposition| proposition != &leaked),
+            "the offense comparison must not surface another case's proposition"
+        );
     }
 
     /// `propositions` and `events` are review targets, so an unrecognized state

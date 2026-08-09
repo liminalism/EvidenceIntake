@@ -19,6 +19,8 @@ This initial milestone provides:
   original it was checked against;
 - human authoring of contested propositions and typed, reasoned evidence links,
   which enter unreviewed because writing something down is not checking it;
+- charges recorded with their statutory elements, and attributed element
+  assessments that record a direction rather than a score;
 - decision-oriented discovery, element, witness, timeline, issue, and brief
   read models;
 - an adapter-neutral contract for already-OCRed documents, timestamped audio
@@ -92,9 +94,9 @@ enter through `NormalizedBatch`; machine content must begin as `suggested` and
 preserves model version, confidence, original-source hash, and exact locator.
 
 Human review and human authoring are now first-class mutations, the first with
-its own immutable trail. The remaining backend milestone is the rest of the
-mutation API: element mapping and versioned work product. The WinSafe GUI
-remains a separate later milestone.
+its own immutable trail. The remaining backend milestone is versioned work
+product: advocacy items, annotations, and decision briefs, which are authored
+today only by the fixtures. The WinSafe GUI remains a separate later milestone.
 
 ## Development
 

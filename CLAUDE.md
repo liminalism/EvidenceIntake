@@ -38,6 +38,9 @@ Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs 
   a single `rusqlite::Connection`. Migrations are `include_str!`d from `migrations/` and executed
   on every `Store::open`/`in_memory` (idempotent `CREATE ... IF NOT EXISTS`); there is no version
   table, so schema changes go in a new numbered migration file that is additive and re-runnable.
+  SQLite has no re-runnable `ALTER TABLE ADD COLUMN` and cannot retrofit `NOT NULL`, so a
+  retrofitted column goes through `Store::add_column_if_missing` and its guarantee is enforced
+  forward by a trigger; prefer a new table when the choice exists.
 - `src/model.rs` — the domain vocabulary (`SourceKind`, `ContentKind`, `EdgeKind`, `ReviewState`,
   `AdvocacyKind`, `TimelineLane`). Each enum has `as_str()` returning the **stable database
   representation**, mirrored by a `CHECK(... IN (...))` constraint in the migration. Adding a
@@ -46,10 +49,11 @@ Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs 
   is atomic and validates hashes, offsets, confidence range, production ownership, and the rule
   that machine-generated content cannot arrive already verified.
 - `src/authoring.rs` — human authoring input and result types only (no behavior), the
-  counterpart to `ingest.rs`. `Store::author_proposition` and `Store::link_evidence` enforce
-  the rules: authored records enter `unreviewed` and `contested`, every link carries a
-  written rationale, both endpoints must exist inside the case, and the same claim is never
-  asserted twice.
+  counterpart to `ingest.rs`. `Store::author_proposition`, `link_evidence`, `record_charge`,
+  and `map_element` enforce the rules: authored records enter `unreviewed` and `contested`,
+  every link carries a written rationale, every mapping names its author, a charge is written
+  with its elements or not at all, both endpoints must exist inside the case, and the same
+  claim is never asserted twice.
 - `src/review.rs` — review vocabulary plus `transition_allowed`, the state-machine predicate.
 - `src/views.rs` — serializable read models (`Overview`, `DiscoveryItem`, `ElementRow`,
   `WitnessStatement`, `TimelineEntry`, `IssueWorkspace`, `DecisionBrief`, `PropositionEvidence`,
@@ -78,6 +82,9 @@ The graph is node tables (`sources`, `source_segments`, `content`, `entities`, `
 - **Authoring is not review.** A proposition or link a person writes enters `unreviewed` and
   waits in the same queue; authoring can never produce a reviewed state, and an authored
   proposition is always `contested`. Every link carries a written rationale.
+- **Case boundaries hold in the views, not just the writes.** `element_links` has no case
+  column, so `element_matrix` and `offense_comparison` constrain `propositions.case_id`
+  themselves. Any new query joining through a table without a case column must do the same.
 - **`verified` must cite the original.** Content and sources have one exact locator and the cited
   locator must match verbatim (`Error::LocatorMismatch`); edges, propositions, and events span
   sources, so they require a written `basis` instead. `rejected` always requires a `basis`.

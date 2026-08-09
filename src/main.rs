@@ -4,8 +4,9 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence_intake::{
-    CaseId, DemoFixture, EdgeKind, NodeKind, NodeRef, ProposedLink, ProposedProposition, Result,
-    ReviewDecision, ReviewState, ReviewTarget, Store,
+    CaseId, ChargePosture, DemoFixture, EdgeKind, ElementAssessment, NodeKind, NodeRef,
+    ProposedCharge, ProposedElement, ProposedElementMapping, ProposedLink, ProposedProposition,
+    Result, ReviewDecision, ReviewState, ReviewTarget, Store,
 };
 use serde::Serialize;
 
@@ -94,6 +95,86 @@ enum AuthorItem {
         #[arg(long)]
         id: Option<String>,
     },
+    /// Record a charge and its statutory elements, in statutory order.
+    Charge {
+        /// The offense as a person would name it.
+        #[arg(long)]
+        label: String,
+        /// One element; repeat once per element, in statutory order.
+        #[arg(long = "element", required = true)]
+        elements: Vec<String>,
+        /// How the charge stands in the case.
+        #[arg(long, value_enum, default_value_t = PostureArg::Charged)]
+        posture: PostureArg,
+        /// Statutory or other citation.
+        #[arg(long)]
+        citation: Option<String>,
+        /// Felony, misdemeanor, infraction, or a local grade.
+        #[arg(long)]
+        grade: Option<String>,
+        /// Stable identifier; generated when omitted.
+        #[arg(long)]
+        id: Option<String>,
+    },
+    /// Record how one proposition bears on one statutory element.
+    Mapping {
+        /// The element being mapped.
+        #[arg(long)]
+        element: String,
+        /// The contested proposition bearing on it.
+        #[arg(long)]
+        proposition: String,
+        /// The direction of that bearing. Not a weight.
+        #[arg(long, value_enum)]
+        assessment: AssessmentArg,
+        /// Why the mapping reads that way.
+        #[arg(long)]
+        notes: Option<String>,
+        /// Named person accountable for the assessment.
+        #[arg(long)]
+        author: String,
+        /// Stable identifier; generated when omitted.
+        #[arg(long)]
+        id: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum PostureArg {
+    Charged,
+    LesserCandidate,
+    Alternative,
+    Dismissed,
+}
+
+impl From<PostureArg> for ChargePosture {
+    fn from(value: PostureArg) -> Self {
+        match value {
+            PostureArg::Charged => Self::Charged,
+            PostureArg::LesserCandidate => Self::LesserCandidate,
+            PostureArg::Alternative => Self::Alternative,
+            PostureArg::Dismissed => Self::Dismissed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AssessmentArg {
+    Supports,
+    Opposes,
+    Uncertain,
+    Excluded,
+}
+
+impl From<AssessmentArg> for ElementAssessment {
+    fn from(value: AssessmentArg) -> Self {
+        match value {
+            AssessmentArg::Supports => Self::Supports,
+            AssessmentArg::Opposes => Self::Opposes,
+            AssessmentArg::Uncertain => Self::Uncertain,
+            AssessmentArg::Excluded => Self::Excluded,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -364,6 +445,45 @@ fn run() -> Result<()> {
                         author,
                     };
                     print_json(&store.link_evidence(&case_id, &proposal)?)?;
+                }
+                AuthorItem::Charge {
+                    label,
+                    elements,
+                    posture,
+                    citation,
+                    grade,
+                    id,
+                } => {
+                    let proposal = ProposedCharge {
+                        id,
+                        label,
+                        citation,
+                        posture: ChargePosture::from(posture),
+                        grade,
+                        elements: elements
+                            .into_iter()
+                            .map(|text| ProposedElement { id: None, text })
+                            .collect(),
+                    };
+                    print_json(&store.record_charge(&case_id, &proposal)?)?;
+                }
+                AuthorItem::Mapping {
+                    element,
+                    proposition,
+                    assessment,
+                    notes,
+                    author,
+                    id,
+                } => {
+                    let proposal = ProposedElementMapping {
+                        id,
+                        element_id: element,
+                        proposition_id: proposition,
+                        assessment: ElementAssessment::from(assessment),
+                        notes,
+                        author,
+                    };
+                    print_json(&store.map_element(&case_id, &proposal)?)?;
                 }
             }
         }

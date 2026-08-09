@@ -172,9 +172,9 @@ fn seed_vehicle_stop(transaction: &rusqlite::Transaction<'_>) -> Result<()> {
           ('element-object', 'charge-possession', 1, 'The recovered object was a firearm.'),
           ('element-possession', 'charge-possession', 2, 'Rivera possessed or exercised control over the firearm.'),
           ('element-knowing', 'charge-possession', 3, 'The possession was knowing.');
-        INSERT INTO element_links (id, element_id, proposition_id, assessment, notes) VALUES
-          ('elink-possession', 'element-possession', 'prop-possession', 'uncertain', 'Conflicting attributed Patel accounts; recovery sequence is not produced.'),
-          ('elink-knowing', 'element-knowing', 'prop-possession', 'uncertain', 'Same disputed inference bears on knowledge.');
+        INSERT INTO element_links (id, element_id, proposition_id, assessment, notes, created_by) VALUES
+          ('elink-possession', 'element-possession', 'prop-possession', 'uncertain', 'Conflicting attributed Patel accounts; recovery sequence is not produced.', 'fixture-attorney'),
+          ('elink-knowing', 'element-knowing', 'prop-possession', 'uncertain', 'Same disputed inference bears on knowledge.', 'fixture-attorney');
 
         INSERT INTO events
           (id, case_id, label, lane, raw_time, normalized_start, normalized_end, time_basis, location_text, proposition_id, review_state)
