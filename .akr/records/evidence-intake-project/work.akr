@@ -197,6 +197,40 @@ record evidence-intake-project.mutation-api.versioned-work-product/1 : work {
     }
 }
 
+record evidence-intake-project.performance.read-path-optimization/1 : work {
+    title "Optimize the kernel's read and write paths without changing what it stores"
+    state proposed
+    scope [
+        path "Cargo.toml",
+        path "migrations/0006_read_paths.sql",
+        path "src/main.rs",
+        path "src/store.rs"
+    ]
+    intent """
+        Remove repeated SQL compilation and per-row query fan-out from the store, stamp the schema version so an up-to-date database skips migration DDL on open, and index the read paths that were scanning. Nothing about what the kernel stores, refuses, or reports may change.
+        """
+    claim cached-statements {
+        text """
+            Every query goes through prepare_cached rather than prepare, with a statement cache sized above the module's distinct query count, so a read model never recompiles the same SQL once per row.
+            """
+    }
+    claim no-per-row-queries {
+        text """
+            export_case, offense_comparison, issue_workspaces and witness_dossier read their material in a fixed number of statements instead of one query per proposition, charge, element or issue.
+            """
+    }
+    claim partial-review-indexes {
+        text """
+            The review-queue indexes are partial on the two intake states, so they hold the work queue and nothing else, and shrink as a case is reviewed rather than growing.
+            """
+    }
+    claim version-stamped-migrations {
+        text """
+            PRAGMA user_version records SCHEMA_VERSION so an already-current database skips the migration DDL on open. Migrations stay additive and re-runnable because any database at a lower version -- including zero, which is every database written before the stamp -- runs all of them.
+            """
+    }
+}
+
 record evidence-intake-project.workspace.source-linked-export/1 : work {
     title "Audience-aware source-linked export"
     state completed

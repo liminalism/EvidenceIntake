@@ -26,6 +26,15 @@ uuid = { version = "1.24.0", features = ["serde", "v7"] }
 [dev-dependencies]
 tempfile = "3.23.0"
 
+[profile.release]
+# The kernel is one crate over a bundled SQLite, and its hot paths are small
+# functions crossing the library/binary boundary. Whole-program optimization
+# with a single codegen unit lets those inline; the build is slower and nothing
+# about the released binary's behavior changes.
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
 [lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"

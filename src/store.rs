@@ -1,5 +1,6 @@
 //! SQLite persistence and decision-oriented queries.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -16,6 +17,34 @@ use crate::{
     SuggestionKind, SuggestionRun, TimelineEntry, UnsupportedProposition, WitnessStatement,
     WorkProductVersion, review::transition_allowed, suggest::Finding,
 };
+
+/// Number of migrations applied by [`Store::migrate`].
+///
+/// Recorded in `PRAGMA user_version` so an already-current database can skip
+/// re-executing several hundred lines of idempotent DDL on every open. The
+/// migrations stay additive and re-runnable regardless: a database at any
+/// earlier version — including one written before this stamp existed, which
+/// reads as zero — runs all of them again.
+const SCHEMA_VERSION: i64 = 6;
+
+/// Distinct prepared statements kept compiled per connection.
+///
+/// Chosen to exceed the number of distinct queries in this module so the
+/// working set never evicts itself mid-view.
+const STATEMENT_CACHE_CAPACITY: usize = 64;
+
+/// The factual material bearing on one issue.
+///
+/// Follow-up edges are excluded: they carry the issue's open tasks, which the
+/// workspace reports separately, and listing them here would show the same work
+/// twice under two headings.
+const MATERIAL_FOR_ISSUE: &str =
+    "SELECT relation || ': ' || COALESCE(rationale, source_kind || ' ' || source_id)
+     FROM edges
+     WHERE case_id = ?1 AND relation <> 'requires_follow_up'
+       AND ((target_kind = 'advocacy' AND target_id = ?2)
+         OR (source_kind = 'advocacy' AND source_id = ?2))
+     ORDER BY relation, id";
 
 /// A local SQLite case store.
 ///
@@ -41,21 +70,43 @@ impl Store {
         connection.execute_batch(
             "PRAGMA foreign_keys = ON;
              PRAGMA journal_mode = WAL;
-             PRAGMA synchronous = FULL;",
+             PRAGMA synchronous = FULL;
+             PRAGMA temp_store = MEMORY;",
         )?;
+        // Every read model here runs the same handful of queries repeatedly, so
+        // the statement cache has to be large enough to hold all of them at
+        // once; an LRU too small to fit the working set recompiles on every
+        // call and costs more than no cache at all.
+        connection.set_prepared_statement_cache_capacity(STATEMENT_CACHE_CAPACITY);
+
+        let applied: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        if applied < SCHEMA_VERSION {
+            Self::migrate(&connection)?;
+            connection.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))?;
+        }
+        Ok(Self { connection })
+    }
+
+    /// Applies every migration in order.
+    ///
+    /// Each one is additive and re-runnable, so this is safe to execute against
+    /// a database at any earlier version — including one predating the version
+    /// stamp entirely, which reads as version zero and receives all of them.
+    fn migrate(connection: &Connection) -> Result<()> {
         connection.execute_batch(include_str!("../migrations/0001_collation.sql"))?;
         connection.execute_batch(include_str!("../migrations/0002_review.sql"))?;
         connection.execute_batch(include_str!("../migrations/0003_authoring.sql"))?;
-        Self::add_column_if_missing(&connection, "element_links", "created_by", "TEXT")?;
+        Self::add_column_if_missing(connection, "element_links", "created_by", "TEXT")?;
         connection.execute_batch(include_str!("../migrations/0004_element_mapping.sql"))?;
         Self::add_column_if_missing(
-            &connection,
+            connection,
             "advocacy_items",
             "supersedes_advocacy_id",
             "TEXT REFERENCES advocacy_items(id)",
         )?;
         connection.execute_batch(include_str!("../migrations/0005_work_product.sql"))?;
-        Ok(Self { connection })
+        connection.execute_batch(include_str!("../migrations/0006_read_paths.sql"))?;
+        Ok(())
     }
 
     /// Adds a column only when it is absent, so migrations stay re-runnable.
@@ -107,102 +158,108 @@ impl Store {
         validate_batch(batch)?;
         let transaction = self.connection.transaction()?;
 
+        // A batch is many rows of three shapes, so each statement is compiled
+        // once and reused for every row rather than once per row.
+        let mut owning_production = transaction
+            .prepare_cached("SELECT 1 FROM productions WHERE id = ?1 AND case_id = ?2")?;
+        let mut insert_source = transaction.prepare_cached(
+            "INSERT INTO sources
+               (id, case_id, production_id, logical_name, media_type, source_kind,
+                temporal_relation, sha256, byte_length)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        )?;
+        let mut insert_segment = transaction.prepare_cached(
+            "INSERT INTO source_segments
+               (id, source_id, locator, page, start_ms, end_ms, bbox_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        )?;
+        let mut insert_content = transaction.prepare_cached(
+            "INSERT INTO content
+               (id, case_id, segment_id, kind, text, speaker_entity_id,
+                attributed_to_entity_id, parent_content_id, raw_time,
+                content_created_at, asserted_time, normalized_start, normalized_end, time_basis,
+                location_text, extractor, extractor_version, machine_generated,
+                extractor_confidence, review_state)
+             VALUES
+               (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
+                ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+        )?;
+
         for source in &batch.sources {
-            let production_case: Option<String> = transaction
-                .query_row(
-                    "SELECT case_id FROM productions WHERE id = ?1",
-                    [&source.production_id],
-                    |row| row.get(0),
-                )
-                .optional()?;
-            if production_case.as_deref() != Some(batch.case_id.0.as_str()) {
+            let owned = owning_production
+                .query_row(params![source.production_id, batch.case_id.0], |_| Ok(()))
+                .optional()?
+                .is_some();
+            if !owned {
                 return Err(Error::InvalidFixture(format!(
                     "production `{}` does not belong to case `{}`",
                     source.production_id, batch.case_id
                 )));
             }
 
-            transaction.execute(
-                "INSERT INTO sources
-                   (id, case_id, production_id, logical_name, media_type, source_kind,
-                    temporal_relation, sha256, byte_length)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-                params![
-                    source.id,
-                    batch.case_id.0,
-                    source.production_id,
-                    source.logical_name,
-                    source.media_type,
-                    source.source_kind.as_str(),
-                    source.temporal_relation.as_str(),
-                    source.sha256,
-                    to_sql_integer(source.byte_length, "source byte length")?
-                ],
-            )?;
+            insert_source.execute(params![
+                source.id,
+                batch.case_id.0,
+                source.production_id,
+                source.logical_name,
+                source.media_type,
+                source.source_kind.as_str(),
+                source.temporal_relation.as_str(),
+                source.sha256,
+                to_sql_integer(source.byte_length, "source byte length")?
+            ])?;
 
             for segment in &source.segments {
                 let bounding_box = segment
                     .bounding_box
                     .map(|value| serde_json::to_string(&value))
                     .transpose()?;
-                transaction.execute(
-                    "INSERT INTO source_segments
-                       (id, source_id, locator, page, start_ms, end_ms, bbox_json)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    params![
-                        segment.id,
-                        source.id,
-                        segment.locator,
-                        segment.page,
-                        segment
-                            .start_ms
-                            .map(|value| to_sql_integer(value, "segment start"))
-                            .transpose()?,
-                        segment
-                            .end_ms
-                            .map(|value| to_sql_integer(value, "segment end"))
-                            .transpose()?,
-                        bounding_box
-                    ],
-                )?;
+                insert_segment.execute(params![
+                    segment.id,
+                    source.id,
+                    segment.locator,
+                    segment.page,
+                    segment
+                        .start_ms
+                        .map(|value| to_sql_integer(value, "segment start"))
+                        .transpose()?,
+                    segment
+                        .end_ms
+                        .map(|value| to_sql_integer(value, "segment end"))
+                        .transpose()?,
+                    bounding_box
+                ])?;
 
                 for content in &segment.content {
-                    transaction.execute(
-                        "INSERT INTO content
-                           (id, case_id, segment_id, kind, text, speaker_entity_id,
-                            attributed_to_entity_id, parent_content_id, raw_time,
-                            content_created_at, asserted_time, normalized_start, normalized_end, time_basis,
-                            location_text, extractor, extractor_version, machine_generated,
-                            extractor_confidence, review_state)
-                         VALUES
-                           (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
-                            ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
-                        params![
-                            content.id,
-                            batch.case_id.0,
-                            segment.id,
-                            content.kind.as_str(),
-                            content.text,
-                            content.speaker_entity_id,
-                            content.attributed_to_entity_id,
-                            content.parent_content_id,
-                            content.raw_time,
-                            content.content_created_at,
-                            content.asserted_time,
-                            content.normalized_start,
-                            content.normalized_end,
-                            content.time_basis,
-                            content.location_text,
-                            content.extraction.extractor,
-                            content.extraction.version,
-                            content.extraction.machine_generated,
-                            content.extraction.confidence,
-                            content.extraction.review_state.as_str(),
-                        ],
-                    )?;
+                    insert_content.execute(params![
+                        content.id,
+                        batch.case_id.0,
+                        segment.id,
+                        content.kind.as_str(),
+                        content.text,
+                        content.speaker_entity_id,
+                        content.attributed_to_entity_id,
+                        content.parent_content_id,
+                        content.raw_time,
+                        content.content_created_at,
+                        content.asserted_time,
+                        content.normalized_start,
+                        content.normalized_end,
+                        content.time_basis,
+                        content.location_text,
+                        content.extraction.extractor,
+                        content.extraction.version,
+                        content.extraction.machine_generated,
+                        content.extraction.confidence,
+                        content.extraction.review_state.as_str(),
+                    ])?;
                 }
             }
         }
+        drop(insert_content);
+        drop(insert_segment);
+        drop(insert_source);
+        drop(owning_production);
         transaction.commit()?;
         Ok(())
     }
@@ -210,58 +267,64 @@ impl Store {
     /// Returns a non-evaluative case overview.
     pub fn overview(&self, case_id: &CaseId) -> Result<Overview> {
         let name = self.case_name(case_id)?;
-        let count = |sql: &str| -> Result<u32> {
-            self.connection
-                .query_row(sql, [&case_id.0], |row| row.get(0))
-                .map_err(Into::into)
-        };
-        Ok(Overview {
-            case_id: case_id.0.clone(),
-            case_name: name,
-            productions: count("SELECT count(*) FROM productions WHERE case_id = ?1")?,
-            sources: count("SELECT count(*) FROM sources WHERE case_id = ?1")?,
-            unreviewed_sources: count(
-                "SELECT count(*) FROM sources WHERE case_id = ?1 AND review_state = 'unreviewed'",
-            )?,
-            missing_references: count(
-                "SELECT count(*) FROM content
+        // One statement rather than eight. The counts are independent of each
+        // other, so SQLite computes them in a single pass over the case and the
+        // caller pays one round trip instead of eight.
+        self.query_one(
+            "SELECT
+               (SELECT count(*) FROM productions WHERE case_id = ?1),
+               (SELECT count(*) FROM sources WHERE case_id = ?1),
+               (SELECT count(*) FROM sources
+                 WHERE case_id = ?1 AND review_state = 'unreviewed'),
+               (SELECT count(*) FROM content
                  WHERE case_id = ?1 AND kind = 'evidence_reference'
                    AND id IN (
                      SELECT source_id FROM edges
                      WHERE case_id = ?1 AND source_kind = 'content'
-                       AND relation = 'expected_but_missing'
-                   )",
-            )?,
-            propositions: count("SELECT count(*) FROM propositions WHERE case_id = ?1")?,
-            pending_review: count(
-                "SELECT count(*) FROM (
-                   SELECT id FROM content WHERE case_id = ?1
-                     AND review_state IN ('unreviewed','suggested')
-                   UNION ALL
-                   SELECT id FROM sources WHERE case_id = ?1
-                     AND review_state IN ('unreviewed','suggested')
-                   UNION ALL
-                   SELECT id FROM edges WHERE case_id = ?1
-                     AND review_state IN ('unreviewed','suggested')
-                   UNION ALL
-                   SELECT id FROM propositions WHERE case_id = ?1
-                     AND review_state IN ('unreviewed','suggested')
-                   UNION ALL
-                   SELECT id FROM events WHERE case_id = ?1
-                     AND review_state IN ('unreviewed','suggested')
-                 )",
-            )?,
-            open_advocacy_items: count(
-                "SELECT count(*) FROM advocacy_items
-                 WHERE case_id = ?1 AND status NOT IN ('complete', 'closed')",
-            )?,
+                       AND relation = 'expected_but_missing')),
+               (SELECT count(*) FROM propositions WHERE case_id = ?1),
+               (SELECT count(*) FROM (
+                  SELECT id FROM content WHERE case_id = ?1
+                    AND review_state IN ('unreviewed','suggested')
+                  UNION ALL
+                  SELECT id FROM sources WHERE case_id = ?1
+                    AND review_state IN ('unreviewed','suggested')
+                  UNION ALL
+                  SELECT id FROM edges WHERE case_id = ?1
+                    AND review_state IN ('unreviewed','suggested')
+                  UNION ALL
+                  SELECT id FROM propositions WHERE case_id = ?1
+                    AND review_state IN ('unreviewed','suggested')
+                  UNION ALL
+                  SELECT id FROM events WHERE case_id = ?1
+                    AND review_state IN ('unreviewed','suggested'))),
+               (SELECT count(*) FROM advocacy_items
+                 WHERE case_id = ?1 AND status NOT IN ('complete', 'closed'))",
+            [&case_id.0],
+            |row| {
+                Ok(Overview {
+                    case_id: case_id.0.clone(),
+                    case_name: name,
+                    productions: row.get(0)?,
+                    sources: row.get(1)?,
+                    unreviewed_sources: row.get(2)?,
+                    missing_references: row.get(3)?,
+                    propositions: row.get(4)?,
+                    pending_review: row.get(5)?,
+                    open_advocacy_items: row.get(6)?,
+                })
+            },
+        )?
+        .ok_or_else(|| Error::NotFound {
+            kind: "case",
+            id: case_id.0.clone(),
         })
     }
 
     /// Builds the discovery ledger, including referenced-but-missing evidence.
     pub fn discovery_ledger(&self, case_id: &CaseId) -> Result<Vec<DiscoveryItem>> {
         self.require_case(case_id)?;
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT p.label, p.received_at, s.logical_name, s.media_type,
                     s.source_kind, s.temporal_relation, s.integrity_status,
                     s.review_state, prior.logical_name
@@ -293,7 +356,7 @@ impl Store {
     /// Builds the charge-element matrix without reducing contested links to a score.
     pub fn element_matrix(&self, case_id: &CaseId) -> Result<Vec<ElementRow>> {
         self.require_case(case_id)?;
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             // `prop.case_id` is constrained as well as `ch.case_id`: elements
             // reach propositions through a table with no case column of its
             // own, and one case's matrix must never surface another's text.
@@ -333,7 +396,7 @@ impl Store {
         entity_id: &str,
     ) -> Result<Vec<WitnessStatement>> {
         self.require_case(case_id)?;
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT c.id, reporter.display_name, attributed.display_name, c.text,
                     COALESCE(c.content_created_at, c.raw_time), seg.locator, src.logical_name,
                     c.review_state
@@ -362,15 +425,15 @@ impl Store {
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
+        let mut links = self.connection.prepare_cached(
+            "SELECT relation || ': ' || COALESCE(rationale, target_kind || ' ' || target_id)
+             FROM edges
+             WHERE case_id = ?1 AND source_kind = 'content' AND source_id = ?2
+               AND relation IN ('contradicts','corroborates','impeaches','qualifies','explains')
+             ORDER BY relation, id",
+        )?;
         base.into_iter()
             .map(|mut item| {
-                let mut links = self.connection.prepare(
-                    "SELECT relation || ': ' || COALESCE(rationale, target_kind || ' ' || target_id)
-                     FROM edges
-                     WHERE case_id = ?1 AND source_kind = 'content' AND source_id = ?2
-                       AND relation IN ('contradicts','corroborates','impeaches','qualifies','explains')
-                     ORDER BY relation, id",
-                )?;
                 item.credibility_links = links
                     .query_map(params![case_id.0, item.id], |row| row.get(0))?
                     .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -382,7 +445,7 @@ impl Store {
     /// Returns the contested timeline with source accounts kept in separate lanes.
     pub fn contested_timeline(&self, case_id: &CaseId) -> Result<Vec<TimelineEntry>> {
         self.require_case(case_id)?;
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT ev.id, ev.lane, ev.label, ev.raw_time, ev.normalized_start,
                     ev.time_basis, ev.location_text, prop.text
              FROM events ev
@@ -412,7 +475,7 @@ impl Store {
     /// still readable through `advocacy_history`, but it is not a second issue.
     pub fn issue_workspaces(&self, case_id: &CaseId) -> Result<Vec<IssueWorkspace>> {
         self.require_case(case_id)?;
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT id, title, body, status FROM advocacy_items item
              WHERE case_id = ?1 AND kind IN ('legal_issue','motion_issue')
                AND NOT EXISTS (SELECT 1 FROM advocacy_items later
@@ -435,7 +498,7 @@ impl Store {
         // Tasks belong to the issue that raised them. Listing every open task in
         // the case under every issue told a defender reading the suppression
         // workspace to chase work that belongs to an unrelated question.
-        let mut tasks = self.connection.prepare(
+        let mut tasks = self.connection.prepare_cached(
             "SELECT task.title || ': ' || task.body
              FROM edges link
              JOIN advocacy_items task
@@ -450,10 +513,14 @@ impl Store {
              ORDER BY task.title",
         )?;
 
+        let mut material = self.connection.prepare_cached(MATERIAL_FOR_ISSUE)?;
+
         issues
             .into_iter()
             .map(|mut issue| {
-                issue.linked_material = self.edge_descriptions(case_id, &issue.id)?;
+                issue.linked_material = material
+                    .query_map(params![case_id.0, issue.id], |row| row.get(0))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
                 issue.follow_up = tasks
                     .query_map(params![case_id.0, issue.id], |row| row.get(0))?
                     .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -500,23 +567,17 @@ impl Store {
         proposition_id: &str,
     ) -> Result<Vec<PropositionEvidence>> {
         self.require_case(case_id)?;
-        let proposition_exists = self
-            .connection
-            .query_row(
-                "SELECT 1 FROM propositions WHERE id = ?1 AND case_id = ?2",
-                params![proposition_id, case_id.0],
-                |_| Ok(()),
-            )
-            .optional()?
-            .is_some();
-        if !proposition_exists {
+        if !self.exists(
+            "SELECT 1 FROM propositions WHERE id = ?1 AND case_id = ?2",
+            params![proposition_id, case_id.0],
+        )? {
             return Err(Error::NotFound {
                 kind: "proposition",
                 id: proposition_id.to_owned(),
             });
         }
 
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT edge.relation, content.text, source.logical_name, segment.locator,
                     COALESCE(content.content_created_at, content.raw_time),
                     content.asserted_time, content.normalized_start,
@@ -557,7 +618,7 @@ impl Store {
     /// Compares charged offenses and lesser candidates element by element.
     pub fn offense_comparison(&self, case_id: &CaseId) -> Result<Vec<OffenseComparison>> {
         self.require_case(case_id)?;
-        let mut charges = self.connection.prepare(
+        let mut charges = self.connection.prepare_cached(
             "SELECT id, label, citation, posture, grade
              FROM charges WHERE case_id = ?1
              ORDER BY CASE posture
@@ -577,44 +638,75 @@ impl Store {
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
+        // The whole comparison is three statements: charges, then every element
+        // of those charges, then every assessment on those elements. Reading it
+        // charge-by-charge and element-by-element asked the same two questions
+        // once per row for no additional information.
+        let mut element_statement = self.connection.prepare_cached(
+            "SELECT el.charge_id, el.id, el.ordinal, el.text
+             FROM elements el
+             JOIN charges ch ON ch.id = el.charge_id
+             WHERE ch.case_id = ?1
+             ORDER BY el.ordinal",
+        )?;
+        let mut elements_by_charge: HashMap<String, Vec<(String, ElementCoverage)>> =
+            HashMap::new();
+        for row in element_statement.query_map([&case_id.0], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                ElementCoverage {
+                    ordinal: row.get(2)?,
+                    element: row.get(3)?,
+                    supporting: Vec::new(),
+                    opposing: Vec::new(),
+                    uncertain: Vec::new(),
+                    excluded: Vec::new(),
+                },
+            ))
+        })? {
+            let (charge_id, element_id, coverage) = row?;
+            elements_by_charge
+                .entry(charge_id)
+                .or_default()
+                .push((element_id, coverage));
+        }
+
+        // `prop.case_id` as well as `ch.case_id`: element mappings reach
+        // propositions through a table with no case column of its own.
+        let mut assessment_statement = self.connection.prepare_cached(
+            "SELECT link.element_id, link.assessment, prop.text
+             FROM element_links link
+             JOIN elements el ON el.id = link.element_id
+             JOIN charges ch ON ch.id = el.charge_id
+             JOIN propositions prop ON prop.id = link.proposition_id
+             WHERE ch.case_id = ?1 AND prop.case_id = ?1
+             ORDER BY link.assessment, prop.text",
+        )?;
+        let mut assessments: HashMap<String, Vec<(String, String)>> = HashMap::new();
+        for row in assessment_statement.query_map([&case_id.0], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })? {
+            let (element_id, assessment, proposition) = row?;
+            assessments
+                .entry(element_id)
+                .or_default()
+                .push((assessment, proposition));
+        }
+
         base.into_iter()
             .map(|mut charge| {
-                let mut elements = self.connection.prepare(
-                    "SELECT id, ordinal, text FROM elements
-                     WHERE charge_id = ?1 ORDER BY ordinal",
-                )?;
-                let element_rows = elements
-                    .query_map([&charge.id], |row| {
-                        Ok((
-                            row.get::<_, String>(0)?,
-                            ElementCoverage {
-                                ordinal: row.get(1)?,
-                                element: row.get(2)?,
-                                supporting: Vec::new(),
-                                opposing: Vec::new(),
-                                uncertain: Vec::new(),
-                                excluded: Vec::new(),
-                            },
-                        ))
-                    })?
-                    .collect::<std::result::Result<Vec<_>, _>>()?;
-
-                charge.elements = element_rows
+                let elements = elements_by_charge.remove(&charge.id).unwrap_or_default();
+                charge.elements = elements
                     .into_iter()
                     .map(|(element_id, mut coverage)| {
-                        let mut links = self.connection.prepare(
-                            "SELECT link.assessment, prop.text
-                             FROM element_links link
-                             JOIN propositions prop ON prop.id = link.proposition_id
-                             WHERE link.element_id = ?1 AND prop.case_id = ?2
-                             ORDER BY link.assessment, prop.text",
-                        )?;
-                        let assessments = links
-                            .query_map(params![element_id, case_id.0], |row| {
-                                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-                            })?
-                            .collect::<std::result::Result<Vec<_>, _>>()?;
-                        for (assessment, proposition) in assessments {
+                        for (assessment, proposition) in
+                            assessments.remove(&element_id).unwrap_or_default()
+                        {
                             let direction =
                                 ElementAssessment::from_db(&assessment).ok_or_else(|| {
                                     Error::InvalidAuthoring(format!(
@@ -786,7 +878,7 @@ impl Store {
             }
         };
 
-        let mut statement = self.connection.prepare(&sql)?;
+        let mut statement = self.connection.prepare_cached(&sql)?;
         let rows = statement.query_map([&case_id.0], |row| {
             Ok(Finding {
                 subject_kind: subject_kind.as_str().to_owned(),
@@ -811,38 +903,36 @@ impl Store {
         // person who wrote `b impeaches a` has answered the question, and the
         // mirror image is not a second thing to review. The unique index only
         // sees one orientation, so the check is made here.
-        let held = self
-            .connection
-            .query_row(
-                "SELECT 1 FROM edges
-                 WHERE case_id = ?1 AND relation = ?2
-                   AND source_kind = ?3 AND target_kind = ?3
-                   AND ((source_id = ?4 AND target_id = ?5)
-                     OR (source_id = ?5 AND target_id = ?4))",
-                params![
-                    case_id.0,
-                    candidate.relation.as_str(),
-                    candidate.kind.as_str(),
-                    candidate.from,
-                    candidate.to
-                ],
-                |_| Ok(()),
-            )
-            .optional()?
-            .is_some();
+        let held = self.exists(
+            "SELECT 1 FROM edges
+             WHERE case_id = ?1 AND relation = ?2
+               AND source_kind = ?3 AND target_kind = ?3
+               AND ((source_id = ?4 AND target_id = ?5)
+                 OR (source_id = ?5 AND target_id = ?4))",
+            params![
+                case_id.0,
+                candidate.relation.as_str(),
+                candidate.kind.as_str(),
+                candidate.from,
+                candidate.to
+            ],
+        )?;
         if held {
             return Ok(None);
         }
 
         let id = Uuid::now_v7().to_string();
-        let written = self.connection.execute(
-            "INSERT INTO edges
-               (id, case_id, source_kind, source_id, relation, target_kind, target_id,
-                rationale, review_state, created_by)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'suggested', ?9)
-             ON CONFLICT (case_id, source_kind, source_id, relation, target_kind, target_id)
-               DO NOTHING",
-            params![
+        let written = self
+            .connection
+            .prepare_cached(
+                "INSERT INTO edges
+                   (id, case_id, source_kind, source_id, relation, target_kind, target_id,
+                    rationale, review_state, created_by)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'suggested', ?9)
+                 ON CONFLICT (case_id, source_kind, source_id, relation, target_kind, target_id)
+                   DO NOTHING",
+            )?
+            .execute(params![
                 id,
                 case_id.0,
                 candidate.kind.as_str(),
@@ -852,8 +942,7 @@ impl Store {
                 candidate.to,
                 candidate.rationale,
                 attribution
-            ],
-        )?;
+            ])?;
         if written == 0 {
             return Ok(None);
         }
@@ -969,7 +1058,7 @@ impl Store {
             }
         };
 
-        let mut statement = self.connection.prepare(sql)?;
+        let mut statement = self.connection.prepare_cached(sql)?;
         let rows = statement.query_map([&case_id.0], |row| {
             Ok(Candidate {
                 kind: node_kind,
@@ -997,7 +1086,7 @@ impl Store {
     pub fn export_case(&self, case_id: &CaseId, audience: ExportAudience) -> Result<CaseExport> {
         let case_name = self.case_name(case_id)?;
 
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT id, text, status, review_state FROM propositions
              WHERE case_id = ?1 ORDER BY text, id",
         )?;
@@ -1012,11 +1101,16 @@ impl Store {
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let mut propositions = Vec::new();
+        // Every proposition's evidence is read in one pass rather than a query
+        // per proposition: an export walks the whole case, and asking the same
+        // question once per line is what makes a large one slow.
+        let mut by_proposition = self.evidence_by_proposition(case_id)?;
+
+        let mut propositions = Vec::with_capacity(rows.len());
         let mut unsupported = Vec::new();
         let mut unreviewed_evidence_included = 0_u32;
         for (id, text, status, review_state) in rows {
-            let evidence = self.proposition_evidence(case_id, &id)?;
+            let evidence = by_proposition.remove(&id).unwrap_or_default();
             if evidence.is_empty() {
                 unsupported.push(UnsupportedProposition {
                     id,
@@ -1051,13 +1145,15 @@ impl Store {
             });
         }
 
-        let rejected_evidence_omitted = self.connection.query_row(
-            "SELECT count(*) FROM edges
-             WHERE case_id = ?1 AND target_kind = 'proposition'
-               AND source_kind = 'content' AND review_state = 'rejected'",
-            [&case_id.0],
-            |row| row.get(0),
-        )?;
+        let rejected_evidence_omitted = self
+            .query_one(
+                "SELECT count(*) FROM edges
+                 WHERE case_id = ?1 AND target_kind = 'proposition'
+                   AND source_kind = 'content' AND review_state = 'rejected'",
+                [&case_id.0],
+                |row| row.get(0),
+            )?
+            .unwrap_or(0);
 
         let privileged = if audience.includes_privileged() {
             self.privileged_work_product(case_id)?
@@ -1079,12 +1175,70 @@ impl Store {
         })
     }
 
+    /// Reads the evidence bearing on every proposition in the case at once.
+    ///
+    /// The same query as [`Store::proposition_evidence`] without the target
+    /// filter, grouped in memory. Each proposition's evidence keeps the order
+    /// that function gives it, so an export reads identically either way.
+    fn evidence_by_proposition(
+        &self,
+        case_id: &CaseId,
+    ) -> Result<HashMap<String, Vec<PropositionEvidence>>> {
+        let mut statement = self.connection.prepare_cached(
+            "SELECT edge.target_id, edge.relation, content.text, source.logical_name,
+                    segment.locator,
+                    COALESCE(content.content_created_at, content.raw_time),
+                    content.asserted_time, content.normalized_start,
+                    content.extractor, content.extractor_version, content.machine_generated,
+                    content.extractor_confidence, content.review_state, edge.rationale,
+                    edge.review_state
+             FROM edges edge
+             JOIN content ON edge.source_kind = 'content' AND content.id = edge.source_id
+             JOIN source_segments segment ON segment.id = content.segment_id
+             JOIN sources source ON source.id = segment.source_id
+             WHERE edge.case_id = ?1 AND edge.target_kind = 'proposition'
+               AND edge.review_state != 'rejected'
+             ORDER BY edge.target_id,
+                      COALESCE(content.normalized_start, content.asserted_time,
+                               content.raw_time, ''),
+                      source.logical_name, segment.locator",
+        )?;
+        let rows = statement.query_map([&case_id.0], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                PropositionEvidence {
+                    relation: row.get(1)?,
+                    text: row.get(2)?,
+                    source: row.get(3)?,
+                    locator: row.get(4)?,
+                    source_time: row.get(5)?,
+                    asserted_time: row.get(6)?,
+                    normalized_start: row.get(7)?,
+                    extractor: row.get(8)?,
+                    extractor_version: row.get(9)?,
+                    machine_generated: row.get(10)?,
+                    extractor_confidence: row.get(11)?,
+                    review_state: row.get(12)?,
+                    rationale: row.get(13)?,
+                    relation_review_state: row.get(14)?,
+                },
+            ))
+        })?;
+
+        let mut grouped: HashMap<String, Vec<PropositionEvidence>> = HashMap::new();
+        for row in rows {
+            let (proposition_id, evidence) = row?;
+            grouped.entry(proposition_id).or_default().push(evidence);
+        }
+        Ok(grouped)
+    }
+
     /// Reads the current version of every privileged work-product record.
     ///
     /// Only ever called for a work-file export. A disclosable export does not
     /// reach this function, which is what keeps privilege out of it.
     fn privileged_work_product(&self, case_id: &CaseId) -> Result<Vec<ExportedWorkProduct>> {
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT id, kind, title, body, version, author
              FROM advocacy_items item
              WHERE case_id = ?1
@@ -1127,7 +1281,7 @@ impl Store {
     /// original locator so the reviewer can open the source in one action.
     pub fn review_queue(&self, case_id: &CaseId) -> Result<Vec<ReviewQueueItem>> {
         self.require_case(case_id)?;
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT 'content', c.id, c.review_state, c.machine_generated, c.text,
                     src.logical_name || ' @ ' || seg.locator, c.extractor
              FROM content c
@@ -1637,7 +1791,7 @@ impl Store {
         target: &NodeRef,
     ) -> Result<Vec<WorkProductVersion>> {
         self.require_case(case_id)?;
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT id, version, supersedes_annotation_id, body, author, privileged, created_at
              FROM annotations current
              WHERE case_id = ?1 AND target_kind = ?2 AND target_id = ?3
@@ -1729,79 +1883,72 @@ impl Store {
 
     /// Reads one version of a work-product item and whether it is the current one.
     fn advocacy_version(&self, case_id: &CaseId, id: &str) -> Result<WorkProductVersion> {
-        self.connection
-            .query_row(
-                "SELECT id, version, supersedes_advocacy_id, title, body, status,
-                        privileged, author, created_at,
-                        NOT EXISTS (SELECT 1 FROM advocacy_items later
-                                    WHERE later.supersedes_advocacy_id = item.id)
-                 FROM advocacy_items item WHERE id = ?1 AND case_id = ?2",
-                params![id, case_id.0],
-                |row| {
-                    Ok(WorkProductVersion {
-                        id: row.get(0)?,
-                        version: row.get(1)?,
-                        supersedes: row.get(2)?,
-                        title: row.get(3)?,
-                        body: row.get(4)?,
-                        status: row.get(5)?,
-                        privileged: row.get(6)?,
-                        author: row.get(7)?,
-                        created_at: row.get(8)?,
-                        current: row.get(9)?,
-                    })
-                },
-            )
-            .optional()?
-            .ok_or_else(|| Error::NotFound {
-                kind: "advocacy item",
-                id: id.to_owned(),
-            })
+        self.query_one(
+            "SELECT id, version, supersedes_advocacy_id, title, body, status,
+                    privileged, author, created_at,
+                    NOT EXISTS (SELECT 1 FROM advocacy_items later
+                                WHERE later.supersedes_advocacy_id = item.id)
+             FROM advocacy_items item WHERE id = ?1 AND case_id = ?2",
+            params![id, case_id.0],
+            |row| {
+                Ok(WorkProductVersion {
+                    id: row.get(0)?,
+                    version: row.get(1)?,
+                    supersedes: row.get(2)?,
+                    title: row.get(3)?,
+                    body: row.get(4)?,
+                    status: row.get(5)?,
+                    privileged: row.get(6)?,
+                    author: row.get(7)?,
+                    created_at: row.get(8)?,
+                    current: row.get(9)?,
+                })
+            },
+        )?
+        .ok_or_else(|| Error::NotFound {
+            kind: "advocacy item",
+            id: id.to_owned(),
+        })
     }
 
     /// Reads one version of an annotation and whether it is the current one.
     fn annotation_version(&self, case_id: &CaseId, id: &str) -> Result<WorkProductVersion> {
-        self.connection
-            .query_row(
-                "SELECT id, version, supersedes_annotation_id, target_kind, target_id,
-                        body, privileged, author, created_at,
-                        NOT EXISTS (SELECT 1 FROM annotations later
-                                    WHERE later.supersedes_annotation_id = note.id)
-                 FROM annotations note WHERE id = ?1 AND case_id = ?2",
-                params![id, case_id.0],
-                |row| {
-                    Ok(WorkProductVersion {
-                        id: row.get(0)?,
-                        version: row.get(1)?,
-                        supersedes: row.get(2)?,
-                        title: format!(
-                            "annotation on {} `{}`",
-                            row.get::<_, String>(3)?,
-                            row.get::<_, String>(4)?
-                        ),
-                        body: row.get(5)?,
-                        status: "open".to_owned(),
-                        privileged: row.get(6)?,
-                        author: row.get(7)?,
-                        created_at: row.get(8)?,
-                        current: row.get(9)?,
-                    })
-                },
-            )
-            .optional()?
-            .ok_or_else(|| Error::NotFound {
-                kind: "annotation",
-                id: id.to_owned(),
-            })
+        self.query_one(
+            "SELECT id, version, supersedes_annotation_id, target_kind, target_id,
+                    body, privileged, author, created_at,
+                    NOT EXISTS (SELECT 1 FROM annotations later
+                                WHERE later.supersedes_annotation_id = note.id)
+             FROM annotations note WHERE id = ?1 AND case_id = ?2",
+            params![id, case_id.0],
+            |row| {
+                Ok(WorkProductVersion {
+                    id: row.get(0)?,
+                    version: row.get(1)?,
+                    supersedes: row.get(2)?,
+                    title: format!(
+                        "annotation on {} `{}`",
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?
+                    ),
+                    body: row.get(5)?,
+                    status: "open".to_owned(),
+                    privileged: row.get(6)?,
+                    author: row.get(7)?,
+                    created_at: row.get(8)?,
+                    current: row.get(9)?,
+                })
+            },
+        )?
+        .ok_or_else(|| Error::NotFound {
+            kind: "annotation",
+            id: id.to_owned(),
+        })
     }
 
     /// Returns the identifier of the version replacing this one, if any.
     fn superseding_id(&self, table: &str, column: &str, id: &str) -> Result<Option<String>> {
         let sql = format!("SELECT id FROM {table} WHERE {column} = ?1");
-        self.connection
-            .query_row(&sql, [id], |row| row.get(0))
-            .optional()
-            .map_err(Into::into)
+        self.query_one(&sql, [id], |row| row.get(0))
     }
 
     /// Records a person, organization, object, or place in the case.
@@ -2030,26 +2177,18 @@ impl Store {
         element_id: &str,
         proposition_id: &str,
     ) -> Result<Option<String>> {
-        self.connection
-            .query_row(
-                "SELECT assessment FROM element_links
-                 WHERE element_id = ?1 AND proposition_id = ?2",
-                params![element_id, proposition_id],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(Into::into)
+        self.query_one(
+            "SELECT assessment FROM element_links
+             WHERE element_id = ?1 AND proposition_id = ?2",
+            params![element_id, proposition_id],
+            |row| row.get(0),
+        )
     }
 
     /// Refuses an identifier already in use in a table that is not a graph node.
     fn refuse_existing_row(&self, kind: &'static str, table: &str, id: &str) -> Result<()> {
         let sql = format!("SELECT 1 FROM {table} WHERE id = ?1");
-        if self
-            .connection
-            .query_row(&sql, [id], |_| Ok(()))
-            .optional()?
-            .is_some()
-        {
+        if self.exists(&sql, [id])? {
             return Err(Error::AlreadyExists {
                 kind,
                 id: id.to_owned(),
@@ -2069,13 +2208,13 @@ impl Store {
             "SELECT 1 FROM {} WHERE id = ?1 AND case_id = ?2",
             node.kind.table()
         );
-        self.connection
-            .query_row(&sql, params![node.id, case_id.0], |_| Ok(()))
-            .optional()?
-            .ok_or_else(|| Error::NotFound {
-                kind: node.kind.as_str(),
-                id: node.id.clone(),
-            })
+        if self.exists(&sql, params![node.id, case_id.0])? {
+            return Ok(());
+        }
+        Err(Error::NotFound {
+            kind: node.kind.as_str(),
+            id: node.id.clone(),
+        })
     }
 
     /// Returns the append-only review history in the order it was written.
@@ -2089,7 +2228,7 @@ impl Store {
         target_id: Option<&str>,
     ) -> Result<Vec<ReviewEvent>> {
         self.require_case(case_id)?;
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT id, target_kind, target_id, from_state, to_state, actor,
                     basis, verified_against_locator, decided_at
              FROM review_events
@@ -2123,10 +2262,8 @@ impl Store {
             "SELECT review_state FROM {} WHERE id = ?1 AND case_id = ?2",
             target.table()
         );
-        let raw: Option<String> = self
-            .connection
-            .query_row(&sql, params![target_id, case_id.0], |row| row.get(0))
-            .optional()?;
+        let raw: Option<String> =
+            self.query_one(&sql, params![target_id, case_id.0], |row| row.get(0))?;
         let raw = raw.ok_or_else(|| Error::NotFound {
             kind: "review target",
             id: target_id.to_owned(),
@@ -2144,48 +2281,51 @@ impl Store {
         let Some(sql) = locator_sql(target) else {
             return Ok(None);
         };
+        self.query_one(sql, [target_id], |row| row.get(0))
+    }
+
+    fn require_case(&self, case_id: &CaseId) -> Result<()> {
+        if self.exists("SELECT 1 FROM cases WHERE id = ?1", [&case_id.0])? {
+            return Ok(());
+        }
+        Err(Error::NotFound {
+            kind: "case",
+            id: case_id.0.clone(),
+        })
+    }
+
+    fn case_name(&self, case_id: &CaseId) -> Result<String> {
+        self.query_one(
+            "SELECT name FROM cases WHERE id = ?1",
+            [&case_id.0],
+            |row| row.get(0),
+        )?
+        .ok_or_else(|| Error::NotFound {
+            kind: "case",
+            id: case_id.0.clone(),
+        })
+    }
+
+    /// Runs a query expected to match at most one row, through the cache.
+    ///
+    /// Nearly every mutation checks a case, an endpoint, or an identifier
+    /// before it writes. Compiling those checks afresh each time cost more than
+    /// running them.
+    fn query_one<T, P, F>(&self, sql: &str, params: P, map: F) -> Result<Option<T>>
+    where
+        P: rusqlite::Params,
+        F: FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+    {
         self.connection
-            .query_row(sql, [target_id], |row| row.get(0))
+            .prepare_cached(sql)?
+            .query_row(params, map)
             .optional()
             .map_err(Into::into)
     }
 
-    /// Returns the factual material bearing on one issue.
-    ///
-    /// Follow-up edges are excluded: they carry the issue's open tasks, which
-    /// the workspace reports separately, and listing them here would show the
-    /// same work twice under two headings.
-    fn edge_descriptions(&self, case_id: &CaseId, issue_id: &str) -> Result<Vec<String>> {
-        let mut statement = self.connection.prepare(
-            "SELECT relation || ': ' || COALESCE(rationale, source_kind || ' ' || source_id)
-             FROM edges
-             WHERE case_id = ?1 AND relation <> 'requires_follow_up'
-               AND ((target_kind = 'advocacy' AND target_id = ?2)
-                 OR (source_kind = 'advocacy' AND source_id = ?2))
-             ORDER BY relation, id",
-        )?;
-        statement
-            .query_map(params![case_id.0, issue_id], |row| row.get(0))?
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .map_err(Into::into)
-    }
-
-    fn require_case(&self, case_id: &CaseId) -> Result<()> {
-        self.case_name(case_id).map(|_| ())
-    }
-
-    fn case_name(&self, case_id: &CaseId) -> Result<String> {
-        self.connection
-            .query_row(
-                "SELECT name FROM cases WHERE id = ?1",
-                [&case_id.0],
-                |row| row.get(0),
-            )
-            .optional()?
-            .ok_or_else(|| Error::NotFound {
-                kind: "case",
-                id: case_id.0.clone(),
-            })
+    /// Answers whether a row matching the query exists.
+    fn exists<P: rusqlite::Params>(&self, sql: &str, params: P) -> Result<bool> {
+        Ok(self.query_one(sql, params, |_| Ok(()))?.is_some())
     }
 }
 
@@ -2216,23 +2356,18 @@ fn trimmed(value: Option<&str>) -> Option<String> {
 /// evidence.
 impl Store {
     fn duplicate_people(&self, case_id: &CaseId) -> Result<Vec<Candidate>> {
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT id, display_name FROM entities
              WHERE case_id = ?1 AND kind = 'person' ORDER BY id",
         )?;
-        let people = statement
+        let named = statement
             .query_map([&case_id.0], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-
-        let named: Vec<(String, String, Vec<String>)> = people
-            .into_iter()
-            .map(|(id, name)| {
+                let id: String = row.get(0)?;
+                let name: String = row.get(1)?;
                 let tokens = name_tokens(&name);
-                (id, name, tokens)
-            })
-            .collect();
+                Ok((id, name, tokens))
+            })?
+            .collect::<std::result::Result<Vec<(String, String, Vec<String>)>, _>>()?;
 
         let mut candidates = Vec::new();
         for (index, (id, name, tokens)) in named.iter().enumerate() {
@@ -2594,6 +2729,44 @@ mod schema {
                 "{table}: {error}"
             );
         }
+    }
+
+    /// The version stamp lets an up-to-date database skip re-running the
+    /// migrations, so the migrations must still reach a database that predates
+    /// the stamp — every database written before this existed reads as version
+    /// zero, and one of them arriving unmigrated would be silent corruption.
+    #[test]
+    fn a_database_predating_the_version_stamp_is_still_migrated() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let path = directory.path().join("case.sqlite");
+
+        let store = Store::open(&path).expect("create");
+        store
+            .connection
+            .execute_batch("PRAGMA user_version = 0; DROP INDEX idx_entities_case_kind;")
+            .expect("rewind to an unstamped database");
+        drop(store);
+
+        let store = Store::open(&path).expect("reopen");
+        let restored: bool = store
+            .connection
+            .query_row(
+                "SELECT count(*) FROM sqlite_master
+                 WHERE type = 'index' AND name = 'idx_entities_case_kind'",
+                [],
+                |row| Ok(row.get::<_, i64>(0)? == 1),
+            )
+            .expect("index lookup");
+        assert!(
+            restored,
+            "an unstamped database must receive every migration"
+        );
+
+        let stamped: i64 = store
+            .connection
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .expect("version");
+        assert_eq!(stamped, super::SCHEMA_VERSION);
     }
 
     /// The same relationship asserted twice would stand in front of a reviewer

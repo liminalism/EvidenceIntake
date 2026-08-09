@@ -1,5 +1,6 @@
 //! Command-line shell for the collation kernel.
 
+use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -564,9 +565,23 @@ enum View {
 
 fn main() {
     if let Err(error) = run() {
+        // `evidence export … | head` closes the pipe partway through, which is
+        // a reader that has seen enough rather than a failure to report.
+        if reader_stopped_listening(&error) {
+            return;
+        }
         eprintln!("error: {error}");
         std::process::exit(1);
     }
+}
+
+/// Returns whether the command failed only because its output had nowhere to go.
+fn reader_stopped_listening(error: &evidence_intake::Error) -> bool {
+    matches!(
+        error,
+        evidence_intake::Error::Serialization(failure)
+            if failure.io_error_kind() == Some(io::ErrorKind::BrokenPipe)
+    )
 }
 
 fn run() -> Result<()> {
@@ -813,7 +828,19 @@ fn run() -> Result<()> {
     Ok(())
 }
 
+/// Writes a read model to standard output as pretty JSON.
+///
+/// Serialized straight into a buffered writer rather than into a `String` that
+/// is then printed: a full case export is large, and rendering it twice in
+/// memory to gain nothing is the kind of cost that only shows up on the cases
+/// that matter most.
 fn print_json(value: &impl Serialize) -> Result<()> {
-    println!("{}", serde_json::to_string_pretty(value)?);
+    let stdout = io::stdout();
+    let mut out = BufWriter::new(stdout.lock());
+    serde_json::to_writer_pretty(&mut out, value)?;
+    // A failed write reaches the caller the same way it would have if it had
+    // happened one byte earlier, inside the serializer.
+    out.write_all(b"\n").map_err(serde_json::Error::io)?;
+    out.flush().map_err(serde_json::Error::io)?;
     Ok(())
 }

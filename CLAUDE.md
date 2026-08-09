@@ -35,12 +35,18 @@ model — those are external adapters that feed the kernel through a normalized 
 Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs (views) → JSON (main).
 
 - `src/store.rs` — the only module that touches SQLite, and where nearly all logic lives. Holds
-  a single `rusqlite::Connection`. Migrations are `include_str!`d from `migrations/` and executed
-  on every `Store::open`/`in_memory` (idempotent `CREATE ... IF NOT EXISTS`); there is no version
-  table, so schema changes go in a new numbered migration file that is additive and re-runnable.
+  a single `rusqlite::Connection`. Migrations are `include_str!`d from `migrations/` and run by
+  `Store::migrate` (idempotent `CREATE ... IF NOT EXISTS`); schema changes still go in a new
+  numbered migration file that is additive and re-runnable. **A new migration must bump
+  `SCHEMA_VERSION` in `src/store.rs`** — it is compared against `PRAGMA user_version` so an
+  already-current database skips the DDL on open, and a database at any lower version (including
+  zero, which is every database written before the stamp) re-runs all of them. Forgetting the bump
+  means the migration never reaches an existing database.
   SQLite has no re-runnable `ALTER TABLE ADD COLUMN` and cannot retrofit `NOT NULL`, so a
   retrofitted column goes through `Store::add_column_if_missing` and its guarantee is enforced
   forward by a trigger; prefer a new table when the choice exists.
+  Queries go through `prepare_cached` (or the `query_one`/`exists` helpers), never `prepare`:
+  the cache is what keeps a read model from recompiling the same SQL once per row.
 - `src/model.rs` — the domain vocabulary (`SourceKind`, `ContentKind`, `EdgeKind`, `ReviewState`,
   `AdvocacyKind`, `TimelineLane`). Each enum has `as_str()` returning the **stable database
   representation**, mirrored by a `CHECK(... IN (...))` constraint in the migration. Adding a
