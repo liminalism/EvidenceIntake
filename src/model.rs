@@ -19,9 +19,79 @@ impl fmt::Display for CaseId {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NodeRef {
     /// The table-level node type, such as `proposition` or `content`.
-    pub kind: String,
+    pub kind: NodeKind,
     /// Stable identifier inside that node type.
     pub id: String,
+}
+
+impl NodeRef {
+    /// Builds a reference to one node.
+    pub fn new(kind: NodeKind, id: impl Into<String>) -> Self {
+        Self {
+            kind,
+            id: id.into(),
+        }
+    }
+}
+
+impl fmt::Display for NodeRef {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{} `{}`", self.kind.as_str(), self.id)
+    }
+}
+
+/// A node type the polymorphic `edges` table can point at.
+///
+/// The edge table carries no foreign key, so this enum is what keeps a
+/// relationship from naming a table that does not exist. Every variant maps to
+/// a case-scoped table, which is what lets a link be checked against the case
+/// it claims to belong to. Charges and elements are deliberately absent:
+/// elements reach propositions through `element_links`, not through `edges`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeKind {
+    /// An extracted or hand-entered evidentiary content item.
+    Content,
+    /// An immutable source record.
+    Source,
+    /// A contested proposition.
+    Proposition,
+    /// A timeline event.
+    Event,
+    /// A typed relationship, which may itself be the subject of another.
+    Edge,
+    /// A person, organization, object, or location.
+    Entity,
+    /// A privileged attorney work-product item.
+    Advocacy,
+}
+
+impl NodeKind {
+    /// Returns the stable database representation.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Content => "content",
+            Self::Source => "source",
+            Self::Proposition => "proposition",
+            Self::Event => "event",
+            Self::Edge => "edge",
+            Self::Entity => "entity",
+            Self::Advocacy => "advocacy",
+        }
+    }
+
+    /// Returns the case-scoped table holding this node type.
+    pub(crate) const fn table(self) -> &'static str {
+        match self {
+            Self::Content => "content",
+            Self::Source => "sources",
+            Self::Proposition => "propositions",
+            Self::Event => "events",
+            Self::Edge => "edges",
+            Self::Entity => "entities",
+            Self::Advocacy => "advocacy_items",
+        }
+    }
 }
 
 /// Broad original-source category, independent of extraction adapter.

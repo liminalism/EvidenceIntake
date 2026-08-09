@@ -50,4 +50,11 @@ These rules are invariants for the kernel and future UI.
     rejection reinstated as later material arrives; neither erases the earlier
     decision. Nothing may return to `unreviewed` or `suggested`, because those
     states record what import produced, not what a person concluded.
+20. Authoring is not review. A proposition or relationship a person writes down
+    enters `unreviewed` and waits like anything else; writing it is not evidence
+    that anyone checked it. An authored proposition is always `contested`.
+21. An authored relationship carries a written rationale. It spans sources and
+    has no original of its own, so the rationale is the only thing a reviewer or
+    later reader can weigh. The same claim is asserted once: repeating it is
+    refused rather than written twice.
 

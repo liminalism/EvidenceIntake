@@ -4,7 +4,8 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence_intake::{
-    CaseId, DemoFixture, Result, ReviewDecision, ReviewState, ReviewTarget, Store,
+    CaseId, DemoFixture, EdgeKind, NodeKind, NodeRef, ProposedLink, ProposedProposition, Result,
+    ReviewDecision, ReviewState, ReviewTarget, Store,
 };
 use serde::Serialize;
 
@@ -43,6 +44,118 @@ enum Command {
         #[command(subcommand)]
         action: ReviewAction,
     },
+    /// Write a person's own reading of the case into it.
+    Author {
+        /// Stable case identifier.
+        case_id: String,
+        #[command(subcommand)]
+        item: AuthorItem,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AuthorItem {
+    /// State a contested proposition. It enters unreviewed, like anything else.
+    Proposition {
+        /// The proposition as a person would state it.
+        #[arg(long)]
+        text: String,
+        /// Named person accountable for it.
+        #[arg(long)]
+        author: String,
+        /// Stable identifier; generated when omitted.
+        #[arg(long)]
+        id: Option<String>,
+    },
+    /// Assert a typed relationship between two nodes in the case.
+    Link {
+        /// Node type of the asserting side.
+        #[arg(long, value_enum)]
+        from_kind: NodeKindArg,
+        /// Identifier of the asserting side.
+        #[arg(long)]
+        from: String,
+        /// How the two nodes stand to one another.
+        #[arg(long, value_enum)]
+        relation: RelationArg,
+        /// Node type of the side the relationship bears on.
+        #[arg(long, value_enum)]
+        to_kind: NodeKindArg,
+        /// Identifier of that side.
+        #[arg(long)]
+        to: String,
+        /// Why the relationship holds. Required: an edge has no original.
+        #[arg(long)]
+        rationale: String,
+        /// Named person accountable for it.
+        #[arg(long)]
+        author: String,
+        /// Stable identifier; generated when omitted.
+        #[arg(long)]
+        id: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum NodeKindArg {
+    Content,
+    Source,
+    Proposition,
+    Event,
+    Edge,
+    Entity,
+    Advocacy,
+}
+
+impl From<NodeKindArg> for NodeKind {
+    fn from(value: NodeKindArg) -> Self {
+        match value {
+            NodeKindArg::Content => Self::Content,
+            NodeKindArg::Source => Self::Source,
+            NodeKindArg::Proposition => Self::Proposition,
+            NodeKindArg::Event => Self::Event,
+            NodeKindArg::Edge => Self::Edge,
+            NodeKindArg::Entity => Self::Entity,
+            NodeKindArg::Advocacy => Self::Advocacy,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum RelationArg {
+    Supports,
+    Contradicts,
+    Corroborates,
+    Impeaches,
+    Qualifies,
+    Explains,
+    DerivedFrom,
+    RefersTo,
+    TemporallyOverlaps,
+    PossiblySamePerson,
+    ExpectedButMissing,
+    RequiresFollowUp,
+    RelevantTo,
+}
+
+impl From<RelationArg> for EdgeKind {
+    fn from(value: RelationArg) -> Self {
+        match value {
+            RelationArg::Supports => Self::Supports,
+            RelationArg::Contradicts => Self::Contradicts,
+            RelationArg::Corroborates => Self::Corroborates,
+            RelationArg::Impeaches => Self::Impeaches,
+            RelationArg::Qualifies => Self::Qualifies,
+            RelationArg::Explains => Self::Explains,
+            RelationArg::DerivedFrom => Self::DerivedFrom,
+            RelationArg::RefersTo => Self::RefersTo,
+            RelationArg::TemporallyOverlaps => Self::TemporallyOverlaps,
+            RelationArg::PossiblySamePerson => Self::PossiblySamePerson,
+            RelationArg::ExpectedButMissing => Self::ExpectedButMissing,
+            RelationArg::RequiresFollowUp => Self::RequiresFollowUp,
+            RelationArg::RelevantTo => Self::RelevantTo,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -222,6 +335,35 @@ fn run() -> Result<()> {
                 }
                 ReviewAction::History { id } => {
                     print_json(&store.review_history(&case_id, id.as_deref())?)?;
+                }
+            }
+        }
+        Command::Author { case_id, item } => {
+            let case_id = CaseId(case_id);
+            match item {
+                AuthorItem::Proposition { text, author, id } => {
+                    let proposal = ProposedProposition { id, text, author };
+                    print_json(&store.author_proposition(&case_id, &proposal)?)?;
+                }
+                AuthorItem::Link {
+                    from_kind,
+                    from,
+                    relation,
+                    to_kind,
+                    to,
+                    rationale,
+                    author,
+                    id,
+                } => {
+                    let proposal = ProposedLink {
+                        id,
+                        from: NodeRef::new(NodeKind::from(from_kind), from),
+                        relation: EdgeKind::from(relation),
+                        to: NodeRef::new(NodeKind::from(to_kind), to),
+                        rationale,
+                        author,
+                    };
+                    print_json(&store.link_evidence(&case_id, &proposal)?)?;
                 }
             }
         }

@@ -23,6 +23,17 @@ pub enum Error {
     /// A review decision was malformed or lacked a required justification.
     #[error("invalid review decision: {0}")]
     InvalidReview(String),
+    /// An authored proposition or relationship was malformed.
+    #[error("invalid authoring: {0}")]
+    InvalidAuthoring(String),
+    /// A record was written twice under the same identity.
+    #[error("{kind} `{id}` already exists")]
+    AlreadyExists {
+        /// The type of record being written.
+        kind: &'static str,
+        /// The application identifier or the claim being repeated.
+        id: String,
+    },
     /// A review decision asked for a state change the workflow does not allow.
     #[error("cannot move {target} `{id}` from `{from}` to `{to}`: {reason}")]
     InvalidTransition {

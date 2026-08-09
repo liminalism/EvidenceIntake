@@ -45,6 +45,11 @@ Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs 
 - `src/ingest.rs` — adapter-neutral input types only (no behavior). `Store::import_normalized`
   is atomic and validates hashes, offsets, confidence range, production ownership, and the rule
   that machine-generated content cannot arrive already verified.
+- `src/authoring.rs` — human authoring input and result types only (no behavior), the
+  counterpart to `ingest.rs`. `Store::author_proposition` and `Store::link_evidence` enforce
+  the rules: authored records enter `unreviewed` and `contested`, every link carries a
+  written rationale, both endpoints must exist inside the case, and the same claim is never
+  asserted twice.
 - `src/review.rs` — review vocabulary plus `transition_allowed`, the state-machine predicate.
 - `src/views.rs` — serializable read models (`Overview`, `DiscoveryItem`, `ElementRow`,
   `WitnessStatement`, `TimelineEntry`, `IssueWorkspace`, `DecisionBrief`, `PropositionEvidence`,
@@ -70,6 +75,9 @@ The graph is node tables (`sources`, `source_segments`, `content`, `entities`, `
 - **Machines cannot confer verification.** Import produces only `unreviewed`/`suggested`; only a
   named person reaches `reviewed`/`verified`/`rejected`, and no decision may return a record to
   an intake state.
+- **Authoring is not review.** A proposition or link a person writes enters `unreviewed` and
+  waits in the same queue; authoring can never produce a reviewed state, and an authored
+  proposition is always `contested`. Every link carries a written rationale.
 - **`verified` must cite the original.** Content and sources have one exact locator and the cited
   locator must match verbatim (`Error::LocatorMismatch`); edges, propositions, and events span
   sources, so they require a written `basis` instead. `rejected` always requires a `basis`.
@@ -84,8 +92,11 @@ The graph is node tables (`sources`, `source_segments`, `content`, `entities`, `
   discovery ledger and any routine export.
 
 Tests are named as assertions about these rules (`a_reviewer_cannot_return_a_record_to_an_intake_state`,
-`timeline_keeps_competing_lanes_and_raw_time`). Both integration files build a `Store::in_memory()`
-and seed a fixture; keep new tests in that style rather than unit-testing SQL strings.
+`timeline_keeps_competing_lanes_and_raw_time`). Every integration file builds a
+`Store::in_memory()` and seeds a fixture; keep new tests in that style rather than
+unit-testing SQL strings. The one exception is the `schema` module inside `store.rs`, which
+asserts what the *migrations* enforce (triggers, unique indexes) and therefore needs the
+connection — behavior still belongs in `tests/`.
 
 ## Project knowledge (AKR)
 

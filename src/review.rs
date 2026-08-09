@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ReviewState;
+use crate::{NodeKind, ReviewState};
 
 /// A record type that carries a human review state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,26 +26,35 @@ pub enum ReviewTarget {
 }
 
 impl ReviewTarget {
+    /// Returns this target as a graph node.
+    ///
+    /// Every review target is a node; not every node is reviewable. Keeping the
+    /// mapping in one place means the table a reviewer writes to and the table
+    /// an author links to can never drift apart.
+    pub const fn node_kind(self) -> NodeKind {
+        match self {
+            Self::Content => NodeKind::Content,
+            Self::Source => NodeKind::Source,
+            Self::Edge => NodeKind::Edge,
+            Self::Proposition => NodeKind::Proposition,
+            Self::Event => NodeKind::Event,
+        }
+    }
+
     /// Returns the stable database representation.
     pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Content => "content",
-            Self::Source => "source",
-            Self::Edge => "edge",
-            Self::Proposition => "proposition",
-            Self::Event => "event",
-        }
+        self.node_kind().as_str()
     }
 
     /// Returns the table holding this target's review state.
     pub(crate) const fn table(self) -> &'static str {
-        match self {
-            Self::Content => "content",
-            Self::Source => "sources",
-            Self::Edge => "edges",
-            Self::Proposition => "propositions",
-            Self::Event => "events",
-        }
+        self.node_kind().table()
+    }
+}
+
+impl From<ReviewTarget> for NodeKind {
+    fn from(value: ReviewTarget) -> Self {
+        value.node_kind()
     }
 }
 

@@ -1,0 +1,38 @@
+akr 0.1
+project evidence-intake-project
+
+record evidence-intake-project.mutation-api.proposition-authoring/1 : work {
+    title "Proposition authoring and evidence linking"
+    state completed
+    scope [
+        path "migrations/**",
+        path "src/authoring.rs",
+        path "src/main.rs",
+        path "src/model.rs",
+        path "src/store.rs",
+        path "tests/authoring.rs"
+    ]
+    intent """
+        Give a defender the two mutations the kernel still lacks: writing down a contested proposition, and connecting source-grounded content to it with a typed, reasoned relationship. Until now the only mutations were import_normalized (adapter ingest) and apply_review (human decisions), so the central object of the collation thesis was read-only.
+        """
+    claim authoring-cannot-settle-a-proposition {
+        text """
+            An authored proposition is always `contested`. `undisputed` is a conclusion about the state of the evidence and is not available at authoring time, because nothing in the kernel is scored.
+            """
+    }
+    claim authoring-is-not-review {
+        text """
+            Authoring a proposition or a link enters `unreviewed`. Writing something down is not evidence that anyone checked it, so authoring cannot produce `reviewed`, `verified`, or a machine `suggested` state.
+            """
+    }
+    claim endpoints-must-exist-in-the-case {
+        text """
+            Both endpoints of a link must already exist and belong to the same case. An unknown identifier is refused rather than silently creating a node, and a link may not reach across a case boundary.
+            """
+    }
+    claim link-carries-a-rationale {
+        text """
+            A link is required to carry a non-empty written rationale. An edge spans sources and has no single original, so the written reason is the only thing a later reader can weigh — the same standard apply_review imposes when verifying one.
+            """
+    }
+}

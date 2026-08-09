@@ -6,8 +6,9 @@ use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
 use crate::{
-    CaseId, DecisionBrief, DiscoveryItem, ElementCoverage, ElementRow, Error, IssueWorkspace,
-    NormalizedBatch, OffenseComparison, Overview, PropositionEvidence, Result, ReviewDecision,
+    AuthoredLink, AuthoredProposition, CaseId, DecisionBrief, DiscoveryItem, ElementCoverage,
+    ElementRow, Error, IssueWorkspace, NodeKind, NodeRef, NormalizedBatch, OffenseComparison,
+    Overview, ProposedLink, ProposedProposition, PropositionEvidence, Result, ReviewDecision,
     ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, TimelineEntry, WitnessStatement,
     review::transition_allowed,
 };
@@ -713,6 +714,170 @@ impl Store {
         })
     }
 
+    /// Writes down a contested proposition on a named person's authority.
+    ///
+    /// The proposition enters `contested` and `unreviewed`. Authoring is not
+    /// review: a person who states a proposition has not thereby checked it,
+    /// and it waits in the same queue as anything an adapter produced. Nor can
+    /// authoring settle it — `undisputed` is a conclusion about the state of the
+    /// evidence, and nothing in this kernel calculates one.
+    pub fn author_proposition(
+        &mut self,
+        case_id: &CaseId,
+        proposal: &ProposedProposition,
+    ) -> Result<AuthoredProposition> {
+        self.require_case(case_id)?;
+        let author = require_named_person(&proposal.author)?;
+        let text = proposal.text.trim();
+        if text.is_empty() {
+            return Err(Error::InvalidAuthoring(
+                "a proposition must say something".to_owned(),
+            ));
+        }
+
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_id(NodeKind::Proposition, supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+
+        self.connection.execute(
+            "INSERT INTO propositions (id, case_id, text, status, review_state, created_by)
+             VALUES (?1, ?2, ?3, 'contested', 'unreviewed', ?4)",
+            params![id, case_id.0, text, author],
+        )?;
+
+        Ok(AuthoredProposition {
+            id,
+            text: text.to_owned(),
+            status: "contested".to_owned(),
+            review_state: "unreviewed".to_owned(),
+            created_by: author.to_owned(),
+        })
+    }
+
+    /// Asserts a typed relationship between two nodes on a named person's authority.
+    ///
+    /// The relationship enters `unreviewed` and carries a written rationale.
+    /// That rationale is required rather than optional: an edge is drawn across
+    /// several sources and has no original of its own, so it is the only thing a
+    /// later reader — or the reviewer who has to verify it — can weigh. Both
+    /// endpoints must already exist inside the case; an unknown identifier is
+    /// refused rather than quietly creating the node it names.
+    pub fn link_evidence(
+        &mut self,
+        case_id: &CaseId,
+        proposal: &ProposedLink,
+    ) -> Result<AuthoredLink> {
+        self.require_case(case_id)?;
+        let author = require_named_person(&proposal.author)?;
+        let rationale = proposal.rationale.trim();
+        if rationale.is_empty() {
+            return Err(Error::InvalidAuthoring(format!(
+                "asserting that {} {} {} requires a written rationale; \
+                 a relationship has no original of its own to check it against",
+                proposal.from,
+                proposal.relation.as_str(),
+                proposal.to
+            )));
+        }
+        if proposal.from == proposal.to {
+            return Err(Error::InvalidAuthoring(format!(
+                "{} cannot stand in a relationship to itself",
+                proposal.from
+            )));
+        }
+
+        for endpoint in [&proposal.from, &proposal.to] {
+            self.require_node(case_id, endpoint)?;
+        }
+
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_id(NodeKind::Edge, supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+
+        let written = self.connection.execute(
+            "INSERT INTO edges
+               (id, case_id, source_kind, source_id, relation, target_kind, target_id,
+                rationale, review_state, created_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'unreviewed', ?9)
+             ON CONFLICT (case_id, source_kind, source_id, relation, target_kind, target_id)
+               DO NOTHING",
+            params![
+                id,
+                case_id.0,
+                proposal.from.kind.as_str(),
+                proposal.from.id,
+                proposal.relation.as_str(),
+                proposal.to.kind.as_str(),
+                proposal.to.id,
+                rationale,
+                author
+            ],
+        )?;
+        if written == 0 {
+            return Err(Error::AlreadyExists {
+                kind: "relationship",
+                id: format!(
+                    "{} {} {}",
+                    proposal.from.id,
+                    proposal.relation.as_str(),
+                    proposal.to.id
+                ),
+            });
+        }
+
+        Ok(AuthoredLink {
+            id,
+            from_kind: proposal.from.kind.as_str().to_owned(),
+            from_id: proposal.from.id.clone(),
+            relation: proposal.relation.as_str().to_owned(),
+            to_kind: proposal.to.kind.as_str().to_owned(),
+            to_id: proposal.to.id.clone(),
+            rationale: rationale.to_owned(),
+            review_state: "unreviewed".to_owned(),
+            created_by: author.to_owned(),
+        })
+    }
+
+    /// Refuses an identifier already in use, rather than replacing the record.
+    fn refuse_existing_id(&self, kind: NodeKind, id: &str) -> Result<()> {
+        let sql = format!("SELECT 1 FROM {} WHERE id = ?1", kind.table());
+        let taken = self
+            .connection
+            .query_row(&sql, [id], |_| Ok(()))
+            .optional()?
+            .is_some();
+        if taken {
+            return Err(Error::AlreadyExists {
+                kind: kind.as_str(),
+                id: id.to_owned(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Requires that a node exists and belongs to the case being worked on.
+    fn require_node(&self, case_id: &CaseId, node: &NodeRef) -> Result<()> {
+        let sql = format!(
+            "SELECT 1 FROM {} WHERE id = ?1 AND case_id = ?2",
+            node.kind.table()
+        );
+        self.connection
+            .query_row(&sql, params![node.id, case_id.0], |_| Ok(()))
+            .optional()?
+            .ok_or_else(|| Error::NotFound {
+                kind: node.kind.as_str(),
+                id: node.id.clone(),
+            })
+    }
+
     /// Returns the append-only review history in the order it was written.
     ///
     /// Insertion order, not the recorded timestamp, defines the sequence: two
@@ -817,6 +982,20 @@ impl Store {
                 id: case_id.0.clone(),
             })
     }
+}
+
+/// Requires that a named person stands behind a mutation.
+///
+/// Every record a person adds carries their name for the same reason every
+/// review decision does: a later reader has to be able to ask whoever wrote it.
+fn require_named_person(actor: &str) -> Result<&str> {
+    let actor = actor.trim();
+    if actor.is_empty() {
+        return Err(Error::InvalidAuthoring(
+            "authoring must name the person accountable for it".to_owned(),
+        ));
+    }
+    Ok(actor)
 }
 
 /// Returns SQL yielding the one original a reviewer must open to verify a record.

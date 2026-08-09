@@ -17,6 +17,8 @@ This initial milestone provides:
 - a separate privileged advocacy layer with versioned annotations;
 - an append-only human review trail in which verification must cite the exact
   original it was checked against;
+- human authoring of contested propositions and typed, reasoned evidence links,
+  which enter unreviewed because writing something down is not checking it;
 - decision-oriented discovery, element, witness, timeline, issue, and brief
   read models;
 - an adapter-neutral contract for already-OCRed documents, timestamped audio
@@ -50,12 +52,25 @@ cargo run -- view case-hit-run-001 offenses
 cargo run -- view case-hit-run-001 proposition hr-prop-impaired-driving
 cargo run -- review case-hit-run-001 queue
 cargo run -- review case-hit-run-001 history
+cargo run -- author case-hit-run-001 proposition \
+  --text "Morgan did not perceive the impact." --author "A. Reyes"
+cargo run -- author case-hit-run-001 link \
+  --from-kind content --from hr-content-client-driving --relation supports \
+  --to-kind proposition --to <proposition-id> \
+  --rationale "Morgan expressly disputes awareness of any impact." \
+  --author "A. Reyes"
 ```
 
 Machine suggestions stay suggestions until a person acts on them. `review
 queue` lists what is waiting with the exact locator to open, and `review apply`
 records the decision; see [`docs/review-workflow.md`](docs/review-workflow.md)
 for what each state costs.
+
+`author` is how a person adds their own reading rather than an adapter's: a
+contested proposition, and typed relationships tying content to it. Both enter
+unreviewed and join the same queue, and every relationship carries a written
+rationale, because an edge spans sources and has no original of its own. See
+[`docs/authoring.md`](docs/authoring.md).
 
 Use `--database PATH` before the subcommand to select another case database.
 SQLite databases are ignored by Git.
@@ -76,10 +91,10 @@ The input boundary assumes those modality pipelines already ran. Their outputs
 enter through `NormalizedBatch`; machine content must begin as `suggested` and
 preserves model version, confidence, original-source hash, and exact locator.
 
-Human review is now a first-class mutation with its own immutable trail. The
-remaining backend milestone is the rest of the mutation API: proposition
-authoring and linking, element mapping, and versioned work product. The WinSafe
-GUI remains a separate later milestone.
+Human review and human authoring are now first-class mutations, the first with
+its own immutable trail. The remaining backend milestone is the rest of the
+mutation API: element mapping and versioned work product. The WinSafe GUI
+remains a separate later milestone.
 
 ## Development
 

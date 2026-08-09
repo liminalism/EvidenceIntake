@@ -1,0 +1,14 @@
+akr 0.1
+project evidence-intake-project
+
+record evidence-intake-project.papercut.ran-knowledge-context-goal-on-a-project-whose/1 : papercut {
+    title "Ran knowledge.context --goal on a project whose ledger held only the…"
+    state verified
+    statement """
+        Ran knowledge.context --goal on a project whose ledger held only the namespace stub in project.akr; it failed with AKR-X001 "does not resolve to a record" rather than saying the ledger is empty. On a fresh project that reads as a broken tool call. A distinct message ("no records yet; start with knowledge.propose") would tell an agent to author the first record instead of retrying with different goal strings.
+        """
+    observed_at git:bdafd336b811df788dc5b08fa64304a6dcff49ef
+    about "akr"
+    author "claude"
+    created_at 2026-08-09
+}

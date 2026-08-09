@@ -1,0 +1,14 @@
+akr 0.1
+project evidence-intake-project
+
+record evidence-intake-project.evidence.authoring-suite/1 : evidence {
+    title "36 tests pass across 4 files, clippy clean under -D warnings, formatting clean. tests/authoring.rs contributes 11 covering unreviewed/contested entry, the named-person requirement, the required rationale, unknown and cross-case endpoints, self-relationships, repeated claims, reused identifiers, queue arrival, and the content-to-proposition round trip."
+    state verified
+    result pass
+    method command
+    observed_at git:bdafd336b811df788dc5b08fa64304a6dcff49ef
+    command "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
+    summary """
+        36 tests pass across 4 files, clippy clean under -D warnings, formatting clean. tests/authoring.rs contributes 11 covering unreviewed/contested entry, the named-person requirement, the required rationale, unknown and cross-case endpoints, self-relationships, repeated claims, reused identifiers, queue arrival, and the content-to-proposition round trip.
+        """
+}
