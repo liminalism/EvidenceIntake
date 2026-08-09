@@ -49,6 +49,18 @@ record evidence-intake-project.evidence.export-suite/1 : evidence {
         """
 }
 
+record evidence-intake-project.evidence.phase-d-complete/1 : evidence {
+    title "97 tests pass, clippy clean under -D warnings, formatting clean. tests/suggest.rs grew to 18, adding duplicate people proposed without merging (both dossiers stay separate), shared forenames and initials left alone, non-person entities never compared, a finding writing nothing and repeating identically on rerun, a finding disappearing once the gap is closed by mapping the proposition to an element, an unsupported proposition reported, the vehicle-stop clock disagreement found naming both sources without instructing which clock to correct, and every analyzer either proposing or reporting but never both. tests/authoring.rs adds two entities sharing a name recorded as two records and a nameless entity refused. Verified by hand: vehicle-stop yields 3 proposals, 1 skip, and 4 findings; authoring `Patel` then running duplicate-entity proposes possibly_same_person against the fixture's `Jordan Patel` and it appears in the review queue naming the analyzer."
+    state verified
+    result pass
+    method command
+    observed_at git:680ae34e620880df090096477a2ac1a3637fea55
+    command "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
+    summary """
+        97 tests pass, clippy clean under -D warnings, formatting clean. tests/suggest.rs grew to 18, adding duplicate people proposed without merging (both dossiers stay separate), shared forenames and initials left alone, non-person entities never compared, a finding writing nothing and repeating identically on rerun, a finding disappearing once the gap is closed by mapping the proposition to an element, an unsupported proposition reported, the vehicle-stop clock disagreement found naming both sources without instructing which clock to correct, and every analyzer either proposing or reporting but never both. tests/authoring.rs adds two entities sharing a name recorded as two records and a nameless entity refused. Verified by hand: vehicle-stop yields 3 proposals, 1 skip, and 4 findings; authoring `Patel` then running duplicate-entity proposes possibly_same_person against the fixture's `Jordan Patel` and it appears in the review queue naming the analyzer.
+        """
+}
+
 record evidence-intake-project.evidence.work-product-suite/1 : evidence {
     title "58 tests pass, clippy clean under -D warnings, formatting clean. tests/work_product.rs adds 9 covering privileged v1 entry, supersede-not-overwrite with full history from any version identifier, refusal to revise a superseded version, a rewritten issue appearing once in the workspace, current-only annotations, cross-case refusal, per-posture brief numbering continuing the fixture's chain, and work product staying out of the discovery ledger. A schema test proves the author trigger fires on all three tables, and a collation test proves the two hit-and-run issues no longer carry identical task lists. Verified by hand that migration 0005 re-runs against a pre-0005 database."
     state verified

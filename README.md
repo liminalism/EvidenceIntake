@@ -25,9 +25,10 @@ This initial milestone provides:
   superseding, so an earlier reading stays readable next to the current one;
 - audience-aware source-linked export, in which every factual line resolves to an
   exact original and a disclosable export never reads the privileged tables;
-- deterministic assisted collation: analyzers that propose overlaps, contradiction
-  candidates, and conflicting attributions, each entering as a suggestion that
-  waits for a person and states a reason a defender can reconstruct;
+- deterministic assisted collation: eight analyzers that either propose a
+  relationship for review — overlaps, contradiction candidates, conflicting
+  attributions, possible duplicate people — or report a gap to close, each
+  stating a reason a defender can reconstruct;
 - decision-oriented discovery, element, witness, timeline, issue, and brief
   read models;
 - an adapter-neutral contract for already-OCRed documents, timestamped audio
@@ -76,6 +77,7 @@ cargo run -- view case-hit-run-001 notes content hr-content-911-injury
 cargo run -- export case-hit-run-001
 cargo run -- export case-hit-run-001 --audience work-file
 cargo run -- suggest case-vehicle-stop-001
+cargo run -- author case-vehicle-stop-001 entity --kind person --name "Patel"
 ```
 
 `export` produces the source-linked record: every factual line carries the exact
@@ -115,11 +117,11 @@ preserves model version, confidence, original-source hash, and exact locator.
 Human review and human authoring are now first-class mutations, the first with
 its own immutable trail and the second with versioned work product that
 supersedes rather than overwrites. Source-linked export completed the
-defender workspace, and assisted collation now proposes temporal overlaps,
-contradiction candidates, and conflicting attributions — deterministically, with
-no model and no score, each waiting on a person. The remaining milestones are the
-rest of the analyzer set, the modality adapters that feed `NormalizedBatch`, and
-the WinSafe GUI.
+defender workspace, and assisted collation now covers the Phase D
+analyzer set — deterministically, with no model and no score. Four analyzers
+propose relationships that wait on a person; four report gaps that are dismissed
+only by closing them. The remaining milestones are the modality adapters that
+feed `NormalizedBatch` and the WinSafe GUI.
 
 One thing it deliberately still refuses: changing an element assessment. Reading
 evidence differently later is an honest act that should leave a trail, but

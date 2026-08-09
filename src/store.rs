@@ -6,15 +6,15 @@ use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
 use crate::{
-    AnalyzerReport, AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredLink,
-    AuthoredProposition, CaseExport, CaseId, DecisionBrief, DiscoveryItem, EdgeKind,
+    AnalyzerReport, AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredEntity,
+    AuthoredLink, AuthoredProposition, CaseExport, CaseId, DecisionBrief, DiscoveryItem, EdgeKind,
     ElementAssessment, ElementCoverage, ElementRow, Error, ExportAudience, ExportedProposition,
     ExportedWorkProduct, IssueWorkspace, NodeKind, NodeRef, NormalizedBatch, OffenseComparison,
     Overview, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
-    ProposedElementMapping, ProposedLink, ProposedProposition, PropositionEvidence, Result,
-    ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, SuggestionKind,
-    SuggestionRun, TimelineEntry, UnsupportedProposition, WitnessStatement, WorkProductVersion,
-    review::transition_allowed,
+    ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProposition, PropositionEvidence,
+    Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget,
+    SuggestionKind, SuggestionRun, TimelineEntry, UnsupportedProposition, WitnessStatement,
+    WorkProductVersion, review::transition_allowed, suggest::Finding,
 };
 
 /// A local SQLite case store.
@@ -654,25 +654,33 @@ impl Store {
         let mut proposed = 0_u32;
         let mut already_recorded = 0_u32;
 
+        let mut findings = 0_u32;
+
         for kind in kinds {
-            let candidates = self.candidates(case_id, *kind)?;
             let attribution = kind.attribution();
             let mut written = Vec::new();
             let mut skipped = 0_u32;
+            let mut reported = Vec::new();
 
-            for candidate in candidates {
-                match self.propose(case_id, &candidate, &attribution)? {
-                    Some(link) => written.push(link),
-                    None => skipped += 1,
+            if kind.proposes_relationships() {
+                for candidate in self.candidates(case_id, *kind)? {
+                    match self.propose(case_id, &candidate, &attribution)? {
+                        Some(link) => written.push(link),
+                        None => skipped += 1,
+                    }
                 }
+            } else {
+                reported = self.findings(case_id, *kind)?;
             }
 
             proposed += u32::try_from(written.len()).unwrap_or(u32::MAX);
             already_recorded += skipped;
+            findings += u32::try_from(reported.len()).unwrap_or(u32::MAX);
             analyzers.push(AnalyzerReport {
                 analyzer: attribution,
                 proposed: written,
                 already_recorded: skipped,
+                findings: reported,
             });
         }
 
@@ -681,7 +689,114 @@ impl Store {
             analyzers,
             proposed,
             already_recorded,
+            findings,
         })
+    }
+
+    /// Reports the gaps one analyzer found. Nothing is written.
+    fn findings(&self, case_id: &CaseId, kind: SuggestionKind) -> Result<Vec<Finding>> {
+        // A proposition rests on evidence when some content bears on it and a
+        // reviewer has not rejected the link.
+        const SUPPORTED: &str = "EXISTS (SELECT 1 FROM edges e
+                                  WHERE e.case_id = p.case_id AND e.target_kind = 'proposition'
+                                    AND e.target_id = p.id AND e.source_kind = 'content'
+                                    AND e.review_state <> 'rejected')";
+
+        let (subject_kind, sql) = match kind {
+            SuggestionKind::UnsupportedProposition => (
+                NodeKind::Proposition,
+                format!(
+                    "SELECT p.id, p.text,
+                            'Nothing source-grounded bears on this proposition, so no reader \
+                             can check it. Link evidence to it or withdraw it.'
+                     FROM propositions p
+                     WHERE p.case_id = ?1 AND NOT {SUPPORTED}
+                     ORDER BY p.text, p.id"
+                ),
+            ),
+            SuggestionKind::UnmappedProposition => (
+                NodeKind::Proposition,
+                format!(
+                    "SELECT p.id, p.text,
+                            'Evidence bears on this proposition but it is mapped to no element \
+                             of any charge, so it does not reach the element matrix.'
+                     FROM propositions p
+                     WHERE p.case_id = ?1 AND {SUPPORTED}
+                       AND NOT EXISTS (SELECT 1 FROM element_links link
+                                       JOIN elements el ON el.id = link.element_id
+                                       JOIN charges ch ON ch.id = el.charge_id
+                                       WHERE link.proposition_id = p.id
+                                         AND ch.case_id = p.case_id)
+                     ORDER BY p.text, p.id"
+                ),
+            ),
+            SuggestionKind::UnresolvedReference => (
+                NodeKind::Content,
+                "SELECT c.id, c.text,
+                        'This passage refers to evidence, but nothing in the case says whether \
+                         that evidence was produced, is missing, or was never sought.'
+                 FROM content c
+                 WHERE c.case_id = ?1 AND c.kind = 'evidence_reference'
+                   AND NOT EXISTS (SELECT 1 FROM edges e
+                                   WHERE e.case_id = c.case_id AND e.source_kind = 'content'
+                                     AND e.source_id = c.id AND e.target_kind = 'source')
+                 ORDER BY c.text, c.id"
+                    .to_owned(),
+            ),
+            // Two sources placing the same proposition at different times. No
+            // tolerance window: how much disagreement matters is a judgment,
+            // and stating one here would make it the tool's rather than the
+            // defender's.
+            SuggestionKind::ClockDisagreement => (
+                NodeKind::Proposition,
+                "SELECT p.id, p.text,
+                        'Sources place this at different times: ' || sa.logical_name || ' gives '
+                          || COALESCE(a.asserted_time, a.normalized_start) || ', '
+                          || sb.logical_name || ' gives '
+                          || COALESCE(b.asserted_time, b.normalized_start)
+                          || '. Raw times are never overwritten; reconciling them is a \
+                              reviewable hypothesis.'
+                 FROM propositions p
+                 JOIN edges ea ON ea.case_id = p.case_id AND ea.target_kind = 'proposition'
+                              AND ea.target_id = p.id AND ea.source_kind = 'content'
+                              AND ea.review_state <> 'rejected'
+                 JOIN edges eb ON eb.case_id = p.case_id AND eb.target_kind = 'proposition'
+                              AND eb.target_id = p.id AND eb.source_kind = 'content'
+                              AND eb.review_state <> 'rejected'
+                 JOIN content a ON a.id = ea.source_id
+                 JOIN content b ON b.id = eb.source_id
+                 JOIN source_segments ga ON ga.id = a.segment_id
+                 JOIN source_segments gb ON gb.id = b.segment_id
+                 JOIN sources sa ON sa.id = ga.source_id
+                 JOIN sources sb ON sb.id = gb.source_id
+                 WHERE p.case_id = ?1 AND sa.id < sb.id
+                   AND COALESCE(a.asserted_time, a.normalized_start) IS NOT NULL
+                   AND COALESCE(b.asserted_time, b.normalized_start) IS NOT NULL
+                   AND COALESCE(a.asserted_time, a.normalized_start)
+                       <> COALESCE(b.asserted_time, b.normalized_start)
+                 GROUP BY p.id, sa.id, sb.id
+                 ORDER BY p.text, sa.logical_name, sb.logical_name"
+                    .to_owned(),
+            ),
+            _ => {
+                return Err(Error::InvalidAuthoring(format!(
+                    "`{}` proposes relationships and reports no findings",
+                    kind.as_str()
+                )));
+            }
+        };
+
+        let mut statement = self.connection.prepare(&sql)?;
+        let rows = statement.query_map([&case_id.0], |row| {
+            Ok(Finding {
+                subject_kind: subject_kind.as_str().to_owned(),
+                subject_id: row.get(0)?,
+                subject: row.get(1)?,
+                summary: row.get(2)?,
+            })
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
     }
 
     /// Writes one proposal, or reports that the case already held the claim.
@@ -761,6 +876,9 @@ impl Store {
     /// same direction as the first. Without that, the mirror image of an
     /// existing suggestion would look like a new claim.
     fn candidates(&self, case_id: &CaseId, kind: SuggestionKind) -> Result<Vec<Candidate>> {
+        if matches!(kind, SuggestionKind::DuplicateEntity) {
+            return self.duplicate_people(case_id);
+        }
         let (node_kind, relation, sql) = match kind {
             // Two lanes describing overlapping time. Half-open intervals: an
             // event starting exactly when another ends does not overlap it, and
@@ -843,6 +961,12 @@ impl Store {
                    AND a.attributed_to_entity_id = b.attributed_to_entity_id
                  ORDER BY 1, 2",
             ),
+            _ => {
+                return Err(Error::InvalidAuthoring(format!(
+                    "`{}` reports findings and proposes no relationships",
+                    kind.as_str()
+                )));
+            }
         };
 
         let mut statement = self.connection.prepare(sql)?;
@@ -1680,6 +1804,52 @@ impl Store {
             .map_err(Into::into)
     }
 
+    /// Records a person, organization, object, or place in the case.
+    ///
+    /// A name already in use is not refused. Whether two records name one thing
+    /// is a question for a person — the `duplicate-entity` analyzer raises it
+    /// and `possibly_same_person` holds the answer — and refusing the second
+    /// write would answer it by merging, which is the one thing this kernel
+    /// will not do on its own.
+    pub fn record_entity(
+        &mut self,
+        case_id: &CaseId,
+        proposal: &ProposedEntity,
+    ) -> Result<AuthoredEntity> {
+        self.require_case(case_id)?;
+        let display_name = require_text(&proposal.display_name, "an entity must have a name")?;
+
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_id(NodeKind::Entity, supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+        let notes = trimmed(proposal.notes.as_deref());
+
+        self.connection.execute(
+            "INSERT INTO entities (id, case_id, kind, display_name, is_client, notes)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                id,
+                case_id.0,
+                proposal.kind.as_str(),
+                display_name,
+                proposal.is_client,
+                notes
+            ],
+        )?;
+
+        Ok(AuthoredEntity {
+            id,
+            kind: proposal.kind.as_str().to_owned(),
+            display_name,
+            is_client: proposal.is_client,
+            notes,
+        })
+    }
+
     /// Records a charge and its statutory elements in statutory order.
     ///
     /// A charge with no elements cannot be reasoned about — the element matrix,
@@ -2028,6 +2198,81 @@ fn trimmed(value: Option<&str>) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
+}
+
+/// Returns pairs of people in a case who may be one person.
+///
+/// The rule is deliberately narrow, and comparison happens here rather than in
+/// SQL so a defender can read it. Two people are a candidate when every part of
+/// one name appears in the other after folding case and punctuation — `Patel`
+/// and `Jordan Patel`, `Jordan Patel` and `Patel, Jordan`. `J. Patel` does not
+/// match `Jordan Patel`: expanding an initial is a guess, and the same guess
+/// would tie `J. Patel` to `Jane Patel` just as confidently. Anything looser
+/// invents relationships between strangers who share a common surname, and a
+/// tool that cries duplicate gets ignored precisely when it is right.
+///
+/// Only people are compared. `possibly_same_person` says what it means, and
+/// whether two vehicles are one vehicle is a different question with different
+/// evidence.
+impl Store {
+    fn duplicate_people(&self, case_id: &CaseId) -> Result<Vec<Candidate>> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, display_name FROM entities
+             WHERE case_id = ?1 AND kind = 'person' ORDER BY id",
+        )?;
+        let people = statement
+            .query_map([&case_id.0], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        let named: Vec<(String, String, Vec<String>)> = people
+            .into_iter()
+            .map(|(id, name)| {
+                let tokens = name_tokens(&name);
+                (id, name, tokens)
+            })
+            .collect();
+
+        let mut candidates = Vec::new();
+        for (index, (id, name, tokens)) in named.iter().enumerate() {
+            for (other_id, other_name, other_tokens) in named.iter().skip(index + 1) {
+                if tokens.is_empty() || other_tokens.is_empty() {
+                    continue;
+                }
+                let contained = tokens.iter().all(|token| other_tokens.contains(token))
+                    || other_tokens.iter().all(|token| tokens.contains(token));
+                if !contained {
+                    continue;
+                }
+                candidates.push(Candidate {
+                    kind: NodeKind::Entity,
+                    relation: EdgeKind::PossiblySamePerson,
+                    from: id.clone(),
+                    to: other_id.clone(),
+                    rationale: format!(
+                        "`{name}` and `{other_name}` may name one person: every part of one \
+                         name appears in the other. Proposed as a question only — the records \
+                         are not merged, and mentions stay attached to the record they were \
+                         written against."
+                    ),
+                });
+            }
+        }
+        Ok(candidates)
+    }
+}
+
+/// Splits a display name into comparable parts.
+///
+/// Case and punctuation are folded so `J. Patel` and `j patel` agree. Initials
+/// are kept as-is rather than expanded: guessing that `J.` is `Jordan` is the
+/// kind of inference that belongs to the person reviewing, not to the rule.
+fn name_tokens(name: &str) -> Vec<String> {
+    name.split(|character: char| !character.is_alphanumeric())
+        .filter(|part| !part.is_empty())
+        .map(str::to_lowercase)
+        .collect()
 }
 
 /// One pair an analyzer found, before anything is written.

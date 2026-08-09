@@ -314,3 +314,253 @@ fn analyzing_an_unknown_case_is_refused() {
         .expect_err("an unknown case must be refused");
     assert!(error.to_string().contains("no-such-case"));
 }
+
+fn person(store: &mut Store, case_id: &CaseId, name: &str) -> String {
+    store
+        .record_entity(
+            case_id,
+            &evidence_intake::ProposedEntity {
+                id: None,
+                kind: evidence_intake::EntityKind::Person,
+                display_name: name.to_owned(),
+                is_client: false,
+                notes: None,
+            },
+        )
+        .expect("record entity")
+        .id
+}
+
+/// `possibly_same_person` is a question, not a merge. Rule seven holds even
+/// when the analyzer is confident.
+#[test]
+fn people_who_may_be_one_person_are_proposed_without_merging() {
+    let (mut store, case_id) = vehicle_stop();
+    // The fixture already holds `Jordan Patel`; a later production names a
+    // witness only by surname.
+    let surname_only = person(&mut store, &case_id, "Patel");
+
+    let run = store
+        .suggest(&case_id, &[SuggestionKind::DuplicateEntity])
+        .expect("run");
+    assert_eq!(run.proposed, 1);
+
+    let link = run.analyzers[0].proposed[0].clone();
+    assert_eq!(link.relation, "possibly_same_person");
+    assert_eq!(link.from_kind, "entity");
+    assert!(link.rationale.contains("not merged"));
+    assert!(
+        [link.from_id.as_str(), link.to_id.as_str()].contains(&surname_only.as_str()),
+        "the proposal must name the newly recorded entity"
+    );
+
+    // Both records survive as two records, and the witness dossier still
+    // answers for the original one.
+    assert!(
+        !store
+            .witness_dossier(&case_id, "person-patel")
+            .expect("dossier")
+            .is_empty(),
+        "nothing was collapsed into anything else"
+    );
+    assert!(
+        store
+            .witness_dossier(&case_id, &surname_only)
+            .expect("dossier")
+            .is_empty(),
+        "the new record has its own, separate, empty dossier"
+    );
+}
+
+/// A tool that cries duplicate gets ignored precisely when it is right.
+#[test]
+fn people_who_merely_share_a_name_part_are_left_alone() {
+    let (mut store, case_id) = vehicle_stop();
+    person(&mut store, &case_id, "Jordan Chen");
+    person(&mut store, &case_id, "J. Patel");
+
+    let run = store
+        .suggest(&case_id, &[SuggestionKind::DuplicateEntity])
+        .expect("run");
+    assert_eq!(
+        run.proposed, 0,
+        "sharing a forename or an initial is not evidence of one person"
+    );
+}
+
+/// Whether two vehicles are one vehicle is a different question with different
+/// evidence, and `possibly_same_person` would be the wrong thing to say.
+#[test]
+fn only_people_are_compared_for_duplication() {
+    let (mut store, case_id) = vehicle_stop();
+    for _ in 0..2 {
+        store
+            .record_entity(
+                &case_id,
+                &evidence_intake::ProposedEntity {
+                    id: None,
+                    kind: evidence_intake::EntityKind::Object,
+                    display_name: "Recovered handgun".to_owned(),
+                    is_client: false,
+                    notes: None,
+                },
+            )
+            .expect("record entity");
+    }
+
+    let run = store
+        .suggest(&case_id, &[SuggestionKind::DuplicateEntity])
+        .expect("run");
+    assert_eq!(run.proposed, 0);
+}
+
+/// A gap is not a claim. There is nothing to confirm, only work to do, so a
+/// finding is derived every run and stored nowhere.
+#[test]
+fn a_finding_reports_a_gap_and_writes_nothing() {
+    let (mut store, case_id) = vehicle_stop();
+    let queue_before = store.review_queue(&case_id).expect("queue").len();
+
+    let first = store
+        .suggest(&case_id, &[SuggestionKind::UnmappedProposition])
+        .expect("run");
+    assert!(
+        first.findings > 0,
+        "the fixture leaves propositions unmapped"
+    );
+    assert_eq!(
+        first.proposed, 0,
+        "a finding analyzer writes no relationships"
+    );
+
+    let second = store
+        .suggest(&case_id, &[SuggestionKind::UnmappedProposition])
+        .expect("run");
+    assert_eq!(
+        first.analyzers[0].findings, second.analyzers[0].findings,
+        "findings are derived, so a rerun reports exactly the same gaps"
+    );
+    assert_eq!(
+        store.review_queue(&case_id).expect("queue").len(),
+        queue_before,
+        "nothing was added to the queue: a gap is not something to review"
+    );
+}
+
+/// Closing the gap is the only dismissal a finding needs.
+#[test]
+fn a_finding_stops_appearing_once_the_work_is_done() {
+    let (mut store, case_id) = vehicle_stop();
+    let before = store
+        .suggest(&case_id, &[SuggestionKind::UnmappedProposition])
+        .expect("run");
+    let gap = before.analyzers[0].findings[0].clone();
+
+    let charge = store
+        .record_charge(
+            &case_id,
+            &evidence_intake::ProposedCharge {
+                id: None,
+                label: "Charge under review".to_owned(),
+                citation: None,
+                posture: evidence_intake::ChargePosture::Charged,
+                grade: None,
+                elements: vec![evidence_intake::ProposedElement {
+                    id: None,
+                    text: "The search was lawful.".to_owned(),
+                }],
+            },
+        )
+        .expect("record charge");
+    store
+        .map_element(
+            &case_id,
+            &evidence_intake::ProposedElementMapping {
+                id: None,
+                element_id: charge.elements[0].id.clone(),
+                proposition_id: gap.subject_id.clone(),
+                assessment: evidence_intake::ElementAssessment::Uncertain,
+                notes: None,
+                author: "A. Reyes".to_owned(),
+            },
+        )
+        .expect("map it");
+
+    let after = store
+        .suggest(&case_id, &[SuggestionKind::UnmappedProposition])
+        .expect("run");
+    assert!(
+        !after.analyzers[0]
+            .findings
+            .iter()
+            .any(|item| item.subject_id == gap.subject_id),
+        "the gap closed, so the finding is gone without anyone dismissing it"
+    );
+    assert_eq!(after.findings, before.findings - 1);
+}
+
+#[test]
+fn a_proposition_resting_on_nothing_is_reported_as_a_gap() {
+    let (mut store, case_id) = vehicle_stop();
+    let bare = store
+        .author_proposition(
+            &case_id,
+            &evidence_intake::ProposedProposition {
+                id: None,
+                text: "Nothing in the file bears on this yet.".to_owned(),
+                author: "A. Reyes".to_owned(),
+            },
+        )
+        .expect("author");
+
+    let run = store
+        .suggest(&case_id, &[SuggestionKind::UnsupportedProposition])
+        .expect("run");
+    let reported = run.analyzers[0]
+        .findings
+        .iter()
+        .find(|item| item.subject_id == bare.id)
+        .expect("the bare proposition is reported");
+    assert_eq!(reported.subject_kind, "proposition");
+    assert!(reported.summary.contains("no reader can check it"));
+}
+
+/// The vehicle-stop fixture is built around a clock disagreement. The analyzer
+/// must find it without deciding which clock is right.
+#[test]
+fn sources_placing_one_proposition_at_different_times_are_reported() {
+    let (mut store, case_id) = vehicle_stop();
+    let run = store
+        .suggest(&case_id, &[SuggestionKind::ClockDisagreement])
+        .expect("run");
+    assert!(run.findings > 0);
+
+    let consent = run.analyzers[0]
+        .findings
+        .iter()
+        .find(|item| item.subject_id == "prop-consent")
+        .expect("the consent proposition carries the disagreement");
+    assert!(consent.summary.contains("Officer Chen report.pdf"));
+    assert!(consent.summary.contains("Chen BWC 0042.mp4"));
+    assert!(
+        consent.summary.contains("Raw times are never overwritten"),
+        "the finding must not read as an instruction to correct one clock"
+    );
+}
+
+/// Each analyzer does one of the two jobs, and says which.
+#[test]
+fn an_analyzer_either_proposes_or_reports_but_never_both() {
+    let (mut store, case_id) = vehicle_stop();
+    let run = suggest_all(&mut store, &case_id);
+    assert_eq!(run.analyzers.len(), SuggestionKind::ALL.len());
+
+    for report in &run.analyzers {
+        assert!(
+            report.proposed.is_empty() || report.findings.is_empty(),
+            "{} both proposed and reported",
+            report.analyzer
+        );
+    }
+    assert!(run.proposed > 0 && run.findings > 0, "both kinds ran");
+}

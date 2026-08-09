@@ -4,10 +4,10 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence_intake::{
-    AdvocacyKind, CaseId, ChargePosture, DemoFixture, EdgeKind, ElementAssessment, ExportAudience,
-    NodeKind, NodeRef, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
-    ProposedElement, ProposedElementMapping, ProposedLink, ProposedProposition, Result,
-    ReviewDecision, ReviewState, ReviewTarget, Store, SuggestionKind,
+    AdvocacyKind, CaseId, ChargePosture, DemoFixture, EdgeKind, ElementAssessment, EntityKind,
+    ExportAudience, NodeKind, NodeRef, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief,
+    ProposedCharge, ProposedElement, ProposedElementMapping, ProposedEntity, ProposedLink,
+    ProposedProposition, Result, ReviewDecision, ReviewState, ReviewTarget, Store, SuggestionKind,
 };
 use serde::Serialize;
 
@@ -108,6 +108,24 @@ enum AuthorItem {
         /// Named person accountable for it.
         #[arg(long)]
         author: String,
+        /// Stable identifier; generated when omitted.
+        #[arg(long)]
+        id: Option<String>,
+    },
+    /// Record a person, organization, object, or place in the case.
+    Entity {
+        /// What kind of thing this is.
+        #[arg(long, value_enum)]
+        kind: EntityKindArg,
+        /// The name as it should be shown.
+        #[arg(long)]
+        name: String,
+        /// Mark this entity as the client.
+        #[arg(long)]
+        client: bool,
+        /// Anything worth recording about the identification itself.
+        #[arg(long)]
+        notes: Option<String>,
         /// Stable identifier; generated when omitted.
         #[arg(long)]
         id: Option<String>,
@@ -233,6 +251,11 @@ enum AnalyzerArg {
     TemporalOverlap,
     ContradictionCandidate,
     ConflictingAttribution,
+    DuplicateEntity,
+    UnsupportedProposition,
+    UnmappedProposition,
+    UnresolvedReference,
+    ClockDisagreement,
 }
 
 impl From<AnalyzerArg> for SuggestionKind {
@@ -241,6 +264,11 @@ impl From<AnalyzerArg> for SuggestionKind {
             AnalyzerArg::TemporalOverlap => Self::TemporalOverlap,
             AnalyzerArg::ContradictionCandidate => Self::ContradictionCandidate,
             AnalyzerArg::ConflictingAttribution => Self::ConflictingAttribution,
+            AnalyzerArg::DuplicateEntity => Self::DuplicateEntity,
+            AnalyzerArg::UnsupportedProposition => Self::UnsupportedProposition,
+            AnalyzerArg::UnmappedProposition => Self::UnmappedProposition,
+            AnalyzerArg::UnresolvedReference => Self::UnresolvedReference,
+            AnalyzerArg::ClockDisagreement => Self::ClockDisagreement,
         }
     }
 }
@@ -260,6 +288,25 @@ impl From<AudienceArg> for ExportAudience {
         match value {
             AudienceArg::Disclosable => Self::Disclosable,
             AudienceArg::WorkFile => Self::WorkFile,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum EntityKindArg {
+    Person,
+    Organization,
+    Object,
+    Location,
+}
+
+impl From<EntityKindArg> for EntityKind {
+    fn from(value: EntityKindArg) -> Self {
+        match value {
+            EntityKindArg::Person => Self::Person,
+            EntityKindArg::Organization => Self::Organization,
+            EntityKindArg::Object => Self::Object,
+            EntityKindArg::Location => Self::Location,
         }
     }
 }
@@ -635,6 +682,22 @@ fn run() -> Result<()> {
                         author,
                     };
                     print_json(&store.link_evidence(&case_id, &proposal)?)?;
+                }
+                AuthorItem::Entity {
+                    kind,
+                    name,
+                    client,
+                    notes,
+                    id,
+                } => {
+                    let proposal = ProposedEntity {
+                        id,
+                        kind: EntityKind::from(kind),
+                        display_name: name,
+                        is_client: client,
+                        notes,
+                    };
+                    print_json(&store.record_entity(&case_id, &proposal)?)?;
                 }
                 AuthorItem::Charge {
                     label,

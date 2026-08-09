@@ -58,10 +58,13 @@ Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs 
   superseding rather than overwriting.
 - `src/review.rs` — review vocabulary plus `transition_allowed`, the state-machine predicate.
 - `src/suggest.rs` — assisted-collation vocabulary (`SuggestionKind`, `SuggestionRun`). Analyzers
-  are deterministic SQL in `Store::suggest`/`candidates` — no model, no score. Proposals enter
-  `suggested` with `created_by = "suggest:<analyzer>@<version>"`, which is how `review_queue`
-  knows an edge is machine-generated. A new analyzer is a `SuggestionKind` variant plus one
-  query returning `(from, to, rationale)` ordered by identifier.
+  are deterministic SQL in `Store::suggest`/`candidates`/`findings` — no model, no score, no
+  tolerance windows. An analyzer either *proposes* (writes a `suggested` edge with
+  `created_by = "suggest:<analyzer>@<version>"`, which is how `review_queue` knows an edge is
+  machine-generated) or *reports findings* (derived every run, stored nowhere, dismissed only
+  by closing the gap) — never both; `SuggestionKind::proposes_relationships` decides which.
+  A new analyzer is one variant plus one query returning `(from, to, rationale)` ordered by
+  identifier, or `(subject_id, subject, summary)` for a finding.
 - `src/export.rs` — audience-aware export read models (`ExportAudience`, `CaseExport`). Every
   factual line resolves to an exact locator or the proposition is reported as unsupported;
   omissions and unreviewed inclusions are counted in the header rather than left implicit.

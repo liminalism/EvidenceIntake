@@ -91,4 +91,12 @@ These rules are invariants for the kernel and future UI.
 31. A reviewer is not asked twice. A claim the case already holds — asserted,
     proposed, or rejected — is skipped on later runs, and the check is
     direction-blind because an analyzer points at a pair, not an orientation.
+32. A proposal is a claim and a finding is a gap. Proposals are written and
+    reviewed; findings are derived on every run, stored nowhere, and dismissed
+    only by closing the gap they report.
+33. Two entities may share a name. Refusing the second write would merge them by
+    default; `duplicate-entity` raises the question and a person answers it.
+34. No tolerance windows. How much clock disagreement matters is the defender's
+    judgment, so the tool reports that two sources differ and never how much
+    difference is acceptable.
 

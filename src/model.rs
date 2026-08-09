@@ -234,6 +234,32 @@ impl EdgeKind {
     }
 }
 
+/// What kind of thing an entity is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EntityKind {
+    /// A person. Only people are compared for possible duplication.
+    Person,
+    /// A company, agency, or other body.
+    Organization,
+    /// A vehicle, weapon, or other physical thing.
+    Object,
+    /// A place.
+    Location,
+}
+
+impl EntityKind {
+    /// Returns the stable database representation.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Person => "person",
+            Self::Organization => "organization",
+            Self::Object => "object",
+            Self::Location => "location",
+        }
+    }
+}
+
 /// How a charge stands in the case.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

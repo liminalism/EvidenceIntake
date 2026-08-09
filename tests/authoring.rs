@@ -577,3 +577,54 @@ fn proposition_evidence_distinguishes_the_relationship_from_the_content() {
     assert_eq!(evidence[0].relation_review_state, "unreviewed");
     assert_eq!(evidence[0].review_state, "suggested");
 }
+
+/// Refusing a name already in use would answer, by merging, the one question
+/// this kernel insists a person answers.
+#[test]
+fn two_people_may_share_a_name_without_being_one_person() {
+    let (mut store, case_id) = hit_and_run();
+    let first = store
+        .record_entity(
+            &case_id,
+            &evidence_intake::ProposedEntity {
+                id: None,
+                kind: evidence_intake::EntityKind::Person,
+                display_name: "Casey Morgan".to_owned(),
+                is_client: false,
+                notes: Some("Named in the supplemental report; may be the client.".to_owned()),
+            },
+        )
+        .expect("record an entity sharing the client's name");
+
+    assert_eq!(first.display_name, "Casey Morgan");
+    assert!(!first.is_client);
+    assert_ne!(
+        first.id, "hr-person-client",
+        "a second record, not the existing one"
+    );
+    assert!(
+        !store
+            .witness_dossier(&case_id, "hr-person-client")
+            .expect("dossier")
+            .is_empty(),
+        "the original record is untouched"
+    );
+}
+
+#[test]
+fn an_entity_must_have_a_name() {
+    let (mut store, case_id) = hit_and_run();
+    let error = store
+        .record_entity(
+            &case_id,
+            &evidence_intake::ProposedEntity {
+                id: None,
+                kind: evidence_intake::EntityKind::Person,
+                display_name: "   ".to_owned(),
+                is_client: false,
+                notes: None,
+            },
+        )
+        .expect_err("a nameless entity must be refused");
+    assert!(error.to_string().contains("must have a name"));
+}

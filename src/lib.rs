@@ -16,9 +16,10 @@ mod suggest;
 mod views;
 
 pub use authoring::{
-    AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredLink, AuthoredProposition,
-    ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge, ProposedElement,
-    ProposedElementMapping, ProposedLink, ProposedProposition, WorkProductVersion,
+    AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredEntity, AuthoredLink,
+    AuthoredProposition, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
+    ProposedElement, ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProposition,
+    WorkProductVersion,
 };
 pub use error::{Error, Result};
 pub use export::{
@@ -29,12 +30,12 @@ pub use ingest::{
     ExtractionProvenance, NormalizedBatch, NormalizedContent, NormalizedSegment, NormalizedSource,
 };
 pub use model::{
-    AdvocacyKind, CaseId, ChargePosture, ContentKind, EdgeKind, ElementAssessment, NodeKind,
-    NodeRef, ReviewState, SourceKind, TemporalRelation, TimelineLane,
+    AdvocacyKind, CaseId, ChargePosture, ContentKind, EdgeKind, ElementAssessment, EntityKind,
+    NodeKind, NodeRef, ReviewState, SourceKind, TemporalRelation, TimelineLane,
 };
 pub use review::{ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewTarget};
 pub use store::Store;
-pub use suggest::{AnalyzerReport, SuggestionKind, SuggestionRun};
+pub use suggest::{AnalyzerReport, Finding, SuggestionKind, SuggestionRun};
 pub use views::{
     DecisionBrief, DiscoveryItem, ElementCoverage, ElementRow, IssueWorkspace, OffenseComparison,
     Overview, PropositionEvidence, TimelineEntry, WitnessStatement,

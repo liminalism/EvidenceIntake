@@ -12,7 +12,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{AdvocacyKind, ChargePosture, EdgeKind, ElementAssessment, NodeRef};
+use crate::{AdvocacyKind, ChargePosture, EdgeKind, ElementAssessment, EntityKind, NodeRef};
 
 /// A contested proposition a person is asking the case to hold.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,6 +59,43 @@ pub struct AuthoredProposition {
     pub review_state: String,
     /// The named person who wrote it.
     pub created_by: String,
+}
+
+/// A person, organization, object, or place appearing in the case.
+///
+/// Two entities with the same name are allowed. Whether they are one thing is a
+/// question for a person, not a uniqueness constraint: refusing the second would
+/// merge them by default, which is exactly what this kernel does not do.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProposedEntity {
+    /// Stable identifier. A generated one is used when this is absent.
+    #[serde(default)]
+    pub id: Option<String>,
+    /// What kind of thing this is.
+    pub kind: EntityKind,
+    /// The name as it should be shown.
+    pub display_name: String,
+    /// Whether this is the client.
+    #[serde(default)]
+    pub is_client: bool,
+    /// Anything worth recording about the identification itself.
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+/// An entity as it was written into the case.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AuthoredEntity {
+    /// Stable identifier.
+    pub id: String,
+    /// What kind of thing this is.
+    pub kind: String,
+    /// The name as stored.
+    pub display_name: String,
+    /// Whether this is the client.
+    pub is_client: bool,
+    /// Notes about the identification, if given.
+    pub notes: Option<String>,
 }
 
 /// A charge and its statutory elements, as a person reads the charging document.

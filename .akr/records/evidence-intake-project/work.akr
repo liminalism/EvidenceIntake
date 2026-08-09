@@ -41,6 +41,43 @@ record evidence-intake-project.assisted.deterministic-analyzers/1 : work {
     }
 }
 
+record evidence-intake-project.assisted.findings-and-remaining-analyzers/1 : work {
+    title "Findings, duplicate people, and entity authoring"
+    state completed
+    scope [
+        path "src/authoring.rs",
+        path "src/main.rs",
+        path "src/model.rs",
+        path "src/store.rs",
+        path "src/suggest.rs",
+        path "tests/authoring.rs",
+        path "tests/suggest.rs"
+    ]
+    intent """
+        Complete the Phase D analyzer set. Several remaining items — referenced-but-missing evidence, candidate links to charges, temporal alignment — are gaps rather than proposable claims, so the suggestion mechanism needed a second output shape before they could be built at all.
+        """
+    claim duplicate-people-rule-is-narrow-on-purpose {
+        text """
+            Two people are a candidate when every part of one name appears in the other after folding case and punctuation: `Patel` matches `Jordan Patel`. `J. Patel` does not match `Jordan Patel`, because expanding an initial is a guess that would tie `J. Patel` to `Jane Patel` just as confidently. Only entities of kind `person` are compared — `possibly_same_person` would be the wrong claim to make about two vehicles. Comparison is in Rust rather than SQL so a defender can read the rule.
+            """
+    }
+    claim entity-authoring-was-a-gap {
+        text """
+            Entities could only come from fixtures, so the mutation API previously described as complete was not. `Store::record_entity` closes it and deliberately permits a name already in use: refusing the second write would answer, by merging, the exact question rule 7 insists a person answers. The duplicate-entity analyzer then raises that question.
+            """
+    }
+    claim no-tolerance-windows {
+        text """
+            clock-disagreement reports that two sources place one proposition at different times, with no threshold. How much disagreement matters is the defender's judgment; a tolerance window here would quietly make it the tool's.
+            """
+    }
+    claim proposal-versus-finding {
+        text """
+            A proposal is a claim that needs a decision, so it is written as a `suggested` edge and joins the review queue. A finding is a gap that needs work — a proposition tied to no element is not something a reviewer can disagree with. Findings are derived every run and stored nowhere, so closing the gap is the only dismissal one needs; there is no dismissal state to design, no stale-dismissal problem, and no way for a closed gap to keep nagging. An analyzer does one job or the other, never both.
+            """
+    }
+}
+
 record evidence-intake-project.mutation-api.element-mapping/1 : work {
     title "Charge recording and element mapping"
     state completed

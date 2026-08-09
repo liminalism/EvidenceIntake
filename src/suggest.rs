@@ -43,14 +43,33 @@ pub enum SuggestionKind {
     ContradictionCandidate,
     /// One witness whose two attributed accounts pull opposite ways.
     ConflictingAttribution,
+    /// Two people in the case who may be one person.
+    ///
+    /// Proposes `possibly_same_person`, which is a question and not a merge:
+    /// the two records stay two records until a person says otherwise, and even
+    /// then nothing in this kernel collapses them.
+    DuplicateEntity,
+    /// Propositions resting on nothing a reader could open.
+    UnsupportedProposition,
+    /// Evidence-backed propositions tied to no element of any charge.
+    UnmappedProposition,
+    /// References to evidence that resolve to no source in the case.
+    UnresolvedReference,
+    /// Sources placing the same proposition at materially different times.
+    ClockDisagreement,
 }
 
 impl SuggestionKind {
     /// Returns every analyzer, which is what a bare `suggest` runs.
-    pub const ALL: [Self; 3] = [
+    pub const ALL: [Self; 8] = [
         Self::TemporalOverlap,
         Self::ContradictionCandidate,
         Self::ConflictingAttribution,
+        Self::DuplicateEntity,
+        Self::UnsupportedProposition,
+        Self::UnmappedProposition,
+        Self::UnresolvedReference,
+        Self::ClockDisagreement,
     ];
 
     /// Returns the stable analyzer name.
@@ -59,7 +78,28 @@ impl SuggestionKind {
             Self::TemporalOverlap => "temporal-overlap",
             Self::ContradictionCandidate => "contradiction-candidate",
             Self::ConflictingAttribution => "conflicting-attribution",
+            Self::DuplicateEntity => "duplicate-entity",
+            Self::UnsupportedProposition => "unsupported-proposition",
+            Self::UnmappedProposition => "unmapped-proposition",
+            Self::UnresolvedReference => "unresolved-reference",
+            Self::ClockDisagreement => "clock-disagreement",
         }
+    }
+
+    /// Returns whether this analyzer proposes relationships or reports gaps.
+    ///
+    /// A proposal is a claim that needs a decision, so it is written and joins
+    /// the review queue. A finding is a gap that needs work — nothing to
+    /// confirm, only something to do — so it is derived on every run and stored
+    /// nowhere. When the gap closes, the finding stops appearing.
+    pub const fn proposes_relationships(self) -> bool {
+        matches!(
+            self,
+            Self::TemporalOverlap
+                | Self::ContradictionCandidate
+                | Self::ConflictingAttribution
+                | Self::DuplicateEntity
+        )
     }
 
     /// Returns the value written to an edge's `created_by`.
@@ -71,7 +111,26 @@ impl SuggestionKind {
     }
 }
 
-/// What one analyzer proposed.
+/// A gap in the case, reported rather than proposed.
+///
+/// Findings are derived on every run and stored nowhere. There is nothing here
+/// to confirm or reject — a proposition tied to no element is not a claim a
+/// reviewer can disagree with, it is work someone has not done yet. When the
+/// work is done the finding stops appearing, which is the only dismissal it
+/// needs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Finding {
+    /// Node type the finding is about.
+    pub subject_kind: String,
+    /// Identifier of that record.
+    pub subject_id: String,
+    /// The record as a person would recognize it.
+    pub subject: String,
+    /// What is missing, in a sentence.
+    pub summary: String,
+}
+
+/// What one analyzer produced.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AnalyzerReport {
     /// Which analyzer ran.
@@ -82,6 +141,8 @@ pub struct AnalyzerReport {
     /// already in the case — asserted by a person, proposed by an earlier run,
     /// or rejected by a reviewer who does not need to be asked twice.
     pub already_recorded: u32,
+    /// Gaps reported. Never written, never reviewed.
+    pub findings: Vec<Finding>,
 }
 
 /// The result of a suggestion run.
@@ -95,4 +156,6 @@ pub struct SuggestionRun {
     pub proposed: u32,
     /// Total candidates skipped because the case already held the claim.
     pub already_recorded: u32,
+    /// Total gaps reported.
+    pub findings: u32,
 }
