@@ -8,14 +8,15 @@ use uuid::Uuid;
 
 use crate::{
     AnalyzerReport, AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredEntity,
-    AuthoredLink, AuthoredProposition, CaseExport, CaseId, DecisionBrief, DiscoveryItem, EdgeKind,
-    ElementAssessment, ElementCoverage, ElementRow, Error, ExportAudience, ExportedProposition,
-    ExportedWorkProduct, IssueWorkspace, NodeKind, NodeRef, NormalizedBatch, OffenseComparison,
-    Overview, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
-    ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProposition, PropositionEvidence,
-    Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget,
-    SuggestionKind, SuggestionRun, TimelineEntry, UnsupportedProposition, WitnessStatement,
-    WorkProductVersion, review::transition_allowed, suggest::Finding,
+    AuthoredLink, AuthoredProposition, CaseExport, CaseId, CaseStanding, ChargeStanding,
+    DecisionBrief, DiscoveryItem, EdgeKind, ElementAssessment, ElementCoverage, ElementRow,
+    ElementStanding, Error, ExportAudience, ExportedProposition, ExportedWorkProduct,
+    IssueWorkspace, LiveDispute, LoadBearingSource, NodeKind, NodeRef, NormalizedBatch,
+    OffenseComparison, OpenGap, Overview, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief,
+    ProposedCharge, ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProposition,
+    PropositionEvidence, Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState,
+    ReviewTarget, SuggestionKind, SuggestionRun, TimelineEntry, UnsupportedProposition,
+    WitnessStatement, WorkProductVersion, review::transition_allowed, suggest::Finding,
 };
 
 /// Number of migrations applied by [`Store::migrate`].
@@ -728,6 +729,316 @@ impl Store {
                 Ok(charge)
             })
             .collect()
+    }
+
+    /// Reports where the case stands, element by element.
+    ///
+    /// This is the view a defender opens first: not what the case contains, but
+    /// what its charges rest on and where they are thin. Every number here
+    /// counts something the case holds — propositions mapped in a direction,
+    /// distinct sources under them, material nobody has checked. Nothing is
+    /// weighted and nothing is ranked by strength, because the moment a tool
+    /// says which element is *weak* it has made the argument for the person
+    /// whose job that is.
+    ///
+    /// What it will say is structural, and a defender can act on structure:
+    /// that an element's support all traces to one report, that a proposition
+    /// carries evidence both ways, that a gap in the record touches a charged
+    /// element rather than an idle corner of the file.
+    pub fn case_standing(&self, case_id: &CaseId) -> Result<CaseStanding> {
+        let case_name = self.case_name(case_id)?;
+
+        let mut charge_statement = self.connection.prepare_cached(
+            "SELECT ch.id, ch.label, ch.citation, ch.posture, ch.grade,
+                    el.id, el.ordinal, el.text
+             FROM charges ch
+             JOIN elements el ON el.charge_id = ch.id
+             WHERE ch.case_id = ?1
+             ORDER BY CASE ch.posture
+               WHEN 'charged' THEN 1 WHEN 'lesser_candidate' THEN 2
+               WHEN 'alternative' THEN 3 ELSE 4 END, ch.label, el.ordinal",
+        )?;
+
+        // Element identifier -> where it sits, so every later pass can find it
+        // by identifier without re-querying.
+        let mut charges: Vec<ChargeStanding> = Vec::new();
+        let mut placement: HashMap<String, (usize, usize)> = HashMap::new();
+        let mut label_of: HashMap<String, String> = HashMap::new();
+        for row in charge_statement.query_map([&case_id.0], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, u32>(6)?,
+                row.get::<_, String>(7)?,
+            ))
+        })? {
+            let (id, label, citation, posture, grade, element_id, ordinal, text) = row?;
+            if charges.last().map(|charge| charge.id.as_str()) != Some(id.as_str()) {
+                charges.push(ChargeStanding {
+                    id,
+                    charge: label.clone(),
+                    citation,
+                    posture,
+                    grade,
+                    elements: Vec::new(),
+                });
+            }
+            let charge_index = charges.len() - 1;
+            let elements = &mut charges[charge_index].elements;
+            label_of.insert(element_id.clone(), format!("{label}, element {ordinal}"));
+            placement.insert(element_id, (charge_index, elements.len()));
+            elements.push(ElementStanding {
+                ordinal,
+                element: text,
+                supporting: 0,
+                opposing: 0,
+                uncertain: 0,
+                excluded: 0,
+                sources_behind_support: 0,
+                sole_source: None,
+                unchecked_support: 0,
+                unbacked: 0,
+            });
+        }
+
+        // One row per mapping: which direction a person filed the proposition
+        // under, whether anything source-grounded reaches it at all, and
+        // whether a person has checked any of what supports it.
+        let mut mapping_statement = self.connection.prepare_cached(
+            "SELECT link.element_id, link.assessment, prop.id,
+                    (SELECT count(*) FROM edges e
+                      WHERE e.case_id = prop.case_id AND e.target_kind = 'proposition'
+                        AND e.target_id = prop.id AND e.source_kind = 'content'
+                        AND e.review_state <> 'rejected'),
+                    (SELECT count(*) FROM edges e
+                      JOIN content c ON c.id = e.source_id
+                      WHERE e.case_id = prop.case_id AND e.target_kind = 'proposition'
+                        AND e.target_id = prop.id AND e.source_kind = 'content'
+                        AND e.review_state <> 'rejected'
+                        AND e.relation IN ('supports','corroborates')
+                        AND c.review_state IN ('reviewed','verified'))
+             FROM element_links link
+             JOIN elements el ON el.id = link.element_id
+             JOIN charges ch ON ch.id = el.charge_id
+             JOIN propositions prop ON prop.id = link.proposition_id
+             WHERE ch.case_id = ?1 AND prop.case_id = ?1
+             ORDER BY link.element_id, prop.id",
+        )?;
+        let mut elements_of_proposition: HashMap<String, Vec<String>> = HashMap::new();
+        for row in mapping_statement.query_map([&case_id.0], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, u32>(3)?,
+                row.get::<_, u32>(4)?,
+            ))
+        })? {
+            let (element_id, assessment, proposition_id, backing, checked) = row?;
+            if let Some(label) = label_of.get(&element_id) {
+                elements_of_proposition
+                    .entry(proposition_id)
+                    .or_default()
+                    .push(label.clone());
+            }
+            let Some(standing) = placement
+                .get(&element_id)
+                .and_then(|&(charge, element)| charges[charge].elements.get_mut(element))
+            else {
+                continue;
+            };
+            let direction = ElementAssessment::from_db(&assessment).ok_or_else(|| {
+                Error::InvalidAuthoring(format!(
+                    "element `{element_id}` holds unrecognized assessment `{assessment}`"
+                ))
+            })?;
+            match direction {
+                ElementAssessment::Supports => {
+                    standing.supporting += 1;
+                    if checked == 0 {
+                        standing.unchecked_support += 1;
+                    }
+                }
+                ElementAssessment::Opposes => standing.opposing += 1,
+                ElementAssessment::Uncertain => standing.uncertain += 1,
+                ElementAssessment::Excluded => standing.excluded += 1,
+            }
+            if backing == 0 {
+                standing.unbacked += 1;
+            }
+        }
+
+        // The distinct originals under each element's support. An element whose
+        // support all arrives through one source fails entirely if that source
+        // does, which is a fact about the record rather than a judgment on it.
+        let mut source_statement = self.connection.prepare_cached(
+            "SELECT link.element_id, src.id, src.logical_name, src.review_state
+             FROM element_links link
+             JOIN elements el ON el.id = link.element_id
+             JOIN charges ch ON ch.id = el.charge_id
+             JOIN propositions prop ON prop.id = link.proposition_id
+             JOIN edges e ON e.case_id = prop.case_id AND e.target_kind = 'proposition'
+                         AND e.target_id = prop.id AND e.source_kind = 'content'
+                         AND e.review_state <> 'rejected'
+                         AND e.relation IN ('supports','corroborates')
+             JOIN content c ON c.id = e.source_id
+             JOIN source_segments seg ON seg.id = c.segment_id
+             JOIN sources src ON src.id = seg.source_id
+             WHERE ch.case_id = ?1 AND prop.case_id = ?1 AND link.assessment = 'supports'
+             GROUP BY link.element_id, src.id
+             ORDER BY link.element_id, src.logical_name, src.id",
+        )?;
+        let mut sources_of_element: HashMap<String, Vec<(String, String, String)>> = HashMap::new();
+        for row in source_statement.query_map([&case_id.0], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })? {
+            let (element_id, source_id, name, review_state) = row?;
+            sources_of_element
+                .entry(element_id)
+                .or_default()
+                .push((source_id, name, review_state));
+        }
+
+        let mut load_bearing: HashMap<String, LoadBearingSource> = HashMap::new();
+        for (element_id, sources) in &sources_of_element {
+            let Some(standing) = placement
+                .get(element_id)
+                .and_then(|&(charge, element)| charges[charge].elements.get_mut(element))
+            else {
+                continue;
+            };
+            standing.sources_behind_support = u32::try_from(sources.len()).unwrap_or(u32::MAX);
+            if let [(source_id, name, review_state)] = sources.as_slice() {
+                standing.sole_source = Some(name.clone());
+                let entry =
+                    load_bearing
+                        .entry(source_id.clone())
+                        .or_insert_with(|| LoadBearingSource {
+                            id: source_id.clone(),
+                            source: name.clone(),
+                            review_state: review_state.clone(),
+                            sole_support_for: Vec::new(),
+                        });
+                if let Some(label) = label_of.get(element_id) {
+                    entry.sole_support_for.push(label.clone());
+                }
+            }
+        }
+        let mut load_bearing_sources: Vec<LoadBearingSource> = load_bearing.into_values().collect();
+        for source in &mut load_bearing_sources {
+            source.sole_support_for.sort();
+        }
+        load_bearing_sources.sort_by(|left, right| {
+            right
+                .sole_support_for
+                .len()
+                .cmp(&left.sole_support_for.len())
+                .then_with(|| left.source.cmp(&right.source))
+        });
+
+        Ok(CaseStanding {
+            case_id: case_id.0.clone(),
+            case_name,
+            charges,
+            load_bearing_sources,
+            live_disputes: self.live_disputes(case_id, &elements_of_proposition)?,
+            open_gaps: self.open_gaps(case_id, &elements_of_proposition)?,
+        })
+    }
+
+    /// Returns propositions carrying source-grounded evidence in both directions.
+    ///
+    /// Not a problem to resolve. A proposition with evidence pulling both ways
+    /// is the contested ground the case is actually fought on, and the kernel's
+    /// whole posture is that it stays contested until a person says otherwise.
+    fn live_disputes(
+        &self,
+        case_id: &CaseId,
+        elements_of_proposition: &HashMap<String, Vec<String>>,
+    ) -> Result<Vec<LiveDispute>> {
+        let mut statement = self.connection.prepare_cached(
+            "SELECT p.id, p.text,
+                    sum(CASE WHEN e.relation IN ('supports','corroborates') THEN 1 ELSE 0 END),
+                    sum(CASE WHEN e.relation IN ('contradicts','impeaches') THEN 1 ELSE 0 END)
+             FROM propositions p
+             JOIN edges e ON e.case_id = p.case_id AND e.target_kind = 'proposition'
+                         AND e.target_id = p.id AND e.source_kind = 'content'
+                         AND e.review_state <> 'rejected'
+             WHERE p.case_id = ?1
+             GROUP BY p.id
+             HAVING sum(CASE WHEN e.relation IN ('supports','corroborates') THEN 1 ELSE 0 END) > 0
+                AND sum(CASE WHEN e.relation IN ('contradicts','impeaches') THEN 1 ELSE 0 END) > 0
+             ORDER BY p.text, p.id",
+        )?;
+        let rows = statement.query_map([&case_id.0], |row| {
+            let id: String = row.get(0)?;
+            Ok(LiveDispute {
+                proposition: row.get(1)?,
+                supporting_evidence: row.get(2)?,
+                contradicting_evidence: row.get(3)?,
+                bears_on: elements_of_proposition
+                    .get(&id)
+                    .cloned()
+                    .unwrap_or_default(),
+                id,
+            })
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Collects every analyzer finding, those bearing on a charge first.
+    ///
+    /// The analyzers already report these; what this adds is where each one
+    /// lands. A reference nobody resolved matters differently depending on
+    /// whether it touches a charged element or a corner of the file, and a
+    /// defender with an hour should not have to work that out by hand.
+    fn open_gaps(
+        &self,
+        case_id: &CaseId,
+        elements_of_proposition: &HashMap<String, Vec<String>>,
+    ) -> Result<Vec<OpenGap>> {
+        let mut gaps = Vec::new();
+        for kind in SuggestionKind::ALL {
+            if kind.proposes_relationships() {
+                continue;
+            }
+            for finding in self.findings(case_id, kind)? {
+                let bears_on = elements_of_proposition
+                    .get(&finding.subject_id)
+                    .cloned()
+                    .unwrap_or_default();
+                gaps.push(OpenGap {
+                    analyzer: kind.as_str().to_owned(),
+                    subject_kind: finding.subject_kind,
+                    subject_id: finding.subject_id,
+                    subject: finding.subject,
+                    summary: finding.summary,
+                    bears_on,
+                });
+            }
+        }
+        gaps.sort_by(|left, right| {
+            // A gap that touches a charged element comes first: `false` sorts
+            // before `true`, so comparing `is_empty()` left-to-right puts the
+            // ones that bear on something at the top.
+            left.bears_on
+                .is_empty()
+                .cmp(&right.bears_on.is_empty())
+                .then_with(|| right.bears_on.len().cmp(&left.bears_on.len()))
+                .then_with(|| left.analyzer.cmp(&right.analyzer))
+                .then_with(|| left.subject.cmp(&right.subject))
+        });
+        Ok(gaps)
     }
 
     /// Runs deterministic analyzers and proposes what they find.

@@ -74,9 +74,14 @@ Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs 
 - `src/export.rs` — audience-aware export read models (`ExportAudience`, `CaseExport`). Every
   factual line resolves to an exact locator or the proposition is reported as unsupported;
   omissions and unreviewed inclusions are counted in the header rather than left implicit.
-- `src/views.rs` — serializable read models (`Overview`, `DiscoveryItem`, `ElementRow`,
-  `WitnessStatement`, `TimelineEntry`, `IssueWorkspace`, `DecisionBrief`, `PropositionEvidence`,
-  `OffenseComparison`). These are the stable contract for the planned Windows-only WinSafe GUI,
+- `src/views.rs` — serializable read models (`Overview`, `CaseStanding`, `DiscoveryItem`,
+  `ElementRow`, `WitnessStatement`, `TimelineEntry`, `IssueWorkspace`, `DecisionBrief`,
+  `PropositionEvidence`, `OffenseComparison`). `CaseStanding` (`Store::case_standing`) is the
+  decision view: per element, direction counts, distinct originals behind the support, the sole
+  source when there is one, unchecked support, unbacked mappings; plus load-bearing sources, live
+  disputes, and analyzer gaps ordered by whether they touch a charge. Rule 35 governs it — report
+  structure, never a verdict — and `nothing_in_the_standing_view_scores_the_case` enforces it by
+  serializing the view and failing on scoring vocabulary. These are the stable contract for the planned Windows-only WinSafe GUI,
   which will consume Rust read models rather than SQL. No cross-platform GUI is planned.
 - `src/fixture.rs` — hand-authored `DemoFixture` cases seeded from raw SQL (`fixtures/*.sql` for
   hit-and-run, inline SQL for vehicle-stop). Seeding is transactional and idempotent. The

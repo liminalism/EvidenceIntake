@@ -37,6 +37,7 @@ pub use review::{ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewTarget};
 pub use store::Store;
 pub use suggest::{AnalyzerReport, Finding, SuggestionKind, SuggestionRun};
 pub use views::{
-    DecisionBrief, DiscoveryItem, ElementCoverage, ElementRow, IssueWorkspace, OffenseComparison,
+    CaseStanding, ChargeStanding, DecisionBrief, DiscoveryItem, ElementCoverage, ElementRow,
+    ElementStanding, IssueWorkspace, LiveDispute, LoadBearingSource, OffenseComparison, OpenGap,
     Overview, PropositionEvidence, TimelineEntry, WitnessStatement,
 };

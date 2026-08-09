@@ -208,6 +208,125 @@ pub struct ElementCoverage {
     pub excluded: Vec<String>,
 }
 
+/// Where a case stands, element by element, without saying who wins it.
+///
+/// Everything here is a count of what the case holds or a fact about how its
+/// material is connected. Nothing is weighted, ranked by strength, or reduced
+/// to a number standing for how the case will come out — an element with no
+/// supporting proposition is reported as having none, which is an observation,
+/// not a prediction.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CaseStanding {
+    /// Case identifier.
+    pub case_id: String,
+    /// Human-readable case name.
+    pub case_name: String,
+    /// Every charge, element by element.
+    pub charges: Vec<ChargeStanding>,
+    /// Sources that alone carry an element's support.
+    pub load_bearing_sources: Vec<LoadBearingSource>,
+    /// Propositions with evidence pulling both ways.
+    pub live_disputes: Vec<LiveDispute>,
+    /// Gaps the analyzers found, those touching a charge first.
+    pub open_gaps: Vec<OpenGap>,
+}
+
+/// One charge and the standing of each of its elements.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ChargeStanding {
+    /// Charge identifier.
+    pub id: String,
+    /// Human-readable offense.
+    pub charge: String,
+    /// Statutory citation.
+    pub citation: Option<String>,
+    /// `charged`, `lesser_candidate`, `alternative`, or `dismissed`.
+    pub posture: String,
+    /// Felony, misdemeanor, infraction, or jurisdiction-specific grade.
+    pub grade: Option<String>,
+    /// Element-by-element standing, in statutory order.
+    pub elements: Vec<ElementStanding>,
+}
+
+/// What one statutory element rests on.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ElementStanding {
+    /// Ordered element number.
+    pub ordinal: u32,
+    /// Element text.
+    pub element: String,
+    /// Propositions mapped as tending to support the element.
+    pub supporting: u32,
+    /// Propositions mapped as tending to oppose it.
+    pub opposing: u32,
+    /// Propositions whose effect a person recorded as uncertain.
+    pub uncertain: u32,
+    /// Propositions a person excluded from the present analysis.
+    pub excluded: u32,
+    /// Distinct original sources the supporting propositions rest on.
+    ///
+    /// Three propositions quoting one report are not three sources, and an
+    /// element cannot be argued about without knowing which it is.
+    pub sources_behind_support: u32,
+    /// Named when every supporting proposition traces back to one source.
+    ///
+    /// The single point at which the element's support fails, which is where a
+    /// suppression or foundation argument is worth the effort.
+    pub sole_source: Option<String>,
+    /// Supporting propositions no person has checked any evidence for.
+    ///
+    /// Counted, not hidden: an element resting on material nobody has opened is
+    /// standing on an assumption about what the original says.
+    pub unchecked_support: u32,
+    /// Propositions mapped here that no source-grounded evidence reaches.
+    pub unbacked: u32,
+}
+
+/// A source that alone carries the support for at least one element.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LoadBearingSource {
+    /// Source identifier.
+    pub id: String,
+    /// Source logical name.
+    pub source: String,
+    /// Human review state of the source.
+    pub review_state: String,
+    /// Elements whose support rests on this source and nothing else.
+    pub sole_support_for: Vec<String>,
+}
+
+/// A proposition with source-grounded evidence pulling both ways.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LiveDispute {
+    /// Proposition identifier.
+    pub id: String,
+    /// Proposition text.
+    pub proposition: String,
+    /// Excerpts supporting or corroborating it.
+    pub supporting_evidence: u32,
+    /// Excerpts contradicting or impeaching it.
+    pub contradicting_evidence: u32,
+    /// Elements this proposition is mapped to, if any.
+    pub bears_on: Vec<String>,
+}
+
+/// A gap an analyzer reported, placed against the charges it touches.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OpenGap {
+    /// The analyzer that reported it.
+    pub analyzer: String,
+    /// Node type of the record the gap concerns.
+    pub subject_kind: String,
+    /// Identifier of that record.
+    pub subject_id: String,
+    /// The record's own words.
+    pub subject: String,
+    /// What is missing and what closing it would take.
+    pub summary: String,
+    /// Elements the gap bears on; empty when it touches no charge.
+    pub bears_on: Vec<String>,
+}
+
 /// A charged offense or lesser candidate shown without a recommendation score.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OffenseComparison {

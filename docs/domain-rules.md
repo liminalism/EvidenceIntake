@@ -99,4 +99,12 @@ These rules are invariants for the kernel and future UI.
 34. No tolerance windows. How much clock disagreement matters is the defender's
     judgment, so the tool reports that two sources differ and never how much
     difference is acceptable.
+35. Structure may be reported; a verdict may not. The kernel will say that an
+    element's support all traces to one source, that nobody has opened it, and
+    that a gap in the record touches a charged element — each a checkable fact
+    about how the material is connected. It will not say that an element is
+    weak, score a charge, rank elements by strength, or estimate an outcome.
+    Ordering obeys the same line: elements appear in statutory order and gaps
+    are ordered by whether they touch a charge, which is a fact, rather than by
+    how serious they are, which is the defender's call.
 

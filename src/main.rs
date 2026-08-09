@@ -523,6 +523,8 @@ enum FixtureName {
 enum View {
     /// Counts and workflow state.
     Overview,
+    /// Where the case stands: what each element rests on, and where it is thin.
+    Standing,
     /// Production and completeness ledger.
     Discovery,
     /// Charge-element evidence matrix.
@@ -605,6 +607,7 @@ fn run() -> Result<()> {
             let case_id = CaseId(case_id);
             match view {
                 View::Overview => print_json(&store.overview(&case_id)?)?,
+                View::Standing => print_json(&store.case_standing(&case_id)?)?,
                 View::Discovery => print_json(&store.discovery_ledger(&case_id)?)?,
                 View::Elements => print_json(&store.element_matrix(&case_id)?)?,
                 View::Witness { entity_id } => {

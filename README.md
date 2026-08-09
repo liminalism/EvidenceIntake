@@ -29,6 +29,10 @@ This initial milestone provides:
   relationship for review — overlaps, contradiction candidates, conflicting
   attributions, possible duplicate people — or report a gap to close, each
   stating a reason a defender can reconstruct;
+- a case-standing view answering what each element actually rests on: how many
+  distinct originals are behind it, whether one source alone carries it, what
+  nobody has checked, where evidence pulls both ways, and which gaps in the
+  record touch a charge — structure a defender can act on, never a score;
 - decision-oriented discovery, element, witness, timeline, issue, and brief
   read models;
 - an adapter-neutral contract for already-OCRed documents, timestamped audio
@@ -52,6 +56,7 @@ cargo run -- seed vehicle-stop
 cargo run -- seed hit-and-run
 cargo run -- cases
 cargo run -- view case-vehicle-stop-001 overview
+cargo run -- view case-vehicle-stop-001 standing
 cargo run -- view case-vehicle-stop-001 discovery
 cargo run -- view case-vehicle-stop-001 elements
 cargo run -- view case-vehicle-stop-001 witness person-patel
