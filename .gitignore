@@ -1,0 +1,19 @@
+/target/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store
+
+
+# AKR: a rebuildable cache and disposable agent notes.
+.akr/cache/
+.agent/scratch/
+
+# A rebuildable code index.
+/.codegraph/
+
+# Vendored external research. Read as background; unrelated to the crate, and
+# lingbot-map is a separate upstream checkout with its own history.
+/lingbot-map/
+/2503.06317v1.md
+/original-pdf-do-not-read-if-there-is-a-markdown-version/
