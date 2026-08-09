@@ -23,6 +23,8 @@ This initial milestone provides:
   assessments that record a direction rather than a score;
 - privileged work product — issues, notes, and decision briefs — versioned by
   superseding, so an earlier reading stays readable next to the current one;
+- audience-aware source-linked export, in which every factual line resolves to an
+  exact original and a disclosable export never reads the privileged tables;
 - decision-oriented discovery, element, witness, timeline, issue, and brief
   read models;
 - an adapter-neutral contract for already-OCRed documents, timestamped audio
@@ -68,7 +70,13 @@ cargo run -- author case-hit-run-001 work \
   --body "First reading of the interval." --author "A. Reyes"
 cargo run -- view case-hit-run-001 work-history <item-id>
 cargo run -- view case-hit-run-001 notes content hr-content-911-injury
+cargo run -- export case-hit-run-001
+cargo run -- export case-hit-run-001 --audience work-file
 ```
+
+`export` produces the source-linked record: every factual line carries the exact
+original it rests on, and the default `disclosable` audience never reads the
+privileged tables. See [`docs/export.md`](docs/export.md).
 
 Machine suggestions stay suggestions until a person acts on them. `review
 queue` lists what is waiting with the exact locator to open, and `review apply`
@@ -102,8 +110,11 @@ preserves model version, confidence, original-source hash, and exact locator.
 
 Human review and human authoring are now first-class mutations, the first with
 its own immutable trail and the second with versioned work product that
-supersedes rather than overwrites. The backend mutation API is complete; the
-WinSafe GUI remains a separate later milestone.
+supersedes rather than overwrites. With source-linked export, the defender
+workspace this repository set out to build is complete: the remaining work is
+assisted collation (machine suggestions for duplicates, temporal alignment, and
+contradiction candidates, each visibly unconfirmed until reviewed) and the
+WinSafe GUI, both separate later milestones.
 
 One thing it deliberately still refuses: changing an element assessment. Reading
 evidence differently later is an honest act that should leave a trail, but

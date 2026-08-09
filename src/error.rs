@@ -38,6 +38,18 @@ pub enum Error {
         /// The direction it is already filed under.
         assessment: String,
     },
+    /// An export would have carried a factual line with no original to open.
+    #[error(
+        "evidence from `{source_name}` bearing on proposition `{proposition}` has no original \
+         locator; an export must resolve every factual line to something a reader can open"
+    )]
+    UnlocatedExport {
+        /// The proposition the line bears on.
+        proposition: String,
+        /// The source the line came from. Not named `source`: `thiserror`
+        /// reserves that field for a wrapped error.
+        source_name: String,
+    },
     /// A superseded version was revised instead of the current one.
     #[error("{kind} `{id}` has already been superseded{}; revise the current version instead",
             .by.as_ref().map(|id| format!(" by `{id}`")).unwrap_or_default())]

@@ -7,12 +7,13 @@ use uuid::Uuid;
 
 use crate::{
     AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredLink, AuthoredProposition,
-    CaseId, DecisionBrief, DiscoveryItem, ElementAssessment, ElementCoverage, ElementRow, Error,
-    IssueWorkspace, NodeKind, NodeRef, NormalizedBatch, OffenseComparison, Overview,
-    ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
-    ProposedElementMapping, ProposedLink, ProposedProposition, PropositionEvidence, Result,
-    ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, TimelineEntry,
-    WitnessStatement, WorkProductVersion, review::transition_allowed,
+    CaseExport, CaseId, DecisionBrief, DiscoveryItem, ElementAssessment, ElementCoverage,
+    ElementRow, Error, ExportAudience, ExportedProposition, ExportedWorkProduct, IssueWorkspace,
+    NodeKind, NodeRef, NormalizedBatch, OffenseComparison, Overview, ProposedAdvocacyItem,
+    ProposedAnnotation, ProposedBrief, ProposedCharge, ProposedElementMapping, ProposedLink,
+    ProposedProposition, PropositionEvidence, Result, ReviewDecision, ReviewEvent, ReviewQueueItem,
+    ReviewState, ReviewTarget, TimelineEntry, UnsupportedProposition, WitnessStatement,
+    WorkProductVersion, review::transition_allowed,
 };
 
 /// A local SQLite case store.
@@ -634,6 +635,143 @@ impl Store {
                 Ok(charge)
             })
             .collect()
+    }
+
+    /// Assembles a source-linked export of the case.
+    ///
+    /// Two rules govern this and neither is left to the caller. Every factual
+    /// line resolves to an exact original locator; a proposition that resolves
+    /// to nothing openable is listed as unsupported rather than exported as a
+    /// bare assertion. And a disclosable export never reads the advocacy,
+    /// annotation, or brief tables at all — privilege is excluded structurally,
+    /// not by filtering a flag a future writer could set wrongly.
+    ///
+    /// Evidence a reviewer rejected is left out, as everywhere else, but it is
+    /// counted: nothing leaves this tool silently reduced.
+    pub fn export_case(&self, case_id: &CaseId, audience: ExportAudience) -> Result<CaseExport> {
+        let case_name = self.case_name(case_id)?;
+
+        let mut statement = self.connection.prepare(
+            "SELECT id, text, status, review_state FROM propositions
+             WHERE case_id = ?1 ORDER BY text, id",
+        )?;
+        let rows = statement
+            .query_map([&case_id.0], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        let mut propositions = Vec::new();
+        let mut unsupported = Vec::new();
+        let mut unreviewed_evidence_included = 0_u32;
+        for (id, text, status, review_state) in rows {
+            let evidence = self.proposition_evidence(case_id, &id)?;
+            if evidence.is_empty() {
+                unsupported.push(UnsupportedProposition {
+                    id,
+                    text,
+                    reason: "no source-grounded evidence resolves to this proposition".to_owned(),
+                });
+                continue;
+            }
+            // Rule twelve, checked rather than trusted: a line a reader cannot
+            // open is not a fact, and this is the last place to catch one.
+            if let Some(unlocated) = evidence.iter().find(|item| item.locator.trim().is_empty()) {
+                return Err(Error::UnlocatedExport {
+                    proposition: id,
+                    source_name: unlocated.source.clone(),
+                });
+            }
+            unreviewed_evidence_included += evidence
+                .iter()
+                .filter(|item| {
+                    is_intake_state(&item.review_state)
+                        || is_intake_state(&item.relation_review_state)
+                })
+                .count()
+                .try_into()
+                .unwrap_or(u32::MAX);
+            propositions.push(ExportedProposition {
+                id,
+                text,
+                status,
+                review_state,
+                evidence,
+            });
+        }
+
+        let rejected_evidence_omitted = self.connection.query_row(
+            "SELECT count(*) FROM edges
+             WHERE case_id = ?1 AND target_kind = 'proposition'
+               AND source_kind = 'content' AND review_state = 'rejected'",
+            [&case_id.0],
+            |row| row.get(0),
+        )?;
+
+        let privileged = if audience.includes_privileged() {
+            self.privileged_work_product(case_id)?
+        } else {
+            Vec::new()
+        };
+
+        Ok(CaseExport {
+            case_id: case_id.0.clone(),
+            case_name,
+            audience: audience.as_str().to_owned(),
+            includes_privileged: audience.includes_privileged(),
+            productions: self.discovery_ledger(case_id)?,
+            propositions,
+            unsupported,
+            privileged,
+            rejected_evidence_omitted,
+            unreviewed_evidence_included,
+        })
+    }
+
+    /// Reads the current version of every privileged work-product record.
+    ///
+    /// Only ever called for a work-file export. A disclosable export does not
+    /// reach this function, which is what keeps privilege out of it.
+    fn privileged_work_product(&self, case_id: &CaseId) -> Result<Vec<ExportedWorkProduct>> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, kind, title, body, version, author
+             FROM advocacy_items item
+             WHERE case_id = ?1
+               AND NOT EXISTS (SELECT 1 FROM advocacy_items later
+                               WHERE later.supersedes_advocacy_id = item.id)
+             UNION ALL
+             SELECT id, 'annotation', 'annotation on ' || target_kind || ' ' || target_id,
+                    body, version, author
+             FROM annotations note
+             WHERE case_id = ?1
+               AND NOT EXISTS (SELECT 1 FROM annotations later
+                               WHERE later.supersedes_annotation_id = note.id)
+             UNION ALL
+             SELECT id, 'decision_brief', posture, summary, version, author
+             FROM decision_briefs brief
+             WHERE case_id = ?1
+               AND version = (SELECT MAX(version) FROM decision_briefs latest
+                              WHERE latest.case_id = brief.case_id
+                                AND latest.posture = brief.posture)
+             ORDER BY 2, 3",
+        )?;
+        let rows = statement.query_map([&case_id.0], |row| {
+            Ok(ExportedWorkProduct {
+                id: row.get(0)?,
+                kind: row.get(1)?,
+                title: row.get(2)?,
+                body: row.get(3)?,
+                version: row.get(4)?,
+                author: row.get(5)?,
+            })
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
     }
 
     /// Lists records still in an intake state, machine suggestions first.
@@ -1663,6 +1801,14 @@ fn trimmed(value: Option<&str>) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
+}
+
+/// Returns whether a stored state is one import produced rather than a person.
+///
+/// An unrecognized value counts as unreviewed: for a caller deciding what to
+/// warn about, treating something unreadable as unchecked is the safe reading.
+fn is_intake_state(value: &str) -> bool {
+    ReviewState::from_db(value).is_none_or(ReviewState::is_intake_state)
 }
 
 /// Requires a field that was actually filled in.

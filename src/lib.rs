@@ -6,6 +6,7 @@
 
 mod authoring;
 mod error;
+mod export;
 mod fixture;
 mod ingest;
 mod model;
@@ -19,6 +20,9 @@ pub use authoring::{
     ProposedElementMapping, ProposedLink, ProposedProposition, WorkProductVersion,
 };
 pub use error::{Error, Result};
+pub use export::{
+    CaseExport, ExportAudience, ExportedProposition, ExportedWorkProduct, UnsupportedProposition,
+};
 pub use fixture::DemoFixture;
 pub use ingest::{
     ExtractionProvenance, NormalizedBatch, NormalizedContent, NormalizedSegment, NormalizedSource,

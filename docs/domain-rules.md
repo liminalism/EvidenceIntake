@@ -79,4 +79,10 @@ These rules are invariants for the kernel and future UI.
 27. An issue's follow-up tasks are the ones linked to that issue. A workspace
     that listed every open task in the case would send a defender to chase work
     belonging to an unrelated question.
+28. A disclosable export never reads the privileged tables at all. Excluding
+    work product structurally, rather than by filtering a `privileged` flag,
+    means one wrong write cannot disclose it.
+29. An export names what it left out and what it left unchecked. Rejected
+    material is counted, not silently dropped, and evidence no person has
+    reviewed is counted, not silently attached.
 

@@ -119,3 +119,38 @@ record evidence-intake-project.mutation-api.versioned-work-product/1 : work {
             """
     }
 }
+
+record evidence-intake-project.workspace.source-linked-export/1 : work {
+    title "Audience-aware source-linked export"
+    state completed
+    scope [
+        path "docs/export.md",
+        path "src/export.rs",
+        path "src/main.rs",
+        path "src/store.rs",
+        path "tests/export.rs"
+    ]
+    intent """
+        Build the last unbuilt item of Phase C in collation-first-plan.md: source-linked exports. Two domain rules were written about export before anything could produce one — rule 10 (privileged material excluded from routine exports) and rule 12 (every factual sentence resolves to a proposition or content node and from there to an exact original locator) — and nothing enforced either.
+        """
+    claim locators-checked-not-assumed {
+        text """
+            Rule 12 is verified while the export is assembled: an evidence item reaching the export with an empty locator fails the whole export rather than travelling as a fact nobody can open. A proposition resolving to no source-grounded evidence is listed as unsupported rather than exported as a bare assertion. Only content resolves to an original, so a proposition supported solely by another proposition or an event is correctly reported as unsupported.
+            """
+    }
+    claim no-silent-omission-or-inclusion {
+        text """
+            The header carries `rejected_evidence_omitted` and `unreviewed_evidence_included`. Machine suggestions are exported with their state attached rather than hidden — hiding them would misrepresent the file — but a defender deciding whether to attach the export to a filing should not have to tally them by hand.
+            """
+    }
+    claim privilege-excluded-structurally {
+        text """
+            A disclosable export never reads the advocacy, annotation, or brief tables at all. Exclusion is structural rather than a filter on the `privileged` flag, because a flag is only as good as every future writer that sets it and the cost of one wrong write is disclosing work product. The test proves it with a canary phrase that exists only inside privileged records and must appear nowhere in the serialized disclosable export.
+            """
+    }
+    claim safe-default-audience {
+        text """
+            The CLI defaults to `disclosable`. The audience that cannot leak is the one produced by forgetting to choose.
+            """
+    }
+}

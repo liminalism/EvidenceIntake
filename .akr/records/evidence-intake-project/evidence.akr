@@ -25,6 +25,18 @@ record evidence-intake-project.evidence.element-mapping-suite/1 : evidence {
         """
 }
 
+record evidence-intake-project.evidence.export-suite/1 : evidence {
+    title "67 tests pass, clippy clean under -D warnings, formatting clean. tests/export.rs adds 9: a canary phrase seeded into all three privileged tables and asserted absent from the serialized disclosable export and present in the work-file one, every exported line carrying a non-empty source and locator, an evidence-free proposition reported as unsupported rather than as fact, rejected evidence counted, unreviewed evidence counted and reconciled against what the lines themselves say, the production ledger carried through unchanged, an unknown case refused, and two cases in one database not bleeding into each other's export. Verified by hand that both audiences produce sane output and no work-product text appears in the disclosable JSON."
+    state verified
+    result pass
+    method command
+    observed_at git:08f83140f265b9174c09e94edcfb06a0f0dfe92f
+    command "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
+    summary """
+        67 tests pass, clippy clean under -D warnings, formatting clean. tests/export.rs adds 9: a canary phrase seeded into all three privileged tables and asserted absent from the serialized disclosable export and present in the work-file one, every exported line carrying a non-empty source and locator, an evidence-free proposition reported as unsupported rather than as fact, rejected evidence counted, unreviewed evidence counted and reconciled against what the lines themselves say, the production ledger carried through unchanged, an unknown case refused, and two cases in one database not bleeding into each other's export. Verified by hand that both audiences produce sane output and no work-product text appears in the disclosable JSON.
+        """
+}
+
 record evidence-intake-project.evidence.work-product-suite/1 : evidence {
     title "58 tests pass, clippy clean under -D warnings, formatting clean. tests/work_product.rs adds 9 covering privileged v1 entry, supersede-not-overwrite with full history from any version identifier, refusal to revise a superseded version, a rewritten issue appearing once in the workspace, current-only annotations, cross-case refusal, per-posture brief numbering continuing the fixture's chain, and work product staying out of the discovery ledger. A schema test proves the author trigger fires on all three tables, and a collation test proves the two hit-and-run issues no longer carry identical task lists. Verified by hand that migration 0005 re-runs against a pre-0005 database."
     state verified

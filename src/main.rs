@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence_intake::{
-    AdvocacyKind, CaseId, ChargePosture, DemoFixture, EdgeKind, ElementAssessment, NodeKind,
-    NodeRef, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
+    AdvocacyKind, CaseId, ChargePosture, DemoFixture, EdgeKind, ElementAssessment, ExportAudience,
+    NodeKind, NodeRef, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
     ProposedElement, ProposedElementMapping, ProposedLink, ProposedProposition, Result,
     ReviewDecision, ReviewState, ReviewTarget, Store,
 };
@@ -45,6 +45,14 @@ enum Command {
         case_id: String,
         #[command(subcommand)]
         action: ReviewAction,
+    },
+    /// Produce a source-linked export of the case.
+    Export {
+        /// Stable case identifier.
+        case_id: String,
+        /// Who the export is for. `disclosable` never reads privileged tables.
+        #[arg(long, value_enum, default_value_t = AudienceArg::Disclosable)]
+        audience: AudienceArg,
     },
     /// Write a person's own reading of the case into it.
     Author {
@@ -210,6 +218,25 @@ enum AuthorItem {
         #[arg(long)]
         id: Option<String>,
     },
+}
+
+/// Naming the audience is deliberate: producing a work file when a disclosable
+/// export was meant is the mistake this command exists to make hard.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AudienceArg {
+    /// Nothing privileged. Safe to hand outside the defense team.
+    Disclosable,
+    /// The defense team's own complete file, privileged analysis included.
+    WorkFile,
+}
+
+impl From<AudienceArg> for ExportAudience {
+    fn from(value: AudienceArg) -> Self {
+        match value {
+            AudienceArg::Disclosable => Self::Disclosable,
+            AudienceArg::WorkFile => Self::WorkFile,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -543,6 +570,10 @@ fn run() -> Result<()> {
                     print_json(&store.review_history(&case_id, id.as_deref())?)?;
                 }
             }
+        }
+        Command::Export { case_id, audience } => {
+            let case_id = CaseId(case_id);
+            print_json(&store.export_case(&case_id, ExportAudience::from(audience))?)?;
         }
         Command::Author { case_id, item } => {
             let case_id = CaseId(case_id);

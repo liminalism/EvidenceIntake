@@ -57,6 +57,9 @@ Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs 
   inside the case, the same claim is never asserted twice, and work product is revised by
   superseding rather than overwriting.
 - `src/review.rs` — review vocabulary plus `transition_allowed`, the state-machine predicate.
+- `src/export.rs` — audience-aware export read models (`ExportAudience`, `CaseExport`). Every
+  factual line resolves to an exact locator or the proposition is reported as unsupported;
+  omissions and unreviewed inclusions are counted in the header rather than left implicit.
 - `src/views.rs` — serializable read models (`Overview`, `DiscoveryItem`, `ElementRow`,
   `WitnessStatement`, `TimelineEntry`, `IssueWorkspace`, `DecisionBrief`, `PropositionEvidence`,
   `OffenseComparison`). These are the stable contract for the planned Windows-only WinSafe GUI,
@@ -100,6 +103,9 @@ The graph is node tables (`sources`, `source_segments`, `content`, `entities`, `
 - **Advocacy items, annotations, and decision briefs are privileged** and stay out of the
   discovery ledger and any routine export. They carry no review state — review asks whether
   an extraction represents an original, and attorney analysis is not an extraction.
+  `export_case(_, Disclosable)` excludes them *structurally* — it never queries those tables —
+  rather than filtering the `privileged` flag; keep it that way, and keep
+  `a_disclosable_export_carries_no_privileged_material` passing.
 - **Work product is versioned by superseding, never overwritten.** Only the current version
   may be revised; every view must filter superseded rows (`NOT EXISTS (... supersedes ...)`)
   or a rewritten issue appears twice.
