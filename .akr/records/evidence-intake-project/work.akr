@@ -199,7 +199,7 @@ record evidence-intake-project.mutation-api.versioned-work-product/1 : work {
 
 record evidence-intake-project.performance.read-path-optimization/1 : work {
     title "Optimize the kernel's read and write paths without changing what it stores"
-    state proposed
+    state completed
     scope [
         path "Cargo.toml",
         path "migrations/0006_read_paths.sql",

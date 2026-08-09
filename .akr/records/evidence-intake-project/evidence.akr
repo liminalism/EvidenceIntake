@@ -49,6 +49,18 @@ record evidence-intake-project.evidence.export-suite/1 : evidence {
         """
 }
 
+record evidence-intake-project.evidence.optimization-pass-measured/1 : evidence {
+    title "Optimization pass measured against a synthetic case, behavior unchanged"
+    state verified
+    result pass
+    method command
+    observed_at git:606e36221defcea52ab5def669a2c203e2c4f13b
+    command "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
+    summary """
+        98 tests pass unmodified with fmt and clippy clean; a scale benchmark over 40 sources, 800 excerpts, 400 propositions and 1600 links measured export 18.2ms to 4.8ms, import 14.8ms to 6.9ms, reopen 10.9ms to 6.6ms and overview 0.68ms to 0.38ms, best of five runs each side.
+        """
+}
+
 record evidence-intake-project.evidence.phase-d-complete/1 : evidence {
     title "97 tests pass, clippy clean under -D warnings, formatting clean. tests/suggest.rs grew to 18, adding duplicate people proposed without merging (both dossiers stay separate), shared forenames and initials left alone, non-person entities never compared, a finding writing nothing and repeating identically on rerun, a finding disappearing once the gap is closed by mapping the proposition to an element, an unsupported proposition reported, the vehicle-stop clock disagreement found naming both sources without instructing which clock to correct, and every analyzer either proposing or reporting but never both. tests/authoring.rs adds two entities sharing a name recorded as two records and a nameless entity refused. Verified by hand: vehicle-stop yields 3 proposals, 1 skip, and 4 findings; authoring `Patel` then running duplicate-entity proposes possibly_same_person against the fixture's `Jordan Patel` and it appears in the review queue naming the analyzer."
     state verified
