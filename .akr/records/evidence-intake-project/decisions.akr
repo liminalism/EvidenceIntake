@@ -1,0 +1,38 @@
+akr 0.1
+project evidence-intake-project
+
+record evidence-intake-project.decision.structure-not-verdict/1 : decision {
+    title "Decision views report structure; they never score, rank, or predict a case"
+    state proposed
+    scope [
+        path "docs/domain-rules.md",
+        path "docs/search.md",
+        path "docs/standing.md",
+        path "src/store.rs",
+        path "src/views.rs"
+    ]
+    topic presentation
+    decision """
+        Read models may report facts about how a case's material is connected -- distinct originals behind an element, a sole source carrying it, unchecked support, whether a gap touches a charge -- and may order results by such facts. They may not score a charge, rank elements by strength, label anything weak, or estimate an outcome. Full-text relevance ranking is permitted because it ranks text matches rather than evidence, and the relevance value is not reported. The product goal is a defender understanding what they have in minutes, which needs more than an inventory; the risk is that a strength number is a rearrangement of counts they could already see, carrying an authority it has not earned, and a defender reading one stops looking. Reporting structure gives the same speed while every claim stays checkable and arguable.
+        """
+    claim enforced-by-test {
+        text """
+            nothing_in_the_standing_view_scores_the_case serializes the whole standing view and fails if it contains score, strength, weak, likelihood, probability, confidence, rank, winnable, or recommend.
+            """
+    }
+    claim ordering-obeys-the-line {
+        text """
+            Elements appear in statutory order and gaps are ordered by whether they touch a charge, which is a fact. Neither is ordered by how serious it is, which is a judgment.
+            """
+    }
+    claim relevance-ranks-matches {
+        text """
+            BM25 ordering of search hits ranks how well a passage matches the words typed, not the worth of the evidence, and the value is withheld so it cannot be read as a measurement of the excerpt.
+            """
+    }
+    claim structure-is-checkable {
+        text """
+            "One supporting proposition, one source behind it, nobody has opened it" is a description of the record whose every part can be verified and argued with; "this element is weak" is an argument belonging to the person who signs the motion.
+            """
+    }
+}

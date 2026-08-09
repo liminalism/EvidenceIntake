@@ -73,6 +73,18 @@ record evidence-intake-project.evidence.phase-d-complete/1 : evidence {
         """
 }
 
+record evidence-intake-project.evidence.standing-and-search/1 : evidence {
+    title "Case-standing view and full-text search verified against the fixtures"
+    state verified
+    result pass
+    method command
+    observed_at git:09c8642f59a9cfb4bd92c677d199596ed243a9e0
+    command "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
+    summary """
+        106 tests pass with fmt and clippy clean. The standing view finds that the hit-and-run fixture's property-damage element rests solely on one source and that seven of thirteen open gaps touch a charged element; search returns bracketed excerpts with exact locators and finds no privileged canary.
+        """
+}
+
 record evidence-intake-project.evidence.work-product-suite/1 : evidence {
     title "58 tests pass, clippy clean under -D warnings, formatting clean. tests/work_product.rs adds 9 covering privileged v1 entry, supersede-not-overwrite with full history from any version identifier, refusal to revise a superseded version, a rewritten issue appearing once in the workspace, current-only annotations, cross-case refusal, per-posture brief numbering continuing the fixture's chain, and work product staying out of the discovery ledger. A schema test proves the author trigger fires on all three tables, and a collation test proves the two hit-and-run issues no longer carry identical task lists. Verified by hand that migration 0005 re-runs against a pre-0005 database."
     state verified
