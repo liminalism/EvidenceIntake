@@ -12,6 +12,7 @@ mod ingest;
 mod model;
 mod review;
 mod store;
+mod suggest;
 mod views;
 
 pub use authoring::{
@@ -33,6 +34,7 @@ pub use model::{
 };
 pub use review::{ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewTarget};
 pub use store::Store;
+pub use suggest::{AnalyzerReport, SuggestionKind, SuggestionRun};
 pub use views::{
     DecisionBrief, DiscoveryItem, ElementCoverage, ElementRow, IssueWorkspace, OffenseComparison,
     Overview, PropositionEvidence, TimelineEntry, WitnessStatement,

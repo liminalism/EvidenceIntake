@@ -85,4 +85,10 @@ These rules are invariants for the kernel and future UI.
 29. An export names what it left out and what it left unchecked. Rejected
     material is counted, not silently dropped, and evidence no person has
     reviewed is counted, not silently attached.
+30. An analyzer proposes and never concludes. It may not review, verify, merge,
+    score, or alter a record a person wrote; its whole authority is to point at
+    a pair and state a reason a defender can reconstruct.
+31. A reviewer is not asked twice. A claim the case already holds — asserted,
+    proposed, or rejected — is skipped on later runs, and the check is
+    direction-blind because an analyzer points at a pair, not an orientation.
 

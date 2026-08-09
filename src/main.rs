@@ -7,7 +7,7 @@ use evidence_intake::{
     AdvocacyKind, CaseId, ChargePosture, DemoFixture, EdgeKind, ElementAssessment, ExportAudience,
     NodeKind, NodeRef, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
     ProposedElement, ProposedElementMapping, ProposedLink, ProposedProposition, Result,
-    ReviewDecision, ReviewState, ReviewTarget, Store,
+    ReviewDecision, ReviewState, ReviewTarget, Store, SuggestionKind,
 };
 use serde::Serialize;
 
@@ -45,6 +45,14 @@ enum Command {
         case_id: String,
         #[command(subcommand)]
         action: ReviewAction,
+    },
+    /// Run deterministic analyzers and propose what they find, for review.
+    Suggest {
+        /// Stable case identifier.
+        case_id: String,
+        /// Which analyzer to run; repeat to select several. All when omitted.
+        #[arg(long = "analyzer", value_enum)]
+        analyzers: Vec<AnalyzerArg>,
     },
     /// Produce a source-linked export of the case.
     Export {
@@ -218,6 +226,23 @@ enum AuthorItem {
         #[arg(long)]
         id: Option<String>,
     },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AnalyzerArg {
+    TemporalOverlap,
+    ContradictionCandidate,
+    ConflictingAttribution,
+}
+
+impl From<AnalyzerArg> for SuggestionKind {
+    fn from(value: AnalyzerArg) -> Self {
+        match value {
+            AnalyzerArg::TemporalOverlap => Self::TemporalOverlap,
+            AnalyzerArg::ContradictionCandidate => Self::ContradictionCandidate,
+            AnalyzerArg::ConflictingAttribution => Self::ConflictingAttribution,
+        }
+    }
 }
 
 /// Naming the audience is deliberate: producing a work file when a disclosable
@@ -570,6 +595,15 @@ fn run() -> Result<()> {
                     print_json(&store.review_history(&case_id, id.as_deref())?)?;
                 }
             }
+        }
+        Command::Suggest { case_id, analyzers } => {
+            let case_id = CaseId(case_id);
+            let kinds: Vec<SuggestionKind> = if analyzers.is_empty() {
+                SuggestionKind::ALL.to_vec()
+            } else {
+                analyzers.into_iter().map(SuggestionKind::from).collect()
+            };
+            print_json(&store.suggest(&case_id, &kinds)?)?;
         }
         Command::Export { case_id, audience } => {
             let case_id = CaseId(case_id);

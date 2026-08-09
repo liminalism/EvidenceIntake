@@ -1,6 +1,46 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.assisted.deterministic-analyzers/1 : work {
+    title "Deterministic assisted collation"
+    state completed
+    scope [
+        path "docs/suggestions.md",
+        path "src/main.rs",
+        path "src/store.rs",
+        path "src/suggest.rs",
+        path "tests/suggest.rs"
+    ]
+    intent """
+        Open Phase D with three deterministic analyzers over the existing graph — temporal overlap across lanes, contradiction candidates, and conflicting attribution — each proposing an edge that enters `suggested` and waits for a named person. Establish the mechanism so later analyzers are one enum variant plus one query.
+        """
+    claim already-held-is-direction-blind {
+        text """
+            An analyzer points at a pair, not an orientation. The unique index on edges only sees one orientation, so the skip check queries both. This was found in practice: conflicting-attribution proposed `content-passenger-first impeaches content-passenger-later` while the vehicle-stop fixture already held the human-authored `edge-patel-impeach` in the opposite direction. Without the bidirectional check the analyzer would ask a reviewer to answer a question a person had already answered.
+            """
+    }
+    claim analyzers-touch-nothing-else {
+        text """
+            A test snapshots every review state before and after a run and asserts the only difference is the added suggestions, that the review trail stays empty because no decision was made, and that nothing was merged.
+            """
+    }
+    claim pair-matching-is-independent-of-id-order {
+        text """
+            The first contradiction-candidate query tied 'which excerpt supports' to 'which identifier sorts first' and therefore found nothing in the vehicle-stop fixture, where the contradicting excerpt sorts first. Pairs are now matched on their relations and only then ordered with MIN/MAX for a stable edge direction. Determinism of direction and correctness of matching are separate concerns.
+            """
+    }
+    claim review-queue-now-recognises-proposed-edges {
+        text """
+            review_queue hardcoded machine_generated = 0 and extractor = NULL for every edge, which was true only while edges could not be machine-authored. It now derives both from the `suggest:` prefix on created_by, so proposals sort ahead of hand-entered work and name the analyzer that made them.
+            """
+    }
+    claim rules-not-models {
+        text """
+            Analyzers are interval arithmetic and joins over data the case already holds. No model, no confidence, no score — deliberately twice over: a suggestion a defender cannot reconstruct is one they cannot argue with, and a number attached to a proposal would be read as a probability that it is true, which is the judgment this kernel refuses to make. Every proposal carries a rationale stating the deterministic ground in full, and a test asserts no rationale contains scoring language.
+            """
+    }
+}
+
 record evidence-intake-project.mutation-api.element-mapping/1 : work {
     title "Charge recording and element mapping"
     state completed

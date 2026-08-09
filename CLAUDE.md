@@ -57,6 +57,11 @@ Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs 
   inside the case, the same claim is never asserted twice, and work product is revised by
   superseding rather than overwriting.
 - `src/review.rs` — review vocabulary plus `transition_allowed`, the state-machine predicate.
+- `src/suggest.rs` — assisted-collation vocabulary (`SuggestionKind`, `SuggestionRun`). Analyzers
+  are deterministic SQL in `Store::suggest`/`candidates` — no model, no score. Proposals enter
+  `suggested` with `created_by = "suggest:<analyzer>@<version>"`, which is how `review_queue`
+  knows an edge is machine-generated. A new analyzer is a `SuggestionKind` variant plus one
+  query returning `(from, to, rationale)` ordered by identifier.
 - `src/export.rs` — audience-aware export read models (`ExportAudience`, `CaseExport`). Every
   factual line resolves to an exact locator or the proposition is reported as unsupported;
   omissions and unreviewed inclusions are counted in the header rather than left implicit.
@@ -81,9 +86,11 @@ The graph is node tables (`sources`, `source_segments`, `content`, `entities`, `
 - **Nothing is scored.** Propositions stay contested; supporting and contradicting evidence
   coexist. Do not add truth/confidence aggregation, global admissibility flags, or automatic
   merging of `possibly_same_person` mentions.
-- **Machines cannot confer verification.** Import produces only `unreviewed`/`suggested`; only a
-  named person reaches `reviewed`/`verified`/`rejected`, and no decision may return a record to
-  an intake state.
+- **Machines cannot confer verification.** Import and the analyzers produce only
+  `unreviewed`/`suggested`; only a named person reaches `reviewed`/`verified`/`rejected`, and no
+  decision may return a record to an intake state. An analyzer may not merge, score, alter a
+  record a person wrote, or re-propose something a reviewer rejected — and the "already held"
+  check is direction-blind, since an analyzer points at a pair, not an orientation.
 - **Authoring is not review.** A proposition or link a person writes enters `unreviewed` and
   waits in the same queue; authoring can never produce a reviewed state, and an authored
   proposition is always `contested`. Every link carries a written rationale.

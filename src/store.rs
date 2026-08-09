@@ -6,14 +6,15 @@ use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
 use crate::{
-    AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredLink, AuthoredProposition,
-    CaseExport, CaseId, DecisionBrief, DiscoveryItem, ElementAssessment, ElementCoverage,
-    ElementRow, Error, ExportAudience, ExportedProposition, ExportedWorkProduct, IssueWorkspace,
-    NodeKind, NodeRef, NormalizedBatch, OffenseComparison, Overview, ProposedAdvocacyItem,
-    ProposedAnnotation, ProposedBrief, ProposedCharge, ProposedElementMapping, ProposedLink,
-    ProposedProposition, PropositionEvidence, Result, ReviewDecision, ReviewEvent, ReviewQueueItem,
-    ReviewState, ReviewTarget, TimelineEntry, UnsupportedProposition, WitnessStatement,
-    WorkProductVersion, review::transition_allowed,
+    AnalyzerReport, AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredLink,
+    AuthoredProposition, CaseExport, CaseId, DecisionBrief, DiscoveryItem, EdgeKind,
+    ElementAssessment, ElementCoverage, ElementRow, Error, ExportAudience, ExportedProposition,
+    ExportedWorkProduct, IssueWorkspace, NodeKind, NodeRef, NormalizedBatch, OffenseComparison,
+    Overview, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
+    ProposedElementMapping, ProposedLink, ProposedProposition, PropositionEvidence, Result,
+    ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, SuggestionKind,
+    SuggestionRun, TimelineEntry, UnsupportedProposition, WitnessStatement, WorkProductVersion,
+    review::transition_allowed,
 };
 
 /// A local SQLite case store.
@@ -637,6 +638,227 @@ impl Store {
             .collect()
     }
 
+    /// Runs deterministic analyzers and proposes what they find.
+    ///
+    /// Every proposal enters as `suggested` and joins the review queue. Nothing
+    /// here reviews, verifies, merges, scores, or touches a record a person
+    /// wrote; an analyzer's whole authority is to point at a pair and say why.
+    ///
+    /// Running twice proposes nothing new. A claim the case already holds is
+    /// counted and skipped, whether a person asserted it, an earlier run
+    /// proposed it, or a reviewer rejected it — a reviewer who has said no does
+    /// not need to be asked again next time the analyzer runs.
+    pub fn suggest(&mut self, case_id: &CaseId, kinds: &[SuggestionKind]) -> Result<SuggestionRun> {
+        self.require_case(case_id)?;
+        let mut analyzers = Vec::with_capacity(kinds.len());
+        let mut proposed = 0_u32;
+        let mut already_recorded = 0_u32;
+
+        for kind in kinds {
+            let candidates = self.candidates(case_id, *kind)?;
+            let attribution = kind.attribution();
+            let mut written = Vec::new();
+            let mut skipped = 0_u32;
+
+            for candidate in candidates {
+                match self.propose(case_id, &candidate, &attribution)? {
+                    Some(link) => written.push(link),
+                    None => skipped += 1,
+                }
+            }
+
+            proposed += u32::try_from(written.len()).unwrap_or(u32::MAX);
+            already_recorded += skipped;
+            analyzers.push(AnalyzerReport {
+                analyzer: attribution,
+                proposed: written,
+                already_recorded: skipped,
+            });
+        }
+
+        Ok(SuggestionRun {
+            case_id: case_id.0.clone(),
+            analyzers,
+            proposed,
+            already_recorded,
+        })
+    }
+
+    /// Writes one proposal, or reports that the case already held the claim.
+    fn propose(
+        &self,
+        case_id: &CaseId,
+        candidate: &Candidate,
+        attribution: &str,
+    ) -> Result<Option<AuthoredLink>> {
+        // An analyzer points at a *pair*. If the case already relates that pair
+        // this way, the claim is held however it happens to be oriented — a
+        // person who wrote `b impeaches a` has answered the question, and the
+        // mirror image is not a second thing to review. The unique index only
+        // sees one orientation, so the check is made here.
+        let held = self
+            .connection
+            .query_row(
+                "SELECT 1 FROM edges
+                 WHERE case_id = ?1 AND relation = ?2
+                   AND source_kind = ?3 AND target_kind = ?3
+                   AND ((source_id = ?4 AND target_id = ?5)
+                     OR (source_id = ?5 AND target_id = ?4))",
+                params![
+                    case_id.0,
+                    candidate.relation.as_str(),
+                    candidate.kind.as_str(),
+                    candidate.from,
+                    candidate.to
+                ],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some();
+        if held {
+            return Ok(None);
+        }
+
+        let id = Uuid::now_v7().to_string();
+        let written = self.connection.execute(
+            "INSERT INTO edges
+               (id, case_id, source_kind, source_id, relation, target_kind, target_id,
+                rationale, review_state, created_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'suggested', ?9)
+             ON CONFLICT (case_id, source_kind, source_id, relation, target_kind, target_id)
+               DO NOTHING",
+            params![
+                id,
+                case_id.0,
+                candidate.kind.as_str(),
+                candidate.from,
+                candidate.relation.as_str(),
+                candidate.kind.as_str(),
+                candidate.to,
+                candidate.rationale,
+                attribution
+            ],
+        )?;
+        if written == 0 {
+            return Ok(None);
+        }
+        Ok(Some(AuthoredLink {
+            id,
+            from_kind: candidate.kind.as_str().to_owned(),
+            from_id: candidate.from.clone(),
+            relation: candidate.relation.as_str().to_owned(),
+            to_kind: candidate.kind.as_str().to_owned(),
+            to_id: candidate.to.clone(),
+            rationale: candidate.rationale.clone(),
+            review_state: ReviewState::Suggested.as_str().to_owned(),
+            created_by: attribution.to_owned(),
+        }))
+    }
+
+    /// Runs one analyzer's query and returns what it found.
+    ///
+    /// Each pair is ordered by identifier so that a second run proposes the
+    /// same direction as the first. Without that, the mirror image of an
+    /// existing suggestion would look like a new claim.
+    fn candidates(&self, case_id: &CaseId, kind: SuggestionKind) -> Result<Vec<Candidate>> {
+        let (node_kind, relation, sql) = match kind {
+            // Two lanes describing overlapping time. Half-open intervals: an
+            // event starting exactly when another ends does not overlap it, and
+            // an event with no recorded end is a point in time, not an infinity.
+            SuggestionKind::TemporalOverlap => (
+                NodeKind::Event,
+                EdgeKind::TemporallyOverlaps,
+                "SELECT a.id, b.id,
+                        'Normalized intervals overlap across lanes: ' || a.lane || ' ('
+                          || a.normalized_start || ') and ' || b.lane || ' ('
+                          || b.normalized_start || '). Proposed as overlap only; \
+                             the lanes remain separate accounts.'
+                 FROM events a
+                 JOIN events b
+                   ON b.case_id = a.case_id AND b.id > a.id AND b.lane <> a.lane
+                 WHERE a.case_id = ?1
+                   AND a.normalized_start IS NOT NULL AND b.normalized_start IS NOT NULL
+                   AND a.normalized_start < COALESCE(b.normalized_end, b.normalized_start)
+                   AND b.normalized_start < COALESCE(a.normalized_end, a.normalized_start)
+                 ORDER BY a.id, b.id",
+            ),
+            // Two excerpts pulling opposite ways on one proposition. Pairs that
+            // share an attributed witness belong to the analyzer below.
+            SuggestionKind::ContradictionCandidate => (
+                NodeKind::Content,
+                EdgeKind::Contradicts,
+                // Which excerpt supports and which contradicts is independent of
+                // which identifier sorts first, so the pair is matched on the
+                // relations and only then ordered for a stable edge direction.
+                "SELECT DISTINCT
+                        MIN(pro.source_id, con.source_id),
+                        MAX(pro.source_id, con.source_id),
+                        'Two excerpts bear on the same proposition in opposite directions ('
+                          || pro.relation || ' and ' || con.relation
+                          || '). Proposed as a tension to examine, not as a finding \
+                              that either is wrong.'
+                 FROM edges pro
+                 JOIN edges con
+                   ON con.case_id = pro.case_id
+                  AND con.target_kind = 'proposition' AND pro.target_kind = 'proposition'
+                  AND con.target_id = pro.target_id
+                  AND con.source_kind = 'content' AND pro.source_kind = 'content'
+                  AND con.source_id <> pro.source_id
+                 JOIN content a ON a.id = pro.source_id
+                 JOIN content b ON b.id = con.source_id
+                 WHERE pro.case_id = ?1
+                   AND pro.relation IN ('supports','corroborates')
+                   AND con.relation IN ('contradicts','impeaches')
+                   AND pro.review_state <> 'rejected' AND con.review_state <> 'rejected'
+                   AND (a.attributed_to_entity_id IS NULL
+                        OR b.attributed_to_entity_id IS NULL
+                        OR a.attributed_to_entity_id <> b.attributed_to_entity_id)
+                 ORDER BY 1, 2",
+            ),
+            // One witness, two accounts, opposite directions.
+            SuggestionKind::ConflictingAttribution => (
+                NodeKind::Content,
+                EdgeKind::Impeaches,
+                "SELECT DISTINCT
+                        MIN(pro.source_id, con.source_id),
+                        MAX(pro.source_id, con.source_id),
+                        'Two accounts attributed to ' || entity.display_name
+                          || ' bear opposite ways on the same proposition ('
+                          || pro.relation || ' and ' || con.relation
+                          || '). The accounts are not merged and neither is preferred.'
+                 FROM edges pro
+                 JOIN edges con
+                   ON con.case_id = pro.case_id
+                  AND con.target_kind = 'proposition' AND pro.target_kind = 'proposition'
+                  AND con.target_id = pro.target_id
+                  AND con.source_kind = 'content' AND pro.source_kind = 'content'
+                  AND con.source_id <> pro.source_id
+                 JOIN content a ON a.id = pro.source_id
+                 JOIN content b ON b.id = con.source_id
+                 JOIN entities entity ON entity.id = a.attributed_to_entity_id
+                 WHERE pro.case_id = ?1
+                   AND pro.relation IN ('supports','corroborates')
+                   AND con.relation IN ('contradicts','impeaches')
+                   AND pro.review_state <> 'rejected' AND con.review_state <> 'rejected'
+                   AND a.attributed_to_entity_id = b.attributed_to_entity_id
+                 ORDER BY 1, 2",
+            ),
+        };
+
+        let mut statement = self.connection.prepare(sql)?;
+        let rows = statement.query_map([&case_id.0], |row| {
+            Ok(Candidate {
+                kind: node_kind,
+                relation,
+                from: row.get(0)?,
+                to: row.get(1)?,
+                rationale: row.get(2)?,
+            })
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
     /// Assembles a source-linked export of the case.
     ///
     /// Two rules govern this and neither is left to the caller. Every factual
@@ -794,10 +1016,15 @@ impl Store {
              FROM sources s
              WHERE s.case_id = ?1 AND s.review_state IN ('unreviewed','suggested')
              UNION ALL
-             SELECT 'edge', e.id, e.review_state, 0,
+             -- An analyzer can propose a relationship, so an edge is machine-
+             -- generated exactly when a suggester wrote it, and names that
+             -- suggester the way extracted content names its extractor.
+             SELECT 'edge', e.id, e.review_state,
+                    e.created_by LIKE 'suggest:%',
                     e.source_kind || ' ' || e.source_id || ' ' || e.relation || ' '
                       || e.target_kind || ' ' || e.target_id,
-                    NULL, NULL
+                    NULL,
+                    CASE WHEN e.created_by LIKE 'suggest:%' THEN e.created_by END
              FROM edges e
              WHERE e.case_id = ?1 AND e.review_state IN ('unreviewed','suggested')
              UNION ALL
@@ -1801,6 +2028,20 @@ fn trimmed(value: Option<&str>) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
+}
+
+/// One pair an analyzer found, before anything is written.
+struct Candidate {
+    /// Node type of both endpoints; analyzers relate like to like.
+    kind: NodeKind,
+    /// The relationship being proposed.
+    relation: EdgeKind,
+    /// Lower identifier of the pair, so a rerun proposes the same direction.
+    from: String,
+    /// Higher identifier of the pair.
+    to: String,
+    /// The deterministic reason, stated in full so a defender can argue with it.
+    rationale: String,
 }
 
 /// Returns whether a stored state is one import produced rather than a person.
