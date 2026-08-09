@@ -208,6 +208,36 @@ pub struct ElementCoverage {
     pub excluded: Vec<String>,
 }
 
+/// One excerpt matching a search, with the original it came from.
+///
+/// A hit is a place to look, never a finding. It carries the exact locator so
+/// the passage can be opened in the original, and the propositions it is already
+/// tied to so a defender can see whether the case has done anything with it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SearchHit {
+    /// Content identifier.
+    pub id: String,
+    /// Content kind, such as `statement` or `document_assertion`.
+    pub kind: String,
+    /// The matching passage, with the matched terms bracketed.
+    pub excerpt: String,
+    /// The full extracted text of the matching content.
+    pub text: String,
+    /// Original source name.
+    pub source: String,
+    /// Exact locator in the original source.
+    pub locator: String,
+    /// Human review state of the content.
+    pub review_state: String,
+    /// Whether this remains machine-generated content.
+    pub machine_generated: bool,
+    /// Propositions this excerpt is already tied to, with the relationship.
+    ///
+    /// Empty means the case has not connected the passage to anything, which is
+    /// worth seeing: a search hit nobody has used is work waiting to be done.
+    pub bears_on: Vec<String>,
+}
+
 /// Where a case stands, element by element, without saying who wins it.
 ///
 /// Everything here is a count of what the case holds or a fact about how its

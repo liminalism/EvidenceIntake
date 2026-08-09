@@ -33,6 +33,8 @@ This initial milestone provides:
   distinct originals are behind it, whether one source alone carries it, what
   nobody has checked, where evidence pulls both ways, and which gaps in the
   record touch a charge — structure a defender can act on, never a score;
+- full-text search over extracted content, with the exact original locator on
+  every hit and privileged work product structurally out of reach;
 - decision-oriented discovery, element, witness, timeline, issue, and brief
   read models;
 - an adapter-neutral contract for already-OCRed documents, timestamped audio
@@ -81,9 +83,18 @@ cargo run -- view case-hit-run-001 work-history <item-id>
 cargo run -- view case-hit-run-001 notes content hr-content-911-injury
 cargo run -- export case-hit-run-001
 cargo run -- export case-hit-run-001 --audience work-file
+cargo run -- search case-hit-run-001 'hatchback'
+cargo run -- search case-hit-run-001 '"paint transfer"' --limit 5
 cargo run -- suggest case-vehicle-stop-001
 cargo run -- author case-vehicle-stop-001 entity --kind person --name "Patel"
 ```
+
+`standing` is the view to open first: what each element rests on, how many
+distinct originals are behind it, which source alone carries it, and which gaps
+touch a charge. It reports structure and never a verdict — see
+[`docs/standing.md`](docs/standing.md). `search` finds a passage by its words and
+hands back the exact locator to open it in the original; see
+[`docs/search.md`](docs/search.md).
 
 `export` produces the source-linked record: every factual line carries the exact
 original it rests on, and the default `disclosable` audience never reads the
@@ -125,8 +136,14 @@ supersedes rather than overwrites. Source-linked export completed the
 defender workspace, and assisted collation now covers the Phase D
 analyzer set — deterministically, with no model and no score. Four analyzers
 propose relationships that wait on a person; four report gaps that are dismissed
-only by closing them. The remaining milestones are the modality adapters that
-feed `NormalizedBatch` and the WinSafe GUI.
+only by closing them.
+
+The kernel now also answers the question the rest of it was built to serve:
+`standing` reports what each charge actually rests on, and `search` finds the
+passage behind it. Those are read models, not new claims — the line they hold is
+rule 35, that structure may be reported and a verdict may not. Remaining:
+the modality adapters that feed `NormalizedBatch`, and the WinSafe GUI that
+will consume these read models.
 
 One thing it deliberately still refuses: changing an element assessment. Reading
 evidence differently later is an honest act that should leave a trail, but

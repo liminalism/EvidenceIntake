@@ -71,6 +71,9 @@ Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs 
   by closing the gap) — never both; `SuggestionKind::proposes_relationships` decides which.
   A new analyzer is one variant plus one query returning `(from, to, rationale)` ordered by
   identifier, or `(subject_id, subject, summary)` for a finding.
+- Search is SQLite FTS5 (`migrations/0007_search.sql`), an external-content table over
+  `content.text` kept current by triggers, so the index cannot disagree with the record. Only
+  `content` is indexed; privileged tables are excluded structurally, as in `export_case`.
 - `src/export.rs` — audience-aware export read models (`ExportAudience`, `CaseExport`). Every
   factual line resolves to an exact locator or the proposition is reported as unsupported;
   omissions and unreviewed inclusions are counted in the header rather than left implicit.
@@ -81,8 +84,10 @@ Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs 
   source when there is one, unchecked support, unbacked mappings; plus load-bearing sources, live
   disputes, and analyzer gaps ordered by whether they touch a charge. Rule 35 governs it — report
   structure, never a verdict — and `nothing_in_the_standing_view_scores_the_case` enforces it by
-  serializing the view and failing on scoring vocabulary. These are the stable contract for the planned Windows-only WinSafe GUI,
-  which will consume Rust read models rather than SQL. No cross-platform GUI is planned.
+  serializing the view and failing on scoring vocabulary. `SearchHit` carries the exact locator
+  and what the case has already tied the passage to. These read models are the stable contract for
+  the planned Windows-only WinSafe GUI, which will consume Rust read models rather than SQL. No
+  cross-platform GUI is planned.
 - `src/fixture.rs` — hand-authored `DemoFixture` cases seeded from raw SQL (`fixtures/*.sql` for
   hit-and-run, inline SQL for vehicle-stop). Seeding is transactional and idempotent. The
   fixtures deliberately encode clock disagreement, a superseding report, conflicting witness

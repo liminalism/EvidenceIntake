@@ -55,6 +55,16 @@ enum Command {
         #[arg(long = "analyzer", value_enum)]
         analyzers: Vec<AnalyzerArg>,
     },
+    /// Find excerpts by their words, best match first.
+    Search {
+        /// Stable case identifier.
+        case_id: String,
+        /// Full-text query. Supports `"exact phrase"`, `AND`, `OR`, `NOT`, `term*`.
+        query: String,
+        /// Most hits to return.
+        #[arg(long, default_value_t = 25)]
+        limit: u32,
+    },
     /// Produce a source-linked export of the case.
     Export {
         /// Stable case identifier.
@@ -669,6 +679,14 @@ fn run() -> Result<()> {
                 analyzers.into_iter().map(SuggestionKind::from).collect()
             };
             print_json(&store.suggest(&case_id, &kinds)?)?;
+        }
+        Command::Search {
+            case_id,
+            query,
+            limit,
+        } => {
+            let case_id = CaseId(case_id);
+            print_json(&store.search(&case_id, &query, limit)?)?;
         }
         Command::Export { case_id, audience } => {
             let case_id = CaseId(case_id);

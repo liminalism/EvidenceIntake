@@ -39,5 +39,5 @@ pub use suggest::{AnalyzerReport, Finding, SuggestionKind, SuggestionRun};
 pub use views::{
     CaseStanding, ChargeStanding, DecisionBrief, DiscoveryItem, ElementCoverage, ElementRow,
     ElementStanding, IssueWorkspace, LiveDispute, LoadBearingSource, OffenseComparison, OpenGap,
-    Overview, PropositionEvidence, TimelineEntry, WitnessStatement,
+    Overview, PropositionEvidence, SearchHit, TimelineEntry, WitnessStatement,
 };

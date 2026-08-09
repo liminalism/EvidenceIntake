@@ -26,6 +26,9 @@ pub enum Error {
     /// An authored proposition or relationship was malformed.
     #[error("invalid authoring: {0}")]
     InvalidAuthoring(String),
+    /// A search query was empty or could not be parsed as full-text syntax.
+    #[error("invalid search: {0}")]
+    InvalidSearch(String),
     /// A proposition was mapped again to an element it is already filed under.
     #[error(
         "proposition `{proposition}` is already assessed `{assessment}` on element `{element}`"

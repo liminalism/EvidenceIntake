@@ -107,4 +107,12 @@ These rules are invariants for the kernel and future UI.
     Ordering obeys the same line: elements appear in statutory order and gaps
     are ordered by whether they touch a charge, which is a fact, rather than by
     how serious they are, which is the defender's call.
+36. Search reaches the evidentiary record and nothing else. Only extracted
+    content is indexed; privileged work product is left out structurally rather
+    than filtered afterwards. Hits are ordered by how well a passage matches the
+    words asked for, which ranks matches and not evidence — the relevance value
+    is never reported, because a number printed beside an excerpt is read as a
+    measurement of the excerpt. The index lives in the same file and the same
+    transaction as the writes, so it can never hold a passage the record does
+    not.
 

@@ -15,7 +15,7 @@ use crate::{
     OffenseComparison, OpenGap, Overview, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief,
     ProposedCharge, ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProposition,
     PropositionEvidence, Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState,
-    ReviewTarget, SuggestionKind, SuggestionRun, TimelineEntry, UnsupportedProposition,
+    ReviewTarget, SearchHit, SuggestionKind, SuggestionRun, TimelineEntry, UnsupportedProposition,
     WitnessStatement, WorkProductVersion, review::transition_allowed, suggest::Finding,
 };
 
@@ -26,7 +26,7 @@ use crate::{
 /// migrations stay additive and re-runnable regardless: a database at any
 /// earlier version — including one written before this stamp existed, which
 /// reads as zero — runs all of them again.
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
 
 /// Distinct prepared statements kept compiled per connection.
 ///
@@ -107,6 +107,7 @@ impl Store {
         )?;
         connection.execute_batch(include_str!("../migrations/0005_work_product.sql"))?;
         connection.execute_batch(include_str!("../migrations/0006_read_paths.sql"))?;
+        connection.execute_batch(include_str!("../migrations/0007_search.sql"))?;
         Ok(())
     }
 
@@ -729,6 +730,85 @@ impl Store {
                 Ok(charge)
             })
             .collect()
+    }
+
+    /// Finds excerpts matching a full-text query, best match first.
+    ///
+    /// Results are ordered by BM25 relevance, which ranks how well a passage
+    /// matches the words asked for — not how much it is worth. That distinction
+    /// is the whole reason a rank is acceptable here when a score is not
+    /// acceptable anywhere: nothing about the ordering claims a passage is true,
+    /// admissible, or important, only that it contains more of what was typed.
+    /// The number itself is not reported, because a number invites being read as
+    /// a measurement of the evidence.
+    ///
+    /// Only extracted content is searched. Advocacy items, annotations, and
+    /// decision briefs are privileged, and a search that reached them would be a
+    /// way for attorney analysis to surface somewhere that does not know it.
+    pub fn search(&self, case_id: &CaseId, query: &str, limit: u32) -> Result<Vec<SearchHit>> {
+        self.require_case(case_id)?;
+        let query = query.trim();
+        if query.is_empty() {
+            return Err(Error::InvalidSearch(
+                "a search needs something to look for".to_owned(),
+            ));
+        }
+
+        let mut statement = self.connection.prepare_cached(
+            "SELECT c.id, c.kind,
+                    snippet(content_search, 0, '[', ']', '…', 16),
+                    c.text, src.logical_name, seg.locator, c.review_state, c.machine_generated
+             FROM content_search
+             JOIN content c ON c.rowid = content_search.rowid
+             JOIN source_segments seg ON seg.id = c.segment_id
+             JOIN sources src ON src.id = seg.source_id
+             WHERE content_search MATCH ?1 AND c.case_id = ?2
+             ORDER BY bm25(content_search), c.id
+             LIMIT ?3",
+        )?;
+        let hits = statement
+            .query_map(params![query, case_id.0, limit], |row| {
+                Ok(SearchHit {
+                    id: row.get(0)?,
+                    kind: row.get(1)?,
+                    excerpt: row.get(2)?,
+                    text: row.get(3)?,
+                    source: row.get(4)?,
+                    locator: row.get(5)?,
+                    review_state: row.get(6)?,
+                    machine_generated: row.get(7)?,
+                    bears_on: Vec::new(),
+                })
+            })
+            .map_err(|error| unreadable_query(query, error))?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|error| unreadable_query(query, error))?;
+
+        // What each hit is already tied to, read in one pass rather than once
+        // per hit. A passage nobody has connected to anything is worth seeing.
+        let mut links = self.connection.prepare_cached(
+            "SELECT e.source_id, e.relation || ': ' || p.text
+             FROM edges e
+             JOIN propositions p ON p.id = e.target_id AND p.case_id = e.case_id
+             WHERE e.case_id = ?1 AND e.source_kind = 'content'
+               AND e.target_kind = 'proposition' AND e.review_state <> 'rejected'
+             ORDER BY e.source_id, e.relation, p.text",
+        )?;
+        let mut by_content: HashMap<String, Vec<String>> = HashMap::new();
+        for row in links.query_map([&case_id.0], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })? {
+            let (content_id, description) = row?;
+            by_content.entry(content_id).or_default().push(description);
+        }
+
+        Ok(hits
+            .into_iter()
+            .map(|mut hit| {
+                hit.bears_on = by_content.remove(&hit.id).unwrap_or_default();
+                hit
+            })
+            .collect())
     }
 
     /// Reports where the case stands, element by element.
@@ -2735,6 +2815,20 @@ struct Candidate {
     rationale: String,
 }
 
+/// Reports a query SQLite could not read as a search rather than as a failure.
+///
+/// FTS5 has its own syntax, and a stray quote or a bare `AND` is a typo, not a
+/// broken database. Saying so — and saying what was typed — is the difference
+/// between a person fixing their query and a person believing the tool broke.
+fn unreadable_query(query: &str, error: rusqlite::Error) -> Error {
+    match &error {
+        rusqlite::Error::SqliteFailure(_, Some(message)) if message.contains("fts5") => {
+            Error::InvalidSearch(format!("`{query}` is not a readable search: {message}"))
+        }
+        _ => Error::Database(error),
+    }
+}
+
 /// Returns whether a stored state is one import produced rather than a person.
 ///
 /// An unrecognized value counts as unreviewed: for a caller deciding what to
@@ -3078,6 +3172,34 @@ mod schema {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .expect("version");
         assert_eq!(stamped, super::SCHEMA_VERSION);
+    }
+
+    /// The search index is added to databases that already hold evidence, so the
+    /// migration has to backfill rather than only catch what arrives next. An
+    /// excerpt that existed before the index did must still be findable.
+    #[test]
+    fn content_written_before_the_search_index_is_still_findable() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let path = directory.path().join("case.sqlite");
+
+        let mut store = Store::open(&path).expect("create");
+        let case = crate::DemoFixture::HitAndRun
+            .seed(&mut store)
+            .expect("seed");
+        store
+            .connection
+            .execute_batch("DROP TABLE content_search; PRAGMA user_version = 0;")
+            .expect("rewind to a database with no search index");
+        drop(store);
+
+        let store = Store::open(&path).expect("reopen");
+        assert!(
+            !store
+                .search(&case, "hatchback", 25)
+                .expect("search")
+                .is_empty(),
+            "evidence predating the index must be backfilled into it"
+        );
     }
 
     /// The same relationship asserted twice would stand in front of a reviewer
