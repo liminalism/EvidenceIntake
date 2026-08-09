@@ -9,9 +9,10 @@ use crate::{
     AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredLink, AuthoredProposition,
     CaseId, DecisionBrief, DiscoveryItem, ElementAssessment, ElementCoverage, ElementRow, Error,
     IssueWorkspace, NodeKind, NodeRef, NormalizedBatch, OffenseComparison, Overview,
-    ProposedCharge, ProposedElementMapping, ProposedLink, ProposedProposition, PropositionEvidence,
-    Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, TimelineEntry,
-    WitnessStatement, review::transition_allowed,
+    ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
+    ProposedElementMapping, ProposedLink, ProposedProposition, PropositionEvidence, Result,
+    ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, TimelineEntry,
+    WitnessStatement, WorkProductVersion, review::transition_allowed,
 };
 
 /// A local SQLite case store.
@@ -45,6 +46,13 @@ impl Store {
         connection.execute_batch(include_str!("../migrations/0003_authoring.sql"))?;
         Self::add_column_if_missing(&connection, "element_links", "created_by", "TEXT")?;
         connection.execute_batch(include_str!("../migrations/0004_element_mapping.sql"))?;
+        Self::add_column_if_missing(
+            &connection,
+            "advocacy_items",
+            "supersedes_advocacy_id",
+            "TEXT REFERENCES advocacy_items(id)",
+        )?;
+        connection.execute_batch(include_str!("../migrations/0005_work_product.sql"))?;
         Ok(Self { connection })
     }
 
@@ -397,11 +405,16 @@ impl Store {
     }
 
     /// Returns all issue workspaces and their linked factual material.
+    ///
+    /// Only the current version of each issue appears. A superseded reading is
+    /// still readable through `advocacy_history`, but it is not a second issue.
     pub fn issue_workspaces(&self, case_id: &CaseId) -> Result<Vec<IssueWorkspace>> {
         self.require_case(case_id)?;
         let mut statement = self.connection.prepare(
-            "SELECT id, title, body, status FROM advocacy_items
+            "SELECT id, title, body, status FROM advocacy_items item
              WHERE case_id = ?1 AND kind IN ('legal_issue','motion_issue')
+               AND NOT EXISTS (SELECT 1 FROM advocacy_items later
+                               WHERE later.supersedes_advocacy_id = item.id)
              ORDER BY title",
         )?;
         let issues = statement
@@ -417,18 +430,30 @@ impl Store {
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
+        // Tasks belong to the issue that raised them. Listing every open task in
+        // the case under every issue told a defender reading the suppression
+        // workspace to chase work that belongs to an unrelated question.
+        let mut tasks = self.connection.prepare(
+            "SELECT task.title || ': ' || task.body
+             FROM edges link
+             JOIN advocacy_items task
+               ON task.id = link.target_id AND task.case_id = link.case_id
+             WHERE link.case_id = ?1 AND link.relation = 'requires_follow_up'
+               AND link.source_kind = 'advocacy' AND link.source_id = ?2
+               AND link.target_kind = 'advocacy'
+               AND task.kind = 'investigation_task'
+               AND task.status NOT IN ('complete','closed')
+               AND NOT EXISTS (SELECT 1 FROM advocacy_items later
+                               WHERE later.supersedes_advocacy_id = task.id)
+             ORDER BY task.title",
+        )?;
+
         issues
             .into_iter()
             .map(|mut issue| {
                 issue.linked_material = self.edge_descriptions(case_id, &issue.id)?;
-                let mut tasks = self.connection.prepare(
-                    "SELECT title || ': ' || body FROM advocacy_items
-                     WHERE case_id = ?1 AND kind = 'investigation_task'
-                       AND status NOT IN ('complete','closed')
-                     ORDER BY title",
-                )?;
                 issue.follow_up = tasks
-                    .query_map([&case_id.0], |row| row.get(0))?
+                    .query_map(params![case_id.0, issue.id], |row| row.get(0))?
                     .collect::<std::result::Result<Vec<_>, _>>()?;
                 Ok(issue)
             })
@@ -892,6 +917,404 @@ impl Store {
         })
     }
 
+    /// Writes a privileged work-product item at version one.
+    ///
+    /// Work product is privileged by default and stays out of the discovery
+    /// ledger and any routine export. It carries no review state: review is a
+    /// claim about whether an extraction faithfully represents an original, and
+    /// an attorney's own analysis is not an extraction of anything.
+    pub fn author_advocacy_item(
+        &mut self,
+        case_id: &CaseId,
+        proposal: &ProposedAdvocacyItem,
+    ) -> Result<WorkProductVersion> {
+        self.require_case(case_id)?;
+        let author = require_named_person(&proposal.author)?;
+        let title = require_text(&proposal.title, "a work-product item must have a title")?;
+        let body = require_text(&proposal.body, "a work-product item must say something")?;
+        let status = trimmed(proposal.status.as_deref()).unwrap_or_else(|| "open".to_owned());
+
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_row("advocacy item", "advocacy_items", supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+
+        self.connection.execute(
+            "INSERT INTO advocacy_items
+               (id, case_id, kind, title, body, status, privileged, version, author)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 1, ?7)",
+            params![
+                id,
+                case_id.0,
+                proposal.kind.as_str(),
+                title,
+                body,
+                status,
+                author
+            ],
+        )?;
+        self.advocacy_version(case_id, &id)
+    }
+
+    /// Replaces a work-product item with a new version, keeping the old one.
+    ///
+    /// Nothing is overwritten. An attorney's earlier reading of an issue is not
+    /// a mistake to be erased: it is what they thought when they made a
+    /// decision, and a later reader — including the same attorney — has to be
+    /// able to see that it changed. Only the current version may be revised; a
+    /// superseded one names its replacement rather than forking the history.
+    pub fn revise_advocacy_item(
+        &mut self,
+        case_id: &CaseId,
+        item_id: &str,
+        proposal: &ProposedAdvocacyItem,
+    ) -> Result<WorkProductVersion> {
+        self.require_case(case_id)?;
+        let author = require_named_person(&proposal.author)?;
+        let title = require_text(&proposal.title, "a work-product item must have a title")?;
+        let body = require_text(&proposal.body, "a work-product item must say something")?;
+
+        let previous = self.advocacy_version(case_id, item_id)?;
+        if !previous.current {
+            return Err(Error::Superseded {
+                kind: "advocacy item",
+                id: item_id.to_owned(),
+                by: self.superseding_id("advocacy_items", "supersedes_advocacy_id", item_id)?,
+            });
+        }
+        let status = trimmed(proposal.status.as_deref()).unwrap_or(previous.status);
+
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_row("advocacy item", "advocacy_items", supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+
+        self.connection.execute(
+            "INSERT INTO advocacy_items
+               (id, case_id, kind, title, body, status, privileged, version, author,
+                supersedes_advocacy_id)
+             VALUES (?1, ?2,
+                     (SELECT kind FROM advocacy_items WHERE id = ?7),
+                     ?3, ?4, ?5, 1, ?6, ?8, ?7)",
+            params![
+                id,
+                case_id.0,
+                title,
+                body,
+                status,
+                previous.version + 1,
+                item_id,
+                author
+            ],
+        )?;
+        self.advocacy_version(case_id, &id)
+    }
+
+    /// Returns every version of a work-product item, oldest first.
+    ///
+    /// The chain is walked from the requested version in both directions, so any
+    /// version identifier returns the whole history rather than a suffix of it.
+    pub fn advocacy_history(
+        &self,
+        case_id: &CaseId,
+        item_id: &str,
+    ) -> Result<Vec<WorkProductVersion>> {
+        self.require_case(case_id)?;
+        self.advocacy_version(case_id, item_id)?;
+        let mut root = item_id.to_owned();
+        while let Some(earlier) = self
+            .connection
+            .query_row(
+                "SELECT supersedes_advocacy_id FROM advocacy_items WHERE id = ?1",
+                [&root],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()?
+            .flatten()
+        {
+            root = earlier;
+        }
+
+        let mut history = vec![self.advocacy_version(case_id, &root)?];
+        while let Some(later) =
+            self.superseding_id("advocacy_items", "supersedes_advocacy_id", &root)?
+        {
+            history.push(self.advocacy_version(case_id, &later)?);
+            root = later;
+        }
+        Ok(history)
+    }
+
+    /// Attaches a privileged note to one record.
+    pub fn annotate(
+        &mut self,
+        case_id: &CaseId,
+        proposal: &ProposedAnnotation,
+    ) -> Result<WorkProductVersion> {
+        self.require_case(case_id)?;
+        let author = require_named_person(&proposal.author)?;
+        let body = require_text(&proposal.body, "an annotation must say something")?;
+        self.require_node(case_id, &proposal.target)?;
+
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_row("annotation", "annotations", supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+
+        self.connection.execute(
+            "INSERT INTO annotations
+               (id, case_id, target_kind, target_id, body, version, author, privileged)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, 1)",
+            params![
+                id,
+                case_id.0,
+                proposal.target.kind.as_str(),
+                proposal.target.id,
+                body,
+                author
+            ],
+        )?;
+        self.annotation_version(case_id, &id)
+    }
+
+    /// Replaces an annotation with a new version, keeping the old one.
+    pub fn revise_annotation(
+        &mut self,
+        case_id: &CaseId,
+        annotation_id: &str,
+        proposal: &ProposedAnnotation,
+    ) -> Result<WorkProductVersion> {
+        self.require_case(case_id)?;
+        let author = require_named_person(&proposal.author)?;
+        let body = require_text(&proposal.body, "an annotation must say something")?;
+
+        let previous = self.annotation_version(case_id, annotation_id)?;
+        if !previous.current {
+            return Err(Error::Superseded {
+                kind: "annotation",
+                id: annotation_id.to_owned(),
+                by: self.superseding_id(
+                    "annotations",
+                    "supersedes_annotation_id",
+                    annotation_id,
+                )?,
+            });
+        }
+
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_row("annotation", "annotations", supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+
+        self.connection.execute(
+            "INSERT INTO annotations
+               (id, case_id, target_kind, target_id, body, version, author, privileged,
+                supersedes_annotation_id)
+             VALUES (?1, ?2,
+                     (SELECT target_kind FROM annotations WHERE id = ?6),
+                     (SELECT target_id FROM annotations WHERE id = ?6),
+                     ?3, ?4, ?5, 1, ?6)",
+            params![
+                id,
+                case_id.0,
+                body,
+                previous.version + 1,
+                author,
+                annotation_id
+            ],
+        )?;
+        self.annotation_version(case_id, &id)
+    }
+
+    /// Returns the current annotations attached to one record, oldest first.
+    ///
+    /// Superseded versions are omitted: they remain in the database and remain
+    /// reachable, but a note that has been rewritten is not a second note.
+    pub fn annotations(
+        &self,
+        case_id: &CaseId,
+        target: &NodeRef,
+    ) -> Result<Vec<WorkProductVersion>> {
+        self.require_case(case_id)?;
+        let mut statement = self.connection.prepare(
+            "SELECT id, version, supersedes_annotation_id, body, author, privileged, created_at
+             FROM annotations current
+             WHERE case_id = ?1 AND target_kind = ?2 AND target_id = ?3
+               AND NOT EXISTS (
+                 SELECT 1 FROM annotations later
+                 WHERE later.supersedes_annotation_id = current.id)
+             ORDER BY created_at, rowid",
+        )?;
+        let rows =
+            statement.query_map(params![case_id.0, target.kind.as_str(), target.id], |row| {
+                Ok(WorkProductVersion {
+                    id: row.get(0)?,
+                    version: row.get(1)?,
+                    supersedes: row.get(2)?,
+                    current: true,
+                    title: format!("annotation on {target}"),
+                    body: row.get(3)?,
+                    status: "open".to_owned(),
+                    privileged: row.get(5)?,
+                    author: row.get(4)?,
+                    created_at: row.get(6)?,
+                })
+            })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Writes the next version of the decision brief for a posture.
+    ///
+    /// A brief is advice as of a moment. Replacing one in place would destroy
+    /// the record of what the client was told and when, so each is written as
+    /// the next version and the earlier ones stay readable.
+    pub fn record_brief(
+        &mut self,
+        case_id: &CaseId,
+        proposal: &ProposedBrief,
+    ) -> Result<WorkProductVersion> {
+        self.require_case(case_id)?;
+        let author = require_named_person(&proposal.author)?;
+        let summary = require_text(&proposal.summary, "a brief must say something")?;
+
+        let next: u32 = self.connection.query_row(
+            "SELECT COALESCE(MAX(version), 0) + 1 FROM decision_briefs
+             WHERE case_id = ?1 AND posture = ?2",
+            params![case_id.0, proposal.posture],
+            |row| row.get(0),
+        )?;
+
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_row("decision brief", "decision_briefs", supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+
+        self.connection.execute(
+            "INSERT INTO decision_briefs
+               (id, case_id, posture, summary, strengths, risks, unresolved_questions,
+                client_topics, version, author, privileged)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1)",
+            params![
+                id,
+                case_id.0,
+                proposal.posture,
+                summary,
+                proposal.strengths.trim(),
+                proposal.risks.trim(),
+                proposal.unresolved_questions.trim(),
+                proposal.client_topics.trim(),
+                next,
+                author
+            ],
+        )?;
+
+        Ok(WorkProductVersion {
+            id,
+            version: next,
+            supersedes: None,
+            current: true,
+            title: proposal.posture.clone(),
+            body: summary,
+            status: "current".to_owned(),
+            privileged: true,
+            author: author.to_owned(),
+            created_at: String::new(),
+        })
+    }
+
+    /// Reads one version of a work-product item and whether it is the current one.
+    fn advocacy_version(&self, case_id: &CaseId, id: &str) -> Result<WorkProductVersion> {
+        self.connection
+            .query_row(
+                "SELECT id, version, supersedes_advocacy_id, title, body, status,
+                        privileged, author, created_at,
+                        NOT EXISTS (SELECT 1 FROM advocacy_items later
+                                    WHERE later.supersedes_advocacy_id = item.id)
+                 FROM advocacy_items item WHERE id = ?1 AND case_id = ?2",
+                params![id, case_id.0],
+                |row| {
+                    Ok(WorkProductVersion {
+                        id: row.get(0)?,
+                        version: row.get(1)?,
+                        supersedes: row.get(2)?,
+                        title: row.get(3)?,
+                        body: row.get(4)?,
+                        status: row.get(5)?,
+                        privileged: row.get(6)?,
+                        author: row.get(7)?,
+                        created_at: row.get(8)?,
+                        current: row.get(9)?,
+                    })
+                },
+            )
+            .optional()?
+            .ok_or_else(|| Error::NotFound {
+                kind: "advocacy item",
+                id: id.to_owned(),
+            })
+    }
+
+    /// Reads one version of an annotation and whether it is the current one.
+    fn annotation_version(&self, case_id: &CaseId, id: &str) -> Result<WorkProductVersion> {
+        self.connection
+            .query_row(
+                "SELECT id, version, supersedes_annotation_id, target_kind, target_id,
+                        body, privileged, author, created_at,
+                        NOT EXISTS (SELECT 1 FROM annotations later
+                                    WHERE later.supersedes_annotation_id = note.id)
+                 FROM annotations note WHERE id = ?1 AND case_id = ?2",
+                params![id, case_id.0],
+                |row| {
+                    Ok(WorkProductVersion {
+                        id: row.get(0)?,
+                        version: row.get(1)?,
+                        supersedes: row.get(2)?,
+                        title: format!(
+                            "annotation on {} `{}`",
+                            row.get::<_, String>(3)?,
+                            row.get::<_, String>(4)?
+                        ),
+                        body: row.get(5)?,
+                        status: "open".to_owned(),
+                        privileged: row.get(6)?,
+                        author: row.get(7)?,
+                        created_at: row.get(8)?,
+                        current: row.get(9)?,
+                    })
+                },
+            )
+            .optional()?
+            .ok_or_else(|| Error::NotFound {
+                kind: "annotation",
+                id: id.to_owned(),
+            })
+    }
+
+    /// Returns the identifier of the version replacing this one, if any.
+    fn superseding_id(&self, table: &str, column: &str, id: &str) -> Result<Option<String>> {
+        let sql = format!("SELECT id FROM {table} WHERE {column} = ?1");
+        self.connection
+            .query_row(&sql, [id], |row| row.get(0))
+            .optional()
+            .map_err(Into::into)
+    }
+
     /// Records a charge and its statutory elements in statutory order.
     ///
     /// A charge with no elements cannot be reasoned about — the element matrix,
@@ -1192,11 +1615,16 @@ impl Store {
             .map_err(Into::into)
     }
 
+    /// Returns the factual material bearing on one issue.
+    ///
+    /// Follow-up edges are excluded: they carry the issue's open tasks, which
+    /// the workspace reports separately, and listing them here would show the
+    /// same work twice under two headings.
     fn edge_descriptions(&self, case_id: &CaseId, issue_id: &str) -> Result<Vec<String>> {
         let mut statement = self.connection.prepare(
             "SELECT relation || ': ' || COALESCE(rationale, source_kind || ' ' || source_id)
              FROM edges
-             WHERE case_id = ?1
+             WHERE case_id = ?1 AND relation <> 'requires_follow_up'
                AND ((target_kind = 'advocacy' AND target_id = ?2)
                  OR (source_kind = 'advocacy' AND source_id = ?2))
              ORDER BY relation, id",
@@ -1235,6 +1663,15 @@ fn trimmed(value: Option<&str>) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
+}
+
+/// Requires a field that was actually filled in.
+fn require_text(value: &str, complaint: &'static str) -> Result<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(Error::InvalidAuthoring(complaint.to_owned()));
+    }
+    Ok(value.to_owned())
 }
 
 /// Requires that a named person stands behind a mutation.
@@ -1415,6 +1852,38 @@ mod schema {
             assert!(
                 error.to_string().contains("must name the person"),
                 "{error}"
+            );
+        }
+    }
+
+    /// Work product is analysis somebody is accountable for, and the schema says
+    /// so rather than trusting every future writer to remember.
+    #[test]
+    fn work_product_cannot_be_written_without_an_author() {
+        let store = seeded();
+        let cases = [
+            ("advocacy_items",
+             "INSERT INTO advocacy_items (id, case_id, kind, title, body, author)
+              VALUES ('anon', 'case-hit-run-001', 'legal_issue', 't', 'b', '  ')"),
+            ("annotations",
+             "INSERT INTO annotations (id, case_id, target_kind, target_id, body, version, author)
+              VALUES ('anon', 'case-hit-run-001', 'content', 'hr-content-911-injury', 'b', 1, '')"),
+            ("decision_briefs",
+             "INSERT INTO decision_briefs
+                (id, case_id, posture, summary, strengths, risks, unresolved_questions,
+                 client_topics, author)
+              VALUES ('anon', 'case-hit-run-001', 'trial', 's', '', '', '', '', '   ')"),
+        ];
+        for (table, sql) in cases {
+            let error = store
+                .connection
+                .execute(sql, [])
+                .expect_err("unattributed work product must be refused");
+            assert!(
+                error
+                    .to_string()
+                    .contains("must name the person writing it"),
+                "{table}: {error}"
             );
         }
     }

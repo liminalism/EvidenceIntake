@@ -263,7 +263,11 @@ VALUES
   ('hr-edge-identity-issue', 'case-hit-run-001', 'proposition', 'hr-prop-client-driver', 'relevant_to', 'advocacy', 'hr-issue-identity', 'Driver identity remains distinct from ownership.', 'reviewed', 'fixture-attorney'),
   ('hr-edge-car-issue', 'case-hit-run-001', 'proposition', 'hr-prop-client-car', 'relevant_to', 'advocacy', 'hr-issue-identity', 'Vehicle comparison remains non-unique.', 'reviewed', 'fixture-attorney'),
   ('hr-edge-dui-issue', 'case-hit-run-001', 'proposition', 'hr-prop-impaired-driving', 'relevant_to', 'advocacy', 'hr-issue-dui-time', 'Relevant time is driving, not later contact.', 'reviewed', 'fixture-attorney'),
-  ('hr-edge-after-issue', 'case-hit-run-001', 'proposition', 'hr-prop-post-driving-alcohol', 'relevant_to', 'advocacy', 'hr-issue-dui-time', 'Alternative timing account requires corroboration.', 'reviewed', 'fixture-attorney');
+  ('hr-edge-after-issue', 'case-hit-run-001', 'proposition', 'hr-prop-post-driving-alcohol', 'relevant_to', 'advocacy', 'hr-issue-dui-time', 'Alternative timing account requires corroboration.', 'reviewed', 'fixture-attorney'),
+  ('hr-edge-identity-video', 'case-hit-run-001', 'advocacy', 'hr-issue-identity', 'requires_follow_up', 'advocacy', 'hr-task-native-video', 'Native frames and metadata bear directly on the partial plate.', 'reviewed', 'fixture-attorney'),
+  ('hr-edge-identity-damage', 'case-hit-run-001', 'advocacy', 'hr-issue-identity', 'requires_follow_up', 'advocacy', 'hr-task-damage', 'Vehicle comparison is the identity question in physical form.', 'reviewed', 'fixture-attorney'),
+  ('hr-edge-identity-route', 'case-hit-run-001', 'advocacy', 'hr-issue-identity', 'requires_follow_up', 'advocacy', 'hr-task-route', 'Route and vehicle access bear on who was driving.', 'reviewed', 'fixture-attorney'),
+  ('hr-edge-dui-route', 'case-hit-run-001', 'advocacy', 'hr-issue-dui-time', 'requires_follow_up', 'advocacy', 'hr-task-route', 'Arrival time bounds the interval the state must bridge.', 'reviewed', 'fixture-attorney');
 
 INSERT INTO decision_briefs
   (id, case_id, posture, summary, strengths, risks, unresolved_questions, client_topics, version, author)

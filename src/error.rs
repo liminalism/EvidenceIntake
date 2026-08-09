@@ -38,6 +38,17 @@ pub enum Error {
         /// The direction it is already filed under.
         assessment: String,
     },
+    /// A superseded version was revised instead of the current one.
+    #[error("{kind} `{id}` has already been superseded{}; revise the current version instead",
+            .by.as_ref().map(|id| format!(" by `{id}`")).unwrap_or_default())]
+    Superseded {
+        /// The type of record being revised.
+        kind: &'static str,
+        /// The version the caller tried to revise.
+        id: String,
+        /// The version that replaced it.
+        by: Option<String>,
+    },
     /// A record was written twice under the same identity.
     #[error("{kind} `{id}` already exists")]
     AlreadyExists {

@@ -78,3 +78,44 @@ record evidence-intake-project.mutation-api.proposition-authoring/1 : work {
             """
     }
 }
+
+record evidence-intake-project.mutation-api.versioned-work-product/1 : work {
+    title "Versioned privileged work product"
+    state completed
+    scope [
+        path "migrations/**",
+        path "src/authoring.rs",
+        path "src/fixture.rs",
+        path "src/main.rs",
+        path "src/store.rs",
+        path "tests/work_product.rs"
+    ]
+    intent """
+        Complete the backend mutation API with the privileged layer: advocacy items, annotations, and decision briefs, all versioned by superseding rather than overwriting. Annotations had a table, a supersedes column, and no read path or write path at all. Also fix the issue workspace, which listed every open task in the case under every issue.
+        """
+    claim orphan-tasks-are-invisible-in-workspaces {
+        text """
+            A task linked to no issue is counted in overview.open_advocacy_items but appears under no workspace. This is a known consequence of scoping tasks to their issue, documented rather than hidden.
+            """
+    }
+    claim supersede-never-overwrite {
+        text """
+            Work product is revised by writing a new version that names the one it replaces. An earlier reading of an issue is what the attorney thought when they made a decision, so it stays readable. Only the current version may be revised: two revisions of the same version would fork the history and leave no single current reading.
+            """
+    }
+    claim tasks-belong-to-their-issue {
+        text """
+            An issue workspace carries the investigation tasks linked to that issue by a requires_follow_up edge, not every open task in the case. The previous query returned identical case-wide lists under every issue, sending a defender reading one workspace to chase work belonging to an unrelated question. Follow-up edges are excluded from linked_material so the same task is not listed twice under two headings.
+            """
+    }
+    claim views-filter-superseded {
+        text """
+            Every view over work product filters superseded rows. A rewritten issue that appeared twice in the workspace would read as two competing issues rather than one changed reading.
+            """
+    }
+    claim work-product-has-no-review-state {
+        text """
+            Advocacy items, annotations, and briefs carry no review state. Review asks whether an extraction faithfully represents an original; an attorney's own analysis is not an extraction and there is nothing to check it against.
+            """
+    }
+}

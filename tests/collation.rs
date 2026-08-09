@@ -244,3 +244,58 @@ fn sample_machine_batch(case_id: CaseId, review_state: ReviewState) -> Normalize
         }],
     }
 }
+
+/// Tasks belong to the issue that raised them. Listing every open task in the
+/// case under every issue told a defender reading one workspace to chase work
+/// that belongs to an unrelated question.
+#[test]
+fn each_issue_workspace_carries_only_its_own_follow_up() {
+    let mut store = Store::in_memory().expect("store");
+    let case_id = DemoFixture::HitAndRun
+        .seed(&mut store)
+        .expect("hit and run");
+    let issues = store.issue_workspaces(&case_id).expect("issues");
+    assert_eq!(issues.len(), 2);
+
+    let identity = issues
+        .iter()
+        .find(|issue| issue.id == "hr-issue-identity")
+        .expect("identity issue");
+    let timing = issues
+        .iter()
+        .find(|issue| issue.id == "hr-issue-dui-time")
+        .expect("timing issue");
+
+    assert_ne!(
+        identity.follow_up, timing.follow_up,
+        "two issues must not carry an identical case-wide task list"
+    );
+    assert!(
+        identity
+            .follow_up
+            .iter()
+            .any(|task| task.starts_with("Independent vehicle comparison")),
+        "vehicle comparison is an identity task"
+    );
+    assert!(
+        !timing
+            .follow_up
+            .iter()
+            .any(|task| task.starts_with("Independent vehicle comparison")),
+        "vehicle comparison is not an impairment-timing task"
+    );
+
+    // A task serving two issues appears under both.
+    let shared = "Test route and arrival-time account";
+    assert!(identity.follow_up.iter().any(|t| t.starts_with(shared)));
+    assert!(timing.follow_up.iter().any(|t| t.starts_with(shared)));
+
+    // The follow-up edges are not also listed as factual material.
+    assert!(
+        identity
+            .linked_material
+            .iter()
+            .all(|link| !link.starts_with("requires_follow_up")),
+        "an issue's tasks must not appear twice under two headings"
+    );
+}

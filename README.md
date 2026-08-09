@@ -21,6 +21,8 @@ This initial milestone provides:
   which enter unreviewed because writing something down is not checking it;
 - charges recorded with their statutory elements, and attributed element
   assessments that record a direction rather than a score;
+- privileged work product — issues, notes, and decision briefs — versioned by
+  superseding, so an earlier reading stays readable next to the current one;
 - decision-oriented discovery, element, witness, timeline, issue, and brief
   read models;
 - an adapter-neutral contract for already-OCRed documents, timestamped audio
@@ -61,6 +63,11 @@ cargo run -- author case-hit-run-001 link \
   --to-kind proposition --to <proposition-id> \
   --rationale "Morgan expressly disputes awareness of any impact." \
   --author "A. Reyes"
+cargo run -- author case-hit-run-001 work \
+  --kind motion-issue --title "Timing of the stop" \
+  --body "First reading of the interval." --author "A. Reyes"
+cargo run -- view case-hit-run-001 work-history <item-id>
+cargo run -- view case-hit-run-001 notes content hr-content-911-injury
 ```
 
 Machine suggestions stay suggestions until a person acts on them. `review
@@ -94,9 +101,15 @@ enter through `NormalizedBatch`; machine content must begin as `suggested` and
 preserves model version, confidence, original-source hash, and exact locator.
 
 Human review and human authoring are now first-class mutations, the first with
-its own immutable trail. The remaining backend milestone is versioned work
-product: advocacy items, annotations, and decision briefs, which are authored
-today only by the fixtures. The WinSafe GUI remains a separate later milestone.
+its own immutable trail and the second with versioned work product that
+supersedes rather than overwrites. The backend mutation API is complete; the
+WinSafe GUI remains a separate later milestone.
+
+One thing it deliberately still refuses: changing an element assessment. Reading
+evidence differently later is an honest act that should leave a trail, but
+whether that trail is the defender's own working record or an accountability
+audit log decides its schema, so it is recorded as an open question rather than
+guessed at.
 
 ## Development
 

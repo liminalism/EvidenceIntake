@@ -15,7 +15,8 @@ mod views;
 
 pub use authoring::{
     AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredLink, AuthoredProposition,
-    ProposedCharge, ProposedElement, ProposedElementMapping, ProposedLink, ProposedProposition,
+    ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge, ProposedElement,
+    ProposedElementMapping, ProposedLink, ProposedProposition, WorkProductVersion,
 };
 pub use error::{Error, Result};
 pub use fixture::DemoFixture;

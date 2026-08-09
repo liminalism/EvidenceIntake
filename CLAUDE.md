@@ -50,10 +50,12 @@ Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs 
   that machine-generated content cannot arrive already verified.
 - `src/authoring.rs` — human authoring input and result types only (no behavior), the
   counterpart to `ingest.rs`. `Store::author_proposition`, `link_evidence`, `record_charge`,
-  and `map_element` enforce the rules: authored records enter `unreviewed` and `contested`,
-  every link carries a written rationale, every mapping names its author, a charge is written
-  with its elements or not at all, both endpoints must exist inside the case, and the same
-  claim is never asserted twice.
+  `map_element`, `author_advocacy_item`/`revise_advocacy_item`, `annotate`/`revise_annotation`,
+  and `record_brief` enforce the rules: authored records enter `unreviewed` and `contested`,
+  every link carries a written rationale, every mapping and every work-product version names
+  its author, a charge is written with its elements or not at all, both endpoints must exist
+  inside the case, the same claim is never asserted twice, and work product is revised by
+  superseding rather than overwriting.
 - `src/review.rs` — review vocabulary plus `transition_allowed`, the state-machine predicate.
 - `src/views.rs` — serializable read models (`Overview`, `DiscoveryItem`, `ElementRow`,
   `WitnessStatement`, `TimelineEntry`, `IssueWorkspace`, `DecisionBrief`, `PropositionEvidence`,
@@ -96,7 +98,11 @@ The graph is node tables (`sources`, `source_segments`, `content`, `entities`, `
   `time_basis`.
 - **Timeline lanes never collapse** into a single authoritative sequence.
 - **Advocacy items, annotations, and decision briefs are privileged** and stay out of the
-  discovery ledger and any routine export.
+  discovery ledger and any routine export. They carry no review state — review asks whether
+  an extraction represents an original, and attorney analysis is not an extraction.
+- **Work product is versioned by superseding, never overwritten.** Only the current version
+  may be revised; every view must filter superseded rows (`NOT EXISTS (... supersedes ...)`)
+  or a rewritten issue appears twice.
 
 Tests are named as assertions about these rules (`a_reviewer_cannot_return_a_record_to_an_intake_state`,
 `timeline_keeps_competing_lanes_and_raw_time`). Every integration file builds a

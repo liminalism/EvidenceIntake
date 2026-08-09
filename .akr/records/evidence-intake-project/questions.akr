@@ -1,0 +1,21 @@
+akr 0.1
+project evidence-intake-project
+
+record evidence-intake-project.review.reassessment-trail-audience/1 : question {
+    title "Who is the element re-assessment trail for?"
+    state open
+    scope [ path "migrations/**", path "src/review.rs", path "src/store.rs" ]
+    question """
+        Changing an element assessment should leave a review trail rather than being refused, as it is today. Unresolved: is that trail user-facing — part of the defender's working record, shown in the element matrix and readable as 'I read this differently in March' — or an admin-facing audit log kept for accountability and not routinely surfaced? The answer decides whether re-assessment reuses `review_events` and `ReviewTarget` (user-facing, same vocabulary as every other decision, needing a new target kind and a trigger-enforced state check on element_links) or gets a separate append-only table with a different read path and different export rules. Element mappings are attorney analysis, so a user-facing trail is also privileged material and must stay out of any discovery export, which an admin-facing log might not need to be.
+        """
+    claim current-behaviour {
+        text """
+            Today `Store::map_element` refuses a second assessment of the same proposition on the same element and names the direction already recorded. Nothing is lost, but nothing can be changed either: the honest act of reading evidence differently later has no path.
+            """
+    }
+    claim why-it-is-blocking {
+        text """
+            The two audiences imply different schemas, not just different views, so building either one before the question is answered means building the wrong one. This was deliberately left out of the element-mapping slice rather than decided as a side effect of it.
+            """
+    }
+}

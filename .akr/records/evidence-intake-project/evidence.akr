@@ -24,3 +24,15 @@ record evidence-intake-project.evidence.element-mapping-suite/1 : evidence {
         47 tests pass, clippy clean under -D warnings, formatting clean. New coverage: statutory ordinals, a charge refused without elements, an atomic charge write, an attributed assessment reaching the element matrix, a refused contradictory second assessment, refused unknown and cross-case endpoints, and two schema tests proving the author trigger fires and that a hand-inserted cross-case element_link never surfaces in element_matrix or offense_comparison. Also verified by hand that migration 0004 re-runs against a database created before it existed.
         """
 }
+
+record evidence-intake-project.evidence.work-product-suite/1 : evidence {
+    title "58 tests pass, clippy clean under -D warnings, formatting clean. tests/work_product.rs adds 9 covering privileged v1 entry, supersede-not-overwrite with full history from any version identifier, refusal to revise a superseded version, a rewritten issue appearing once in the workspace, current-only annotations, cross-case refusal, per-posture brief numbering continuing the fixture's chain, and work product staying out of the discovery ledger. A schema test proves the author trigger fires on all three tables, and a collation test proves the two hit-and-run issues no longer carry identical task lists. Verified by hand that migration 0005 re-runs against a pre-0005 database."
+    state verified
+    result pass
+    method command
+    observed_at git:34b06a5a2630ade1e64351e4c1e622892fb3d5ea
+    command "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
+    summary """
+        58 tests pass, clippy clean under -D warnings, formatting clean. tests/work_product.rs adds 9 covering privileged v1 entry, supersede-not-overwrite with full history from any version identifier, refusal to revise a superseded version, a rewritten issue appearing once in the workspace, current-only annotations, cross-case refusal, per-posture brief numbering continuing the fixture's chain, and work product staying out of the discovery ledger. A schema test proves the author trigger fires on all three tables, and a collation test proves the two hit-and-run issues no longer carry identical task lists. Verified by hand that migration 0005 re-runs against a pre-0005 database.
+        """
+}

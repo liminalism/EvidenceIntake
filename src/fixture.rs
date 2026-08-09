@@ -164,7 +164,9 @@ fn seed_vehicle_stop(transaction: &rusqlite::Transaction<'_>) -> Result<()> {
           ('edge-dispatch-stop', 'case-vehicle-stop-001', 'content', 'content-dispatch', 'qualifies', 'proposition', 'prop-stop-reason', 'CAD records the stated reason more than three minutes after initiation.', 'reviewed', 'fixture-attorney'),
           ('edge-missing', 'case-vehicle-stop-001', 'content', 'content-backup-ref', 'expected_but_missing', 'source', 'src-backup-missing', 'Referenced tag is absent from both productions.', 'verified', 'fixture-attorney'),
           ('edge-issue-consent', 'case-vehicle-stop-001', 'proposition', 'prop-consent', 'relevant_to', 'advocacy', 'issue-suppression', 'Voluntariness is a factual predicate for attorney analysis.', 'reviewed', 'fixture-attorney'),
-          ('edge-issue-stop', 'case-vehicle-stop-001', 'proposition', 'prop-stop-reason', 'relevant_to', 'advocacy', 'issue-suppression', 'Basis and timing of detention require review.', 'reviewed', 'fixture-attorney');
+          ('edge-issue-stop', 'case-vehicle-stop-001', 'proposition', 'prop-stop-reason', 'relevant_to', 'advocacy', 'issue-suppression', 'Basis and timing of detention require review.', 'reviewed', 'fixture-attorney'),
+          ('edge-issue-task-video', 'case-vehicle-stop-001', 'advocacy', 'issue-suppression', 'requires_follow_up', 'advocacy', 'task-backup-video', 'The missing search recording is a factual predicate for the motion.', 'reviewed', 'fixture-attorney'),
+          ('edge-issue-task-clock', 'case-vehicle-stop-001', 'advocacy', 'issue-suppression', 'requires_follow_up', 'advocacy', 'task-clock', 'Detention duration turns on which clock is right.', 'reviewed', 'fixture-attorney');
 
         INSERT INTO charges (id, case_id, label, citation) VALUES
           ('charge-possession', 'case-vehicle-stop-001', 'Unlawful possession of a firearm', 'Example Code § 10-201');

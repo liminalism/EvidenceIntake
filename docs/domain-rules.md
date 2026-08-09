@@ -69,4 +69,14 @@ These rules are invariants for the kernel and future UI.
     carries no case column, so both the mutation and the queries that read it
     check the case explicitly: no case's workspace may surface another's
     material.
+25. Work product is versioned by superseding, never by overwriting. An earlier
+    reading is what an attorney thought when they made a decision, so it stays
+    readable. Only the current version may be revised; views report the current
+    version, and a superseded record is not a second record.
+26. Work product carries no review state. Review asks whether an extraction
+    faithfully represents an original; an attorney's own analysis is not an
+    extraction, and there is nothing to check it against.
+27. An issue's follow-up tasks are the ones linked to that issue. A workspace
+    that listed every open task in the case would send a defender to chase work
+    belonging to an unrelated question.
 

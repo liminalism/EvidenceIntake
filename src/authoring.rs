@@ -12,7 +12,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ChargePosture, EdgeKind, ElementAssessment, NodeRef};
+use crate::{AdvocacyKind, ChargePosture, EdgeKind, ElementAssessment, NodeRef};
 
 /// A contested proposition a person is asking the case to hold.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -154,6 +154,86 @@ pub struct AuthoredElementMapping {
     pub notes: Option<String>,
     /// The named person who made the assessment.
     pub created_by: String,
+}
+
+/// A privileged work-product item a person is writing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProposedAdvocacyItem {
+    /// Stable identifier. A generated one is used when this is absent.
+    #[serde(default)]
+    pub id: Option<String>,
+    /// Which kind of work product this is.
+    pub kind: AdvocacyKind,
+    /// Short title.
+    pub title: String,
+    /// The analysis itself.
+    pub body: String,
+    /// Workflow state; `open` when absent.
+    #[serde(default)]
+    pub status: Option<String>,
+    /// The named person writing it.
+    pub author: String,
+}
+
+/// A privileged note attached to one record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProposedAnnotation {
+    /// Stable identifier. A generated one is used when this is absent.
+    #[serde(default)]
+    pub id: Option<String>,
+    /// The record being annotated.
+    pub target: NodeRef,
+    /// The note itself.
+    pub body: String,
+    /// The named person writing it.
+    pub author: String,
+}
+
+/// A posture-specific decision brief a person is writing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProposedBrief {
+    /// Stable identifier. A generated one is used when this is absent.
+    #[serde(default)]
+    pub id: Option<String>,
+    /// release, motions, negotiation, trial, sentencing, or appeal.
+    pub posture: String,
+    /// What the brief says.
+    pub summary: String,
+    /// Strong portions of the defense position.
+    pub strengths: String,
+    /// Material risks.
+    pub risks: String,
+    /// Questions that could change the advice.
+    pub unresolved_questions: String,
+    /// Topics to discuss with the client.
+    pub client_topics: String,
+    /// The named person writing it.
+    pub author: String,
+}
+
+/// A work-product record as it stands after being written or revised.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct WorkProductVersion {
+    /// Stable identifier of this version.
+    pub id: String,
+    /// Which version this is, counting from one.
+    pub version: u32,
+    /// The version this one replaces, when it replaces one.
+    pub supersedes: Option<String>,
+    /// Whether this is the current version.
+    pub current: bool,
+    /// Title, or the posture for a brief.
+    pub title: String,
+    /// The text of this version.
+    pub body: String,
+    /// Workflow state.
+    pub status: String,
+    /// Whether the record is privileged. Work product is, by default.
+    pub privileged: bool,
+    /// The named person who wrote this version.
+    pub author: String,
+    /// When this version was written.
+    pub created_at: String,
 }
 
 /// A relationship as it was written into the case.

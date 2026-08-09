@@ -4,9 +4,10 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence_intake::{
-    CaseId, ChargePosture, DemoFixture, EdgeKind, ElementAssessment, NodeKind, NodeRef,
-    ProposedCharge, ProposedElement, ProposedElementMapping, ProposedLink, ProposedProposition,
-    Result, ReviewDecision, ReviewState, ReviewTarget, Store,
+    AdvocacyKind, CaseId, ChargePosture, DemoFixture, EdgeKind, ElementAssessment, NodeKind,
+    NodeRef, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
+    ProposedElement, ProposedElementMapping, ProposedLink, ProposedProposition, Result,
+    ReviewDecision, ReviewState, ReviewTarget, Store,
 };
 use serde::Serialize;
 
@@ -116,6 +117,78 @@ enum AuthorItem {
         #[arg(long)]
         id: Option<String>,
     },
+    /// Write a privileged work-product item.
+    Work {
+        /// Which kind of work product this is.
+        #[arg(long, value_enum)]
+        kind: AdvocacyArg,
+        /// Short title.
+        #[arg(long)]
+        title: String,
+        /// The analysis itself.
+        #[arg(long)]
+        body: String,
+        /// Workflow state; `open` when omitted.
+        #[arg(long)]
+        status: Option<String>,
+        /// Named person accountable for it.
+        #[arg(long)]
+        author: String,
+        /// Revise this item, writing a new version rather than overwriting it.
+        #[arg(long)]
+        revises: Option<String>,
+        /// Stable identifier; generated when omitted.
+        #[arg(long)]
+        id: Option<String>,
+    },
+    /// Attach a privileged note to one record.
+    Note {
+        /// Node type being annotated.
+        #[arg(long, value_enum)]
+        target_kind: NodeKindArg,
+        /// Identifier of the record being annotated.
+        #[arg(long)]
+        target: String,
+        /// The note itself.
+        #[arg(long)]
+        body: String,
+        /// Named person accountable for it.
+        #[arg(long)]
+        author: String,
+        /// Revise this note, writing a new version rather than overwriting it.
+        #[arg(long)]
+        revises: Option<String>,
+        /// Stable identifier; generated when omitted.
+        #[arg(long)]
+        id: Option<String>,
+    },
+    /// Write the next version of a posture's decision brief.
+    Brief {
+        /// release, motions, negotiation, trial, sentencing, or appeal.
+        #[arg(long)]
+        posture: String,
+        /// What the brief says.
+        #[arg(long)]
+        summary: String,
+        /// Strong portions of the defense position.
+        #[arg(long, default_value = "")]
+        strengths: String,
+        /// Material risks.
+        #[arg(long, default_value = "")]
+        risks: String,
+        /// Questions that could change the advice.
+        #[arg(long, default_value = "")]
+        unresolved: String,
+        /// Topics to discuss with the client.
+        #[arg(long, default_value = "")]
+        client_topics: String,
+        /// Named person accountable for it.
+        #[arg(long)]
+        author: String,
+        /// Stable identifier; generated when omitted.
+        #[arg(long)]
+        id: Option<String>,
+    },
     /// Record how one proposition bears on one statutory element.
     Mapping {
         /// The element being mapped.
@@ -137,6 +210,35 @@ enum AuthorItem {
         #[arg(long)]
         id: Option<String>,
     },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AdvocacyArg {
+    DefenseTheory,
+    ProsecutionTheory,
+    LegalIssue,
+    MotionIssue,
+    CrossExaminationPoint,
+    InvestigationTask,
+    NegotiationConsideration,
+    MitigationTheme,
+    AttorneyConclusion,
+}
+
+impl From<AdvocacyArg> for AdvocacyKind {
+    fn from(value: AdvocacyArg) -> Self {
+        match value {
+            AdvocacyArg::DefenseTheory => Self::DefenseTheory,
+            AdvocacyArg::ProsecutionTheory => Self::ProsecutionTheory,
+            AdvocacyArg::LegalIssue => Self::LegalIssue,
+            AdvocacyArg::MotionIssue => Self::MotionIssue,
+            AdvocacyArg::CrossExaminationPoint => Self::CrossExaminationPoint,
+            AdvocacyArg::InvestigationTask => Self::InvestigationTask,
+            AdvocacyArg::NegotiationConsideration => Self::NegotiationConsideration,
+            AdvocacyArg::MitigationTheme => Self::MitigationTheme,
+            AdvocacyArg::AttorneyConclusion => Self::AttorneyConclusion,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -346,6 +448,19 @@ enum View {
     },
     /// Compare charged offenses and lesser candidates by element.
     Offenses,
+    /// Privileged notes currently attached to one record.
+    Notes {
+        /// Node type that was annotated.
+        #[arg(value_enum)]
+        target_kind: NodeKindArg,
+        /// Identifier of the annotated record.
+        target: String,
+    },
+    /// Every version of one work-product item, oldest first.
+    WorkHistory {
+        /// Any version's identifier.
+        item_id: String,
+    },
 }
 
 fn main() {
@@ -390,6 +505,16 @@ fn run() -> Result<()> {
                     print_json(&store.proposition_evidence(&case_id, &proposition_id)?)?;
                 }
                 View::Offenses => print_json(&store.offense_comparison(&case_id)?)?,
+                View::Notes {
+                    target_kind,
+                    target,
+                } => {
+                    let target = NodeRef::new(NodeKind::from(target_kind), target);
+                    print_json(&store.annotations(&case_id, &target)?)?;
+                }
+                View::WorkHistory { item_id } => {
+                    print_json(&store.advocacy_history(&case_id, &item_id)?)?;
+                }
             }
         }
         Command::Review { case_id, action } => {
@@ -466,6 +591,75 @@ fn run() -> Result<()> {
                             .collect(),
                     };
                     print_json(&store.record_charge(&case_id, &proposal)?)?;
+                }
+                AuthorItem::Work {
+                    kind,
+                    title,
+                    body,
+                    status,
+                    author,
+                    revises,
+                    id,
+                } => {
+                    let proposal = ProposedAdvocacyItem {
+                        id,
+                        kind: AdvocacyKind::from(kind),
+                        title,
+                        body,
+                        status,
+                        author,
+                    };
+                    let written = match revises {
+                        Some(previous) => {
+                            store.revise_advocacy_item(&case_id, &previous, &proposal)?
+                        }
+                        None => store.author_advocacy_item(&case_id, &proposal)?,
+                    };
+                    print_json(&written)?;
+                }
+                AuthorItem::Note {
+                    target_kind,
+                    target,
+                    body,
+                    author,
+                    revises,
+                    id,
+                } => {
+                    let proposal = ProposedAnnotation {
+                        id,
+                        target: NodeRef::new(NodeKind::from(target_kind), target),
+                        body,
+                        author,
+                    };
+                    let written = match revises {
+                        Some(previous) => {
+                            store.revise_annotation(&case_id, &previous, &proposal)?
+                        }
+                        None => store.annotate(&case_id, &proposal)?,
+                    };
+                    print_json(&written)?;
+                }
+                AuthorItem::Brief {
+                    posture,
+                    summary,
+                    strengths,
+                    risks,
+                    unresolved,
+                    client_topics,
+                    author,
+                    id,
+                } => {
+                    let proposal = ProposedBrief {
+                        id,
+                        posture,
+                        summary,
+                        strengths,
+                        risks,
+                        unresolved_questions: unresolved,
+                        client_topics,
+                        author,
+                    };
+                    print_json(&store.record_brief(&case_id, &proposal)?)?;
                 }
                 AuthorItem::Mapping {
                     element,

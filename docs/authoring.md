@@ -70,6 +70,40 @@ Elements reach propositions through `element_links`, which carries no case colum
 of its own. Both the mutation and the views that read it check the case
 explicitly, so one case's element matrix can never surface another's material.
 
+## Work product
+
+Advocacy items, annotations, and decision briefs are the attorney's own analysis.
+They are privileged by default, stay out of the discovery ledger and any routine
+export, and carry **no review state** — review is a claim about whether an
+extraction faithfully represents an original, and an attorney's reasoning is not
+an extraction of anything.
+
+They are versioned by superseding, never by overwriting. An earlier reading of an
+issue is not a mistake to be erased: it is what the attorney thought when they
+made a decision, and a later reader — including the same attorney — has to be
+able to see that it changed. `advocacy_history` returns every version of an item
+from any version's identifier, oldest first.
+
+Only the current version may be revised. Two revisions of the same version would
+fork the history and leave no single current reading, so the second is refused
+and names the version that replaced it. Views report only the current version: a
+superseded issue is not a second issue, and a rewritten note is not a second
+note.
+
+Briefs are versioned per posture. A brief is advice as of a moment, so writing
+one never replaces what the client was told before; `view … brief <posture>`
+returns the latest, and the earlier ones stay in the database.
+
+Every version names its author, enforced by the schema rather than by convention.
+
+## Issues and their tasks
+
+An issue workspace carries the investigation tasks raised by *that* issue, linked
+with a `requires_follow_up` edge, and its factual material separately. A task
+that serves two issues appears under both. A task linked to no issue is counted
+in `overview.open_advocacy_items` but appears under no workspace — worth knowing
+when reading a workspace as a complete to-do list.
+
 ## Commands
 
 ```sh
@@ -100,9 +134,34 @@ cargo run -- author case-hit-run-001 mapping \
   --author "A. Reyes"
 ```
 
+```sh
+cargo run -- author case-hit-run-001 work \
+  --kind motion-issue --title "Timing of the stop" \
+  --body "First reading of the interval." --author "A. Reyes"
+
+# Revising writes version 2 and leaves version 1 readable.
+cargo run -- author case-hit-run-001 work \
+  --kind motion-issue --title "Timing of the stop" \
+  --body "Second reading: the clip narrows it." \
+  --author "A. Reyes" --revises <item-id>
+
+cargo run -- view case-hit-run-001 work-history <any-version-id>
+
+cargo run -- author case-hit-run-001 note \
+  --target-kind content --target hr-content-911-injury \
+  --body "Compare against the report characterization." --author "A. Reyes"
+
+cargo run -- view case-hit-run-001 notes content hr-content-911-injury
+
+cargo run -- author case-hit-run-001 brief \
+  --posture negotiation --summary "The native export changes the picture." \
+  --author "A. Reyes"
+```
+
 `--element` is repeated once per element, in statutory order; the ordinals and
 the element identifiers come back in the command's output. `--id` is available on
-each of these and is generated when omitted. `--relation` accepts
+each of these and is generated when omitted. `--revises` takes the identifier of
+the version being replaced. `--relation` accepts
 any `EdgeKind`; `--from-kind` and `--to-kind` accept any node the `edges` table
 can point at — `content`, `source`, `proposition`, `event`, `edge`, `entity`, or
 `advocacy`. Charges and elements are deliberately absent: elements reach
