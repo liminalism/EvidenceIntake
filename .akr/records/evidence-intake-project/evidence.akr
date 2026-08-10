@@ -75,6 +75,30 @@ record evidence-intake-project.evidence.gui-platform-boundary/1 : evidence {
     author "GitHub Uploader"
 }
 
+record evidence-intake-project.evidence.gui-platform-boundary-after-chrome-pass/1 : evidence {
+    title "Default build carries no Win32 dependency after the layout and chrome pass"
+    state verified
+    result pass
+    method command
+    observed_at git:f807e4656fc87aeaa071e01145cf3ebae831b03c
+    command "cargo check --all-targets"
+    summary """
+        cargo check --all-targets finished clean on the default feature set, and `cargo tree -e normal` lists winsafe zero times, so the Win32 dependency remains reachable only through the optional gui-winsafe feature and its cfg(windows) target table. src/gui/mod.rs compiles without the feature; only the src/gui/winsafe.rs module and the evidence-gui binary are gated behind it.
+        """
+}
+
+record evidence-intake-project.evidence.gui-winsafe-build-after-chrome-pass/1 : evidence {
+    title "The gui-winsafe feature builds and its tests pass after the layout and chrome pass"
+    state verified
+    result pass
+    method command
+    observed_at git:f807e4656fc87aeaa071e01145cf3ebae831b03c
+    command "cargo test --features gui-winsafe"
+    summary """
+        cargo test --features gui-winsafe passed 110 tests across all targets with no failures. The library target now carries 11 rather than 10, the addition being every_command_has_its_own_alt_key, which walks every command caption constant and fails if two claim the same mnemonic letter. cargo fmt --check and cargo clippy --all-targets --all-features -- -D warnings were also clean.
+        """
+}
+
 record evidence-intake-project.evidence.gui-winsafe-verification/1 : evidence {
     title "All unit, integration, GUI, and documentation tests pass with gui-winsafe enabled, and strict Clippy reports no warnings."
     state verified
@@ -86,6 +110,17 @@ record evidence-intake-project.evidence.gui-winsafe-verification/1 : evidence {
         All unit, integration, GUI, and documentation tests pass with gui-winsafe enabled, and strict Clippy reports no warnings.
         """
     author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-workspace-after-chrome-pass/1 : evidence {
+    title "The reorganized workspace was exercised at three window sizes"
+    state verified
+    result pass
+    method observation
+    observed_at git:f807e4656fc87aeaa071e01145cf3ebae831b03c
+    summary """
+        The window was launched against evidence.db and captured with PrintWindow at three sizes. At the 1100x700 design size the rail shows its three rule-separated groups, the pane shows search, output and the review/authoring panel, and every button carries a two-band drop shadow. Enlarged to 2000x1300 the output pane grew, the review panel rode the bottom edge, the authoring pair rode the bottom-right corner, and the painted rules and shadows repainted at the new control positions. Reduced to the 940x600 logical floor the whole rail including the four export commands stayed visible, Reject and Save New Record did not overlap, and the clipped labels ended in ellipses. Process DPI awareness was measured as system-level with GetProcessDpiAwareness returning 1, GetDpiForWindow returning 144, and the client area measuring 1650x1050 device pixels. An oversized build requesting 2850x1650 was clamped to the 2560x1528 monitor work area.
+        """
 }
 
 record evidence-intake-project.evidence.optimization-pass-measured/1 : evidence {

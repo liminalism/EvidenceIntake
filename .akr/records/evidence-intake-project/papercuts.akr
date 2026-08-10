@@ -45,6 +45,18 @@ record evidence-intake-project.papercut.akr-propose-from-help-says-a-file-holdin
     created_at 2026-08-09
 }
 
+record evidence-intake-project.papercut.i-passed-scope-terms-as-path-src-gui-winsafe-rs/1 : papercut {
+    title "I passed scope terms as \"path src/gui/winsafe.rs\" to knowledge.propose,…"
+    state verified
+    statement """
+        I passed scope terms as "path src/gui/winsafe.rs" to knowledge.propose, copying the `path "..."` form the generated views render, and it was accepted silently — producing scope `path "path src/gui/winsafe.rs"`, a glob that can never match a file, so the records would never have gone stale when winsafe.rs changed. Nothing validates that a scope glob is well-formed or warns that it currently matches zero paths. A warning when a path term matches nothing in the worktree would have caught this at propose time instead of three records later.
+        """
+    observed_at git:f807e4656fc87aeaa071e01145cf3ebae831b03c
+    about "akr"
+    author "claude"
+    created_at 2026-08-10
+}
+
 record evidence-intake-project.papercut.knowledge-explain-crashed-with-akr-x099/1 : papercut {
     title "knowledge.explain crashed with AKR-X099 (internal) for both `decision`…"
     state verified

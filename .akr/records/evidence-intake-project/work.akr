@@ -100,7 +100,10 @@ record evidence-intake-project.gui.winsafe-shell/1 : work {
                 """
             method command
             command "cargo check --all-targets"
-            verified_by [ @evidence-intake-project.evidence.gui-platform-boundary/1 ]
+            verified_by [
+                @evidence-intake-project.evidence.gui-platform-boundary/1,
+                @evidence-intake-project.evidence.gui-platform-boundary-after-chrome-pass/1
+            ]
         }
         check usable-workspace {
             statement """
@@ -108,7 +111,10 @@ record evidence-intake-project.gui.winsafe-shell/1 : work {
                 authoring, and export capabilities through a keyboard-accessible first-pass workspace.
                 """
             method observation
-            verified_by [ @evidence-intake-project.evidence.gui-native-smoke/1 ]
+            verified_by [
+                @evidence-intake-project.evidence.gui-native-smoke/1,
+                @evidence-intake-project.evidence.gui-workspace-after-chrome-pass/1
+            ]
         }
         check windows-build {
             statement """
@@ -116,7 +122,10 @@ record evidence-intake-project.gui.winsafe-shell/1 : work {
                 """
             method command
             command "cargo test --features gui-winsafe"
-            verified_by [ @evidence-intake-project.evidence.gui-winsafe-verification/1 ]
+            verified_by [
+                @evidence-intake-project.evidence.gui-winsafe-build-after-chrome-pass/1,
+                @evidence-intake-project.evidence.gui-winsafe-verification/1
+            ]
         }
     }
     author "GitHub Uploader"

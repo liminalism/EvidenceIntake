@@ -4,8 +4,7 @@ project evidence-intake-project
 record evidence-intake-project.decision.painted-window-chrome/1 : decision {
     title "The Windows frontend keeps native buttons and paints its own depth and grouping"
     state proposed
-    scope [ path "path src/gui/winsafe.rs" ]
-    topic gui-chrome
+    scope [ path "src/gui/winsafe.rs" ]
     decision """
         The WinSafe frontend keeps stock Win32 push buttons and adds depth and grouping by painting the parent window in WM_PAINT, rather than by owner-drawing the buttons. Each button gets a two-band drop shadow offset down and right -- #EC then #DE against the #F0F0F0 BTNFACE background, the darker band painted last so it lands against the button's own edge -- and etched rules separate the rail's three command groups and the review panel from the output above it. Owner-draw was rejected because it would have to reimplement hover, focus, pressed, disabled, and high-contrast rendering, and would then drift from whatever the user's Windows theme does; painting only the space around a button buys the depth without owning any of the button's state.
         """

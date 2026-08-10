@@ -4,8 +4,7 @@ project evidence-intake-project
 record evidence-intake-project.constraint.distinct-alt-keys/1 : constraint {
     title "Every command in the WinSafe window claims a distinct Alt key"
     state proposed
-    scope [ path "path src/gui/winsafe.rs" ]
-    topic gui-keyboard
+    scope [ path "src/gui/winsafe.rs" ]
     statement """
         No two controls in the WinSafe main window may claim the same mnemonic letter. Win32 resolves a mnemonic across the whole window, so a repeated letter makes Alt cycle focus between the claimants instead of pressing either one -- which silently breaks the keyboard path the status bar advertises, without any visible symptom. Command captions therefore live as named constants at the top of src/gui/winsafe.rs, and the unit test every_command_has_its_own_alt_key is what keeps them distinct.
         """
@@ -24,8 +23,7 @@ record evidence-intake-project.constraint.distinct-alt-keys/1 : constraint {
 record evidence-intake-project.constraint.window-fits-the-screen/1 : constraint {
     title "The DPI-scaled window is clamped to the screen and floored at a size the layout survives"
     state proposed
-    scope [ path "path src/gui/winsafe.rs" ]
-    topic gui-sizing
+    scope [ path "src/gui/winsafe.rs" ]
     statement """
         The WinSafe layout is written in logical units and gui::dpi scales every coordinate by the system DPI, so the window grows with the user's display scaling: the 1100x700 design size wants 1650x1050 device pixels at 150% and 2200x1400 at 200%. Windows will create a window larger than the screen, which puts the bottom command row past the edge with no way to reach it, so fit_to_work_area shrinks the window onto the monitor's work area at WM_CREATE. It never shrinks below the layout's floor of 940x600 logical, which WM_GETMINMAXINFO also enforces as the minimum tracking size: a window that overflows can still be moved to reach the rest of it, whereas one shrunk past the floor has commands that overlap and cannot be separated again.
         """

@@ -5,7 +5,7 @@ build {
     tool "akr 0.1.0"
     grammar "0.1"
     vocabulary "0.2"
-    source_graph "sha256:60789a48ada5123dad4e18c5d3a819ff960d88fda773b979c5cd108213fb87f4"
+    source_graph "sha256:e665d619e9dca4e87cbe0c06d458fb300a73e56deab982318f03b8d708039771"
 }
 
 source ".akr/project.akr" {
@@ -14,23 +14,23 @@ source ".akr/project.akr" {
 }
 
 source ".akr/records/evidence-intake-project/constraints.akr" {
-    hash "sha256:2e600e56997d9d50c4b923bb16f9babdbd048a07907f6a35080bb19f3a5f3dbe"
+    hash "sha256:9002bec71c83ac334059d0b7ac2026b273614e0f61e133817830cab4e94964cb"
     records 2
 }
 
 source ".akr/records/evidence-intake-project/decisions.akr" {
-    hash "sha256:87cba1b4351c727447aec1ab190451833727a82c42ddccd031664e2e3b29adff"
+    hash "sha256:8960d14b2f8961370683067fe3967a674a3f4d5017bef89824ecd5f30df993e1"
     records 2
 }
 
 source ".akr/records/evidence-intake-project/evidence.akr" {
-    hash "sha256:296219151fce1d8f56231c90f7a468799187ca47e052131c81bef564bbed08c1"
-    records 11
+    hash "sha256:1c96081318e7e80850b7adfc346e43a44b7e04fe194a0922be32155c16ac108c"
+    records 14
 }
 
 source ".akr/records/evidence-intake-project/papercuts.akr" {
-    hash "sha256:4b0102c93c4d8d7e3d29340238fe89f3c221242c75256368dec477e84fa88140"
-    records 9
+    hash "sha256:bc006a04501cfa6b3a9c2cb7c13a92702225edd0e7b2c6f07523647f496d4f52"
+    records 10
 }
 
 source ".akr/records/evidence-intake-project/questions.akr" {
@@ -39,7 +39,7 @@ source ".akr/records/evidence-intake-project/questions.akr" {
 }
 
 source ".akr/records/evidence-intake-project/work.akr" {
-    hash "sha256:8d3a3e86f4bff2d36d933be1b3d2804b99e7c1b0fbdb39a35262a0fb6f33be23"
+    hash "sha256:274382dc8b11c821d1878f3135828ee9c33dcd20731fe6f3086abdb462538019"
     records 8
 }
 
@@ -83,9 +83,24 @@ seal @evidence-intake-project.evidence.gui-platform-boundary/1 {
     hash "sha256:10c6c74f1c98d653426544c48eb4367a6e302a3a0208038ac5593e0e21633714"
 }
 
+seal @evidence-intake-project.evidence.gui-platform-boundary-after-chrome-pass/1 {
+    state verified
+    hash "sha256:35446fe68bb6e228e91df606d3769728b8f9dad4391c11fb70d91bf2f0a5a9c2"
+}
+
+seal @evidence-intake-project.evidence.gui-winsafe-build-after-chrome-pass/1 {
+    state verified
+    hash "sha256:17b7554b7246acfec9a0d39e98d1ab8cb4fed178f62c79bc9de061c06d5ab1b3"
+}
+
 seal @evidence-intake-project.evidence.gui-winsafe-verification/1 {
     state verified
     hash "sha256:a48ff6812790c31fb63baa949878b2797daa747f656273ee8f35ded01d2023ba"
+}
+
+seal @evidence-intake-project.evidence.gui-workspace-after-chrome-pass/1 {
+    state verified
+    hash "sha256:83b7b16346cffbee377b6e19817e65fcff38032c841e180ef0910fcd29545e92"
 }
 
 seal @evidence-intake-project.evidence.optimization-pass-measured/1 {
@@ -110,7 +125,7 @@ seal @evidence-intake-project.evidence.work-product-suite/1 {
 
 seal @evidence-intake-project.gui.winsafe-shell/1 {
     state completed
-    hash "sha256:eef842d62407ac770e127289e3c24a88cac08401a5dbc926e14e7114c7cf55ef"
+    hash "sha256:7d0d02a983af1311b37b7ed24cbf03cd17aaf72a6e59a39f157d51db2d2de8bb"
 }
 
 seal @evidence-intake-project.mutation-api.element-mapping/1 {
@@ -146,6 +161,11 @@ seal @evidence-intake-project.papercut.adding-the-evidence-gui-binary-made-the-r
 seal @evidence-intake-project.papercut.akr-propose-from-help-says-a-file-holding-the/1 {
     state verified
     hash "sha256:e8a38b8a472e047803a500d881ca2b6baafd749bb5019c6c455461ac3440cf50"
+}
+
+seal @evidence-intake-project.papercut.i-passed-scope-terms-as-path-src-gui-winsafe-rs/1 {
+    state verified
+    hash "sha256:c36fa646c0bab3ed79c9341200171504f66213dc99336c637651846c1f1c339d"
 }
 
 seal @evidence-intake-project.papercut.knowledge-explain-crashed-with-akr-x099/1 {
