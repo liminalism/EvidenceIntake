@@ -78,6 +78,50 @@ record evidence-intake-project.assisted.findings-and-remaining-analyzers/1 : wor
     }
 }
 
+record evidence-intake-project.gui.winsafe-shell/1 : work {
+    title "Feature-gated WinSafe evidence workspace"
+    state completed
+    intent """
+        Build the first functional desktop interface over the existing evidence-intake kernel.
+        Use the WinSafe installer at D:/Rust-projects/SinoRAG/gui-installer/sinorag-installer-winsafe
+        as the Windows implementation reference and the AKR GUI at
+        D:/Rust-projects/AKR/crates/akr-gui as an architectural reference. Keep Windows-specific
+        WinSafe code behind an opt-in feature and a platform-neutral GUI boundary so a future
+        Linux frontend can replace it. Follow the local DAMION screenshot as a first-pass
+        information-density and keyboard-access guide, prioritizing roughly ninety percent
+        workflow functionality and ten percent polish.
+        """
+    acceptance {
+        check platform-boundary {
+            statement """
+                The default kernel build stays platform-neutral, while a Windows-only feature
+                selects the WinSafe implementation through a frontend boundary that can admit a
+                future Linux implementation.
+                """
+            method command
+            command "cargo check --all-targets"
+            verified_by [ @evidence-intake-project.evidence.gui-platform-boundary/1 ]
+        }
+        check usable-workspace {
+            statement """
+                The Windows frontend exposes the existing case, intake, review, search, collation,
+                authoring, and export capabilities through a keyboard-accessible first-pass workspace.
+                """
+            method observation
+            verified_by [ @evidence-intake-project.evidence.gui-native-smoke/1 ]
+        }
+        check windows-build {
+            statement """
+                The WinSafe feature builds and its focused tests pass on Windows.
+                """
+            method command
+            command "cargo test --features gui-winsafe"
+            verified_by [ @evidence-intake-project.evidence.gui-winsafe-verification/1 ]
+        }
+    }
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.mutation-api.element-mapping/1 : work {
     title "Charge recording and element mapping"
     state completed

@@ -1,0 +1,189 @@
+akr-lock 0.1
+project evidence-intake-project
+
+build {
+    tool "akr 0.1.0"
+    grammar "0.1"
+    vocabulary "0.2"
+    source_graph "sha256:60789a48ada5123dad4e18c5d3a819ff960d88fda773b979c5cd108213fb87f4"
+}
+
+source ".akr/project.akr" {
+    hash "sha256:684f9a9628aef2f77c38e19bdd60a9f033786b227c93681d26961d1ad31eaaae"
+    records 0
+}
+
+source ".akr/records/evidence-intake-project/constraints.akr" {
+    hash "sha256:2e600e56997d9d50c4b923bb16f9babdbd048a07907f6a35080bb19f3a5f3dbe"
+    records 2
+}
+
+source ".akr/records/evidence-intake-project/decisions.akr" {
+    hash "sha256:87cba1b4351c727447aec1ab190451833727a82c42ddccd031664e2e3b29adff"
+    records 2
+}
+
+source ".akr/records/evidence-intake-project/evidence.akr" {
+    hash "sha256:296219151fce1d8f56231c90f7a468799187ca47e052131c81bef564bbed08c1"
+    records 11
+}
+
+source ".akr/records/evidence-intake-project/papercuts.akr" {
+    hash "sha256:4b0102c93c4d8d7e3d29340238fe89f3c221242c75256368dec477e84fa88140"
+    records 9
+}
+
+source ".akr/records/evidence-intake-project/questions.akr" {
+    hash "sha256:4cfc11fcc0b724da9839f5f64aac151a3ff1a9138a5cf3a31b9f2f31407404f6"
+    records 1
+}
+
+source ".akr/records/evidence-intake-project/work.akr" {
+    hash "sha256:8d3a3e86f4bff2d36d933be1b3d2804b99e7c1b0fbdb39a35262a0fb6f33be23"
+    records 8
+}
+
+seal @evidence-intake-project.assisted.deterministic-analyzers/1 {
+    state completed
+    hash "sha256:02b4fd2640f9d0d6fe263dca2e0edfc41edb2cc0a6a8e70f88341647cd5a9293"
+}
+
+seal @evidence-intake-project.assisted.findings-and-remaining-analyzers/1 {
+    state completed
+    hash "sha256:057ca74e88a51c7dd460aef7d0a7b2669469a1253221e4e949ba180aedaa5560"
+}
+
+seal @evidence-intake-project.evidence.analyzer-suite/1 {
+    state verified
+    hash "sha256:6d72690ffbc7eaaec7510ba061a62fa3137eef1f71c00eac41a7f1cbfcc57cde"
+}
+
+seal @evidence-intake-project.evidence.authoring-suite/1 {
+    state verified
+    hash "sha256:71b95823bec7188e6ee71138a5a602c0ff3ea159fede5b0d624a5320546eff96"
+}
+
+seal @evidence-intake-project.evidence.element-mapping-suite/1 {
+    state verified
+    hash "sha256:0e56366929ae818283dc330525b2c99c8b6aefc6163d4f9cb57c6284f5ba7c2a"
+}
+
+seal @evidence-intake-project.evidence.export-suite/1 {
+    state verified
+    hash "sha256:ee1685088a063bd93321db806cf99a037c8d3917510da98657175e1b56d8193c"
+}
+
+seal @evidence-intake-project.evidence.gui-native-smoke/1 {
+    state verified
+    hash "sha256:8102bbb50eceda7db41a9993d93b0c219db83fac35ca862c2296b04760825fef"
+}
+
+seal @evidence-intake-project.evidence.gui-platform-boundary/1 {
+    state verified
+    hash "sha256:10c6c74f1c98d653426544c48eb4367a6e302a3a0208038ac5593e0e21633714"
+}
+
+seal @evidence-intake-project.evidence.gui-winsafe-verification/1 {
+    state verified
+    hash "sha256:a48ff6812790c31fb63baa949878b2797daa747f656273ee8f35ded01d2023ba"
+}
+
+seal @evidence-intake-project.evidence.optimization-pass-measured/1 {
+    state verified
+    hash "sha256:b75b930ab098f9d768ca2bb7aae66586636fb675db7ecb2d13bd546ea6f14167"
+}
+
+seal @evidence-intake-project.evidence.phase-d-complete/1 {
+    state verified
+    hash "sha256:e0cd25142982b281ee0a2b6bb95c0d951eb85c53b52c2dbb687516a5b7986053"
+}
+
+seal @evidence-intake-project.evidence.standing-and-search/1 {
+    state verified
+    hash "sha256:06a6045dbe239b93d68e095e0299d349a18d482a2ad69e79042bfcd8394dd1eb"
+}
+
+seal @evidence-intake-project.evidence.work-product-suite/1 {
+    state verified
+    hash "sha256:3082f0993250416d1616ec13e1f4e028ee2521422d922bd3a89388413b363154"
+}
+
+seal @evidence-intake-project.gui.winsafe-shell/1 {
+    state completed
+    hash "sha256:eef842d62407ac770e127289e3c24a88cac08401a5dbc926e14e7114c7cf55ef"
+}
+
+seal @evidence-intake-project.mutation-api.element-mapping/1 {
+    state completed
+    hash "sha256:1ae9c6d9a40ba0998bcbb00569da9f01bc49ee283d15352a7c4dab5e977450cb"
+}
+
+seal @evidence-intake-project.mutation-api.proposition-authoring/1 {
+    state completed
+    hash "sha256:365b6b9ebf7c61e8d0e7546c1f4fdf31c0d86c784f66beb83e7adb1252319d76"
+}
+
+seal @evidence-intake-project.mutation-api.versioned-work-product/1 {
+    state completed
+    hash "sha256:c8ee0ebfebe09d9d593b468eaa738545519f0a941e9ecb2c6c960afc43a66213"
+}
+
+seal @evidence-intake-project.papercut.a-final-ripgrep-line-number-lookup-embedded-a/1 {
+    state verified
+    hash "sha256:0bde539c2d60df66609bceacafcdcdfdf0e10c94ffd239b4d30dbb747ca64ac7"
+}
+
+seal @evidence-intake-project.papercut.a-recursive-api-scan-used-the-common-unix-style/1 {
+    state verified
+    hash "sha256:8294a055b20f0039de274c9703bc9dee0bd186d75b75ea96a44d98b42dde8cf1"
+}
+
+seal @evidence-intake-project.papercut.adding-the-evidence-gui-binary-made-the-readme/1 {
+    state verified
+    hash "sha256:bda9dfb1f99d03c559ec681d05016f2edfe8865096381458e5f0629a680a8f10"
+}
+
+seal @evidence-intake-project.papercut.akr-propose-from-help-says-a-file-holding-the/1 {
+    state verified
+    hash "sha256:e8a38b8a472e047803a500d881ca2b6baafd749bb5019c6c455461ac3440cf50"
+}
+
+seal @evidence-intake-project.papercut.knowledge-explain-crashed-with-akr-x099/1 {
+    state verified
+    hash "sha256:4871ca8b82dd894b343b50b9c59c98d82e28baa81da64ac1525d99cf08058c4c"
+}
+
+seal @evidence-intake-project.papercut.knowledge-propose-returns-lock-stale-true-on/1 {
+    state verified
+    hash "sha256:83c67ff40a5f1d22038dc72294dcb6b53916934e7668d8ae756d2831318334b7"
+}
+
+seal @evidence-intake-project.papercut.ran-knowledge-context-goal-on-a-project-whose/1 {
+    state verified
+    hash "sha256:19f565a6d7e88f09c971a294cb29427b874037bf2a1143bdb5baf7c9d4e08366"
+}
+
+seal @evidence-intake-project.papercut.the-agents-protocol-names-commands-as-knowledge/1 {
+    state verified
+    hash "sha256:6dec39407826b02cf09ed3335b859b602acca9b67a44acd7ee35600c43131637"
+}
+
+seal @evidence-intake-project.papercut.the-first-gui-smoke-screenshot-used/1 {
+    state verified
+    hash "sha256:25c90795f983e939b9bb697a796b6b8db99fcc5a2ecf34dd5e6cb3757a21eb2a"
+}
+
+seal @evidence-intake-project.performance.read-path-optimization/1 {
+    state completed
+    hash "sha256:78174ad4921514244136c18f04abd51e6d97115042a725fa5e40b2b74b4b485f"
+}
+
+seal @evidence-intake-project.review.reassessment-trail-audience/1 {
+    state open
+    hash "sha256:b7e54553ffacae2de661c37c8e42ea9e32f1ea19ebb0dc829d759200cc2228cb"
+}
+
+seal @evidence-intake-project.workspace.source-linked-export/1 {
+    state completed
+    hash "sha256:c54bb43f5edfb6e95cabdc11f00000de5fea7a425359b6a0b6d192d617ce1cb2"
+}

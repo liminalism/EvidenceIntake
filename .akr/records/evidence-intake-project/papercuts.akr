@@ -1,6 +1,74 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.papercut.a-final-ripgrep-line-number-lookup-embedded-a/1 : papercut {
+    title "A final ripgrep line-number lookup embedded a double-quoted regex…"
+    state verified
+    statement """
+        A final ripgrep line-number lookup embedded a double-quoted regex inside a double-quoted PowerShell command, so the quotes were consumed and rg reported an unclosed group; single-quote regex literals in PowerShell.
+        """
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    author "codex"
+    created_at 2026-08-09
+}
+
+record evidence-intake-project.papercut.a-recursive-api-scan-used-the-common-unix-style/1 : papercut {
+    title "A recursive API scan used the common Unix-style 'rg ... src/*.rs' form,…"
+    state verified
+    statement """
+        A recursive API scan used the common Unix-style 'rg ... src/*.rs' form, but PowerShell passed the glob literally and ripgrep rejected it; use 'rg ... src -g *.rs' on this Windows workspace.
+        """
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    author "codex"
+    created_at 2026-08-09
+}
+
+record evidence-intake-project.papercut.adding-the-evidence-gui-binary-made-the-readme/1 : papercut {
+    title "Adding the evidence-gui binary made the README's existing 'cargo run --…"
+    state verified
+    statement """
+        Adding the evidence-gui binary made the README's existing 'cargo run -- ...' commands ambiguous; the smoke-test seed failed until the package declared evidence as default-run.
+        """
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    author "codex"
+    created_at 2026-08-09
+}
+
+record evidence-intake-project.papercut.akr-propose-from-help-says-a-file-holding-the/1 : papercut {
+    title "'akr propose --from' help says a file holding the record body but does…"
+    state verified
+    statement """
+        'akr propose --from' help says a file holding the record body but does not show the required parseable wrapper; passing plain prose failed with AKR-C031 instead of identifying the expected body grammar.
+        """
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    author "codex"
+    created_at 2026-08-09
+}
+
+record evidence-intake-project.papercut.knowledge-explain-crashed-with-akr-x099/1 : papercut {
+    title "knowledge.explain crashed with AKR-X099 (internal) for both `decision`…"
+    state verified
+    statement """
+        knowledge.explain crashed with AKR-X099 (internal) for both `decision` and `constraint` after knowledge.propose rejected my slots with AKR-T002. The propose error names the bad slot but not the valid ones, and explain -- the documented way to find them -- is exactly what fails, so I had to read .akr/records/*.akr by hand to learn that a decision uses `decision` plus `claim` blocks and has no `rationale` or `note` slot. Suggest AKR-T002 list the kind's valid slots inline.
+        """
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    about "akr"
+    author "claude"
+    created_at 2026-08-10
+}
+
+record evidence-intake-project.papercut.knowledge-propose-returns-lock-stale-true-on/1 : papercut {
+    title "knowledge.propose returns lock_stale:true on every write but does not…"
+    state verified
+    statement """
+        knowledge.propose returns lock_stale:true on every write but does not refresh akr.lock, so a later knowledge.validate fails with AKR-R052 ("akr.lock has no hash for <the record I just wrote>"). The fix is `akr lock --update`, but nothing in the propose result or the diagnostic says so, and AGENTS.md's "never hand-edit .akr/" made me hesitant to touch the lock at all. Suggest either refreshing the lock as part of propose, or having AKR-R052 name `akr lock --update` as the remedy.
+        """
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    about "akr"
+    author "claude"
+    created_at 2026-08-10
+}
+
 record evidence-intake-project.papercut.ran-knowledge-context-goal-on-a-project-whose/1 : papercut {
     title "Ran knowledge.context --goal on a project whose ledger held only the…"
     state verified
@@ -10,5 +78,27 @@ record evidence-intake-project.papercut.ran-knowledge-context-goal-on-a-project-
     observed_at git:bdafd336b811df788dc5b08fa64304a6dcff49ef
     about "akr"
     author "claude"
+    created_at 2026-08-09
+}
+
+record evidence-intake-project.papercut.the-agents-protocol-names-commands-as-knowledge/1 : papercut {
+    title "The AGENTS protocol names commands as knowledge.context, but this…"
+    state verified
+    statement """
+        The AGENTS protocol names commands as knowledge.context, but this PowerShell environment only exposes the akr executable; the first required context call failed until translated to 'akr context'.
+        """
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    author "codex"
+    created_at 2026-08-09
+}
+
+record evidence-intake-project.papercut.the-first-gui-smoke-screenshot-used/1 : papercut {
+    title "The first GUI smoke screenshot used CopyFromScreen on the WinSafe…"
+    state verified
+    statement """
+        The first GUI smoke screenshot used CopyFromScreen on the WinSafe window bounds, but another terminal occluded those bounds and the saved image showed the covering window; foreground the target or use PrintWindow for reliable native UI capture.
+        """
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    author "codex"
     created_at 2026-08-09
 }

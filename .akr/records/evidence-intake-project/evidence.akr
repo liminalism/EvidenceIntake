@@ -49,6 +49,45 @@ record evidence-intake-project.evidence.export-suite/1 : evidence {
         """
 }
 
+record evidence-intake-project.evidence.gui-native-smoke/1 : evidence {
+    title "The seeded WinSafe workspace launched and remained responsive at 150% DPI; the full mnemonic navigation, case selector, structured overview, review fields, authoring and normalized-intake payload, collation, and export actions were visible without clipping."
+    state verified
+    result pass
+    method observation
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    artifact ".agent/scratch/gui-smoke-final.png"
+    summary """
+        The seeded WinSafe workspace launched and remained responsive at 150% DPI; the full mnemonic navigation, case selector, structured overview, review fields, authoring and normalized-intake payload, collation, and export actions were visible without clipping.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-platform-boundary/1 : evidence {
+    title "The portable default build passes and its normal dependency graph contains no winsafe package."
+    state verified
+    result pass
+    method command
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    command "cargo check --no-default-features --all-targets; cargo tree --no-default-features -e normal"
+    summary """
+        The portable default build passes and its normal dependency graph contains no winsafe package.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-winsafe-verification/1 : evidence {
+    title "All unit, integration, GUI, and documentation tests pass with gui-winsafe enabled, and strict Clippy reports no warnings."
+    state verified
+    result pass
+    method command
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    command "cargo test --all-features; cargo clippy --all-targets --all-features -- -D warnings"
+    summary """
+        All unit, integration, GUI, and documentation tests pass with gui-winsafe enabled, and strict Clippy reports no warnings.
+        """
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.evidence.optimization-pass-measured/1 : evidence {
     title "Optimization pass measured against a synthetic case, behavior unchanged"
     state verified

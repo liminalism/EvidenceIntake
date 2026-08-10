@@ -1,6 +1,36 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.decision.painted-window-chrome/1 : decision {
+    title "The Windows frontend keeps native buttons and paints its own depth and grouping"
+    state proposed
+    scope [ path "path src/gui/winsafe.rs" ]
+    topic gui-chrome
+    decision """
+        The WinSafe frontend keeps stock Win32 push buttons and adds depth and grouping by painting the parent window in WM_PAINT, rather than by owner-drawing the buttons. Each button gets a two-band drop shadow offset down and right -- #EC then #DE against the #F0F0F0 BTNFACE background, the darker band painted last so it lands against the button's own edge -- and etched rules separate the rail's three command groups and the review panel from the output above it. Owner-draw was rejected because it would have to reimplement hover, focus, pressed, disabled, and high-contrast rendering, and would then drift from whatever the user's Windows theme does; painting only the space around a button buys the depth without owning any of the button's state.
+        """
+    claim geometry-comes-from-the-controls {
+        text """
+            Shadow and rule positions are read back from the live controls with GetWindowRect and ScreenToClientRc, never recomputed from the layout constants. That is what lets the per-control resize behaviours (gui::Horz and gui::Vert) remain the single source of truth for layout: the chrome follows wherever WinSafe's layout put a control.
+            """
+    }
+    claim repaint-follows-the-layout {
+        text """
+            The window carries CS_HREDRAW and CS_VREDRAW so a resize repaints the whole client area, WS_CLIPCHILDREN so the parent never paints under a child, and a WM_SIZE handler invalidates the client area -- which runs after WinSafe's internal layout has already moved the controls, so no shadow is left behind at an old position.
+            """
+    }
+    claim rules-carry-the-grouping-alone {
+        text """
+            All-caps headings over each rail group and over the search and review panels were built and then removed: with the etched rules present the headings read as clutter. The rules alone carry the grouping.
+            """
+    }
+    claim the-dark-line-is-the-theme {
+        text """
+            The visible dark line under a button is the theme's own border, sampled at #696969, not the shadow. The shadow is only the soft falloff below it. Anyone tuning the shadow should sample pixels rather than judge from a magnified screenshot, or they will chase the theme's border.
+            """
+    }
+}
+
 record evidence-intake-project.decision.structure-not-verdict/1 : decision {
     title "Decision views report structure; they never score, rank, or predict a case"
     state proposed
