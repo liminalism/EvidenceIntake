@@ -8,6 +8,7 @@ mod authoring;
 mod error;
 mod export;
 mod fixture;
+pub mod gui;
 mod ingest;
 mod model;
 mod review;

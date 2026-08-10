@@ -15,7 +15,7 @@ use serde::Serialize;
 #[derive(Debug, Parser)]
 #[command(version, about)]
 struct Cli {
-    /// SQLite case database.
+    /// `SQLite` case database.
     #[arg(long, default_value = "evidence.sqlite", global = true)]
     database: PathBuf,
     #[command(subcommand)]

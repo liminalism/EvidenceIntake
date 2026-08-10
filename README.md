@@ -44,9 +44,10 @@ This initial milestone provides:
   recording, referenced-but-missing evidence, later impairment observations,
   and a charged-versus-lesser offense comparison.
 
-The CLI is currently the thinnest useful shell around the kernel. It emits JSON
-so the planned Windows-only WinSafe GUI can consume stable Rust read models
-without coupling itself to SQLite. No cross-platform GUI framework is planned.
+The CLI remains the thinnest shell around the kernel. A native WinSafe workspace
+now exposes the same read models and mutations on Windows. WinSafe is an opt-in
+feature behind a platform-neutral application layer, so a future Linux shell can
+reuse the workflow without pulling Win32 into the default build.
 
 ## Run
 
@@ -114,6 +115,19 @@ rationale, because an edge spans sources and has no original of its own. See
 Use `--database PATH` before the subcommand to select another case database.
 SQLite databases are ignored by Git.
 
+### Windows GUI
+
+```powershell
+cargo run --features gui-winsafe --bin evidence-gui -- evidence.db
+```
+
+The GUI is deliberately workflow-first: choose a case, navigate the standing,
+discovery, element, timeline, issue, review, search, collation, and export views,
+then use the lower action panel for named review decisions, normalized-batch
+intake, and typed authoring JSON. Buttons use Win32 mnemonic markers, so
+`Alt` plus the underlined letter activates the corresponding command. The safe
+export is `disclosable`; the privileged work-file export is a separate action.
+
 ## Current boundary
 
 This is the collation kernel and its first curated fixture, not an evidence
@@ -141,9 +155,9 @@ only by closing them.
 The kernel now also answers the question the rest of it was built to serve:
 `standing` reports what each charge actually rests on, and `search` finds the
 passage behind it. Those are read models, not new claims — the line they hold is
-rule 35, that structure may be reported and a verdict may not. Remaining:
-the modality adapters that feed `NormalizedBatch`, and the WinSafe GUI that
-will consume these read models.
+rule 35, that structure may be reported and a verdict may not. The first WinSafe
+workspace consumes them now; remaining product work is deeper native workflow
+polish and the modality adapters that feed `NormalizedBatch`.
 
 One thing it deliberately still refuses: changing an element assessment. Reading
 evidence differently later is an honest act that should leave a trail, but

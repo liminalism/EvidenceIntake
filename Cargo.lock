@@ -147,6 +147,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "uuid",
+ "winsafe",
 ]
 
 [[package]]
@@ -604,6 +605,12 @@ checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
  "windows-link",
 ]
+
+[[package]]
+name = "winsafe"
+version = "0.0.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcfff8264c3af1b0352006934e2265365ecb5a145aee88e770dc8b82e0456f4f"
 
 [[package]]
 name = "zmij"

@@ -1,4 +1,4 @@
-//! SQLite persistence and decision-oriented queries.
+//! `SQLite` persistence and decision-oriented queries.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -47,7 +47,7 @@ const MATERIAL_FOR_ISSUE: &str =
          OR (source_kind = 'advocacy' AND source_id = ?2))
      ORDER BY relation, id";
 
-/// A local SQLite case store.
+/// A local `SQLite` case store.
 ///
 /// Foreign keys are enabled for every connection. The schema uses strict tables
 /// and keeps originals, factual hypotheses, and privileged work product separate.
@@ -114,7 +114,7 @@ impl Store {
     /// Adds a column only when it is absent, so migrations stay re-runnable.
     ///
     /// Every migration here executes on every open, which `CREATE ... IF NOT
-    /// EXISTS` makes safe. SQLite has no such form of `ALTER TABLE ADD COLUMN`
+    /// EXISTS` makes safe. `SQLite` has no such form of `ALTER TABLE ADD COLUMN`
     /// and cannot retrofit a `NOT NULL` constraint onto an existing table, so a
     /// column added this way is nullable and its guarantee is enforced forward
     /// by a trigger. Prefer a new table over this when the choice exists.
@@ -2815,7 +2815,7 @@ struct Candidate {
     rationale: String,
 }
 
-/// Reports a query SQLite could not read as a search rather than as a failure.
+/// Reports a query `SQLite` could not read as a search rather than as a failure.
 ///
 /// FTS5 has its own syntax, and a stray quote or a bare `AND` is a typo, not a
 /// broken database. Saying so — and saying what was typed — is the difference

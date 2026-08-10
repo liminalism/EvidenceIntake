@@ -6,6 +6,13 @@ rust-version = "1.94"
 description = "Local-first, defender-oriented evidence collation kernel"
 license = "AGPL-3.0-or-later"
 publish = false
+default-run = "evidence"
+
+[features]
+default = []
+# Native Windows shell. The application/controller remains platform-neutral so a
+# future Linux frontend can consume the same API without pulling in Win32 code.
+gui-winsafe = ["dep:winsafe"]
 
 [lib]
 name = "evidence_intake"
@@ -15,6 +22,11 @@ path = "src/lib.rs"
 name = "evidence"
 path = "src/main.rs"
 
+[[bin]]
+name = "evidence-gui"
+path = "src/bin/evidence_gui.rs"
+required-features = ["gui-winsafe"]
+
 [dependencies]
 clap = { version = "4.6.2", features = ["derive"] }
 rusqlite = { version = "0.40.1", features = ["bundled", "uuid"] }
@@ -22,6 +34,9 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
 uuid = { version = "1.24.0", features = ["serde", "v7"] }
+
+[target.'cfg(windows)'.dependencies]
+winsafe = { version = "0.0.27", features = ["gui"], optional = true }
 
 [dev-dependencies]
 tempfile = "3.23.0"

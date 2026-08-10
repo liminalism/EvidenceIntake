@@ -6,7 +6,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Errors produced while storing or reading a case.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// SQLite rejected an operation.
+    /// `SQLite` rejected an operation.
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
     /// A requested record does not exist.

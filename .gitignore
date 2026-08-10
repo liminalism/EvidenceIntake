@@ -2,6 +2,10 @@
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+# The GUI opens evidence.db by default, so the same rule has to cover .db.
+*.db
+*.db-shm
+*.db-wal
 .DS_Store
 
 
