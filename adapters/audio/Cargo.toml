@@ -1,0 +1,62 @@
+[package]
+name = "evidence-audio"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+description = "Audio and video-audio intake adapter: in-process Whisper into a NormalizedBatch"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[features]
+default = ["native-whisper"]
+# In-process pure-Rust Whisper (the `franken_whisper` native engine, built with
+# `default-features = false` so only the engine and its ~30 crates come along:
+# no CLI, orchestrator, downloader, or second SQLite). Reads the same ggml/gguf
+# files whisper.cpp does. No C++ toolchain, no cmake.
+native-whisper = ["dep:franken_whisper"]
+
+[lib]
+name = "evidence_audio"
+path = "src/lib.rs"
+
+[[bin]]
+name = "evidence-audio"
+path = "src/bin/evidence-audio.rs"
+
+[dependencies]
+audio = "0.2.1"
+clap = { version = "4.6.2", features = ["derive"] }
+evidence-intake = { path = "../.." }
+hex = "0.4.3"
+hound = "3.5.1"
+nnnoiseless = { version = "0.5.2", default-features = false }
+resampler = "0.5.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+sha2 = "0.10.9"
+tempfile = "3.23.0"
+thiserror = "2.0.18"
+# Local fork (branch `evidence-intake`) of https://github.com/Dicklesworthstone/franken_whisper
+# that gates the full pipeline behind a `full` feature. Sibling checkout, like
+# the upstream's own sibling layout; point this at a git URL once the fork is
+# pushed.
+franken_whisper = { path = "../../../franken_whisper", default-features = false, optional = true }
+
+[dev-dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+missing_errors_doc = "allow"
+must_use_candidate = "allow"
+too_many_lines = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+doc_markdown = "allow"
+return_self_not_must_use = "allow"

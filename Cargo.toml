@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "adapters/audio", "adapters/video"]
+resolver = "2"
+
 [package]
 name = "evidence-intake"
 version = "0.1.0"
