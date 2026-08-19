@@ -43,3 +43,34 @@ record evidence-intake-project.constraint.window-fits-the-screen/1 : constraint 
             """
     }
 }
+
+record evidence-intake-project.video.no-forensic-assertions/1 : constraint {
+    title "The video adapter never emits speed, identity, speaker-to-face matching, enhancement, authenticity, redaction or reconstruction"
+    state proposed
+    scope [ path "adapters/video/**" ]
+    statement """
+        No extractor in the video adapter, and no analyzer in the kernel fed by it, produces any of the following, in any state including suggested: a vehicle speed or distance; an identification of a person, vehicle plate or object with a named entity (by face, gait, voice, clothing or any other feature); a match between a diarized speaker and a figure in frame; an enhanced, stabilized, upscaled or otherwise altered rendition presented as evidence; a judgement of authenticity, tampering or editing; a redacted derivative; or a 3D, pose or depth reconstruction (LingBot-Map class). Where such an analysis matters to a case it is a retained expert's work product, entered by a person through authoring with a rationale, never an adapter output.
+        """
+    measure """
+        The adapter's public extractor constants (EXTRACTOR_SCENE, EXTRACTOR_KEYFRAME, EXTRACTOR_GAP, EXTRACTOR_DETECT, EXTRACTOR_CAPTION and any added later) name only locating operations; no emitted observation, edge or entity carries a person, plate or speed value; and no test fixture or adapter binary accepts a flag that would enable one. Reviewed at each new video work record.
+        """
+    rationale """
+        Each item is a new evidentiary claim that would need calibration or an expert to sponsor at trial, exposes the defender to relying on a machine identification, and (for identity) is precisely what rules 1 and 3 and the no-automatic-possibly_same_person invariant already forbid a machine to do. Anonymous within-clip tracking is the one borderline case and is held open in @evidence-intake-project.video.anonymous-tracking-question rather than excluded here.
+        """
+    claim no-altered-rendition {
+        text """
+            The adapter derives stills and indexes from the original but never emits an enhanced, redacted or reconstructed rendition as a source.
+            """
+    }
+    claim no-identity {
+        text """
+            No adapter output names a person or matches a speaker to a figure in frame; linking a track, speaker or detection to an entity is always an authored edge with a written rationale.
+            """
+    }
+    claim no-measurement {
+        text """
+            No adapter output states a speed, distance or authenticity judgement.
+            """
+    }
+    derived_from [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+}

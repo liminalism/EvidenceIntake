@@ -176,6 +176,7 @@ pub fn transcript_to_batch(
 
     Ok(NormalizedBatch {
         case_id: identity.case_id.clone(),
+        edges: Vec::new(),
         sources: vec![NormalizedSource {
             id: identity.source_id.clone(),
             production_id: identity.production_id.clone(),

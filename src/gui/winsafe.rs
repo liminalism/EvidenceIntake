@@ -59,6 +59,7 @@ const RULE_HIGHLIGHT: (u8, u8, u8) = (0xFC, 0xFC, 0xFC);
 /// `every_command_has_its_own_alt_key` is what keeps these distinct. Static
 /// labels take the same prefix, so a heading may not contain a bare `&`.
 const OPEN_DATABASE: &str = "Open Data&base";
+const NEW_CASE: &str = "&Untitled Case";
 const SEED_VEHICLE: &str = "Seed &Vehicle Stop";
 const SEED_HIT_RUN: &str = "Seed Hit-and-&Run";
 const RUN_COLLATION: &str = "Run Co&llation";
@@ -97,6 +98,7 @@ struct MainWindow {
     database_edit: gui::Edit,
     open_button: gui::Button,
     case_combo: gui::ComboBox,
+    new_case_button: gui::Button,
     vehicle_button: gui::Button,
     hit_run_button: gui::Button,
     view_buttons: Vec<(WorkspaceView, gui::Button)>,
@@ -178,7 +180,7 @@ impl MainWindow {
             &wnd,
             gui::ComboBoxOpts {
                 position: gui::dpi(712, 37),
-                width: gui::dpi_x(368),
+                width: gui::dpi_x(228),
                 items: &initial_case_refs,
                 selected_item: workspace
                     .borrow()
@@ -188,6 +190,7 @@ impl MainWindow {
                 ..Default::default()
             },
         );
+        let new_case_button = button(&wnd, NEW_CASE, 948, 34, 132, SLIDE_X);
 
         // --- Rail group 1: put a case in the workspace ------------------------
         let vehicle_button = button(&wnd, SEED_VEHICLE, RAIL_X, 78, RAIL_WIDTH, ANCHOR);
@@ -370,6 +373,7 @@ impl MainWindow {
             database_edit,
             open_button,
             case_combo,
+            new_case_button,
             vehicle_button,
             hit_run_button,
             view_buttons,
@@ -400,6 +404,7 @@ impl MainWindow {
     fn buttons(&self) -> Vec<&gui::Button> {
         let mut all = vec![
             &self.open_button,
+            &self.new_case_button,
             &self.vehicle_button,
             &self.hit_run_button,
         ];
@@ -456,6 +461,12 @@ impl MainWindow {
         let me = self.clone();
         self.open_button.on().bn_clicked(move || {
             me.open_database()?;
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.new_case_button.on().bn_clicked(move || {
+            me.open_new_case()?;
             Ok(())
         });
 
@@ -726,6 +737,15 @@ impl MainWindow {
         )
     }
 
+    fn open_new_case(&self) -> w::SysResult<()> {
+        let payload = self.payload_edit.text()?;
+        let result = self.workspace.borrow_mut().open_case_json(&payload);
+        if result.is_ok() {
+            self.refresh_case_combo()?;
+        }
+        self.present(result, "Case opened")
+    }
+
     fn open_database(&self) -> w::SysResult<()> {
         let path = self.database_edit.text()?;
         match Workspace::open(path.trim()) {
@@ -979,6 +999,7 @@ mod tests {
     fn every_command_has_its_own_alt_key() {
         let commands = VIEW_BUTTONS.iter().map(|(caption, _)| *caption).chain([
             OPEN_DATABASE,
+            NEW_CASE,
             SEED_VEHICLE,
             SEED_HIT_RUN,
             RUN_COLLATION,

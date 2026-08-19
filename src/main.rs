@@ -1,14 +1,16 @@
 //! Command-line shell for the collation kernel.
 
-use std::io::{self, BufWriter, Write};
+use std::fs;
+use std::io::{self, BufWriter, Read, Write};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence_intake::{
     AdvocacyKind, CaseId, ChargePosture, DemoFixture, EdgeKind, ElementAssessment, EntityKind,
-    ExportAudience, NodeKind, NodeRef, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief,
-    ProposedCharge, ProposedElement, ProposedElementMapping, ProposedEntity, ProposedLink,
-    ProposedProposition, Result, ReviewDecision, ReviewState, ReviewTarget, Store, SuggestionKind,
+    ExportAudience, NodeKind, NodeRef, NormalizedBatch, ProposedAdvocacyItem, ProposedAnnotation,
+    ProposedBrief, ProposedCase, ProposedCharge, ProposedElement, ProposedElementMapping,
+    ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition, Result, ReviewDecision,
+    ReviewState, ReviewTarget, Store, SuggestionKind,
 };
 use serde::Serialize;
 
@@ -31,8 +33,51 @@ enum Command {
         #[arg(value_enum, default_value_t = FixtureName::VehicleStop)]
         fixture: FixtureName,
     },
-    /// List cases.
+    /// List cases on the docket.
     Cases,
+    /// Open a new case and its first production.
+    NewCase {
+        /// The name as it should appear on the docket.
+        #[arg(long)]
+        name: String,
+        /// Stable identifier; generated when omitted.
+        #[arg(long)]
+        id: Option<String>,
+        /// Docket, incident, or file number.
+        #[arg(long)]
+        reference: Option<String>,
+        /// Court or charging jurisdiction.
+        #[arg(long)]
+        jurisdiction: Option<String>,
+        /// Label for the first production. Defaults to `Initial production`.
+        #[arg(long)]
+        production: Option<String>,
+    },
+    /// Open a new production on an existing case.
+    NewProduction {
+        /// Existing case that will own the production.
+        case_id: String,
+        /// How this delivery is labelled on the ledger.
+        #[arg(long)]
+        label: String,
+        /// Stable identifier; generated when omitted.
+        #[arg(long)]
+        id: Option<String>,
+        /// When the production was received.
+        #[arg(long)]
+        received: Option<String>,
+        /// Who produced it.
+        #[arg(long)]
+        from: Option<String>,
+        /// Anything worth recording about the delivery.
+        #[arg(long)]
+        notes: Option<String>,
+    },
+    /// List productions on a case.
+    Productions {
+        /// Existing case identifier.
+        case_id: String,
+    },
     /// Render a decision-oriented view as JSON.
     View {
         /// Stable case identifier.
@@ -79,6 +124,13 @@ enum Command {
         case_id: String,
         #[command(subcommand)]
         item: AuthorItem,
+    },
+    /// Import a `NormalizedBatch` JSON document produced by an extraction adapter.
+    Ingest {
+        /// Existing case. Must match `case_id` inside the batch.
+        case_id: String,
+        /// Path to a `NormalizedBatch` JSON document. `-` reads stdin.
+        path: PathBuf,
     },
 }
 
@@ -613,6 +665,45 @@ fn run() -> Result<()> {
             println!("{id}");
         }
         Command::Cases => print_json(&store.cases()?)?,
+        Command::NewCase {
+            name,
+            id,
+            reference,
+            jurisdiction,
+            production,
+        } => {
+            let opened = store.open_case(&ProposedCase {
+                id,
+                name,
+                reference,
+                jurisdiction,
+                production,
+            })?;
+            print_json(&opened)?;
+        }
+        Command::NewProduction {
+            case_id,
+            label,
+            id,
+            received,
+            from,
+            notes,
+        } => {
+            let opened = store.open_production(
+                &CaseId(case_id),
+                &ProposedProduction {
+                    id,
+                    label,
+                    received_at: received,
+                    producing_party: from,
+                    notes,
+                },
+            )?;
+            print_json(&opened)?;
+        }
+        Command::Productions { case_id } => {
+            print_json(&store.productions(&CaseId(case_id))?)?;
+        }
         Command::View { case_id, view } => {
             let case_id = CaseId(case_id);
             match view {
@@ -845,8 +936,37 @@ fn run() -> Result<()> {
                 }
             }
         }
+        Command::Ingest { case_id, path } => {
+            let json = read_batch_json(&path)?;
+            let batch: NormalizedBatch = serde_json::from_str(&json)?;
+            if batch.case_id.0 != case_id {
+                return Err(evidence_intake::Error::InvalidFixture(format!(
+                    "batch is for case `{}`, not `{case_id}`",
+                    batch.case_id
+                )));
+            }
+            store.import_normalized(&batch)?;
+            print_json(&store.overview(&batch.case_id)?)?;
+        }
     }
     Ok(())
+}
+
+/// Reads a normalized batch from a file or from stdin when `path` is `-`.
+fn read_batch_json(path: &std::path::Path) -> Result<String> {
+    if path.as_os_str() == "-" {
+        let mut json = String::new();
+        io::stdin().read_to_string(&mut json).map_err(|error| {
+            evidence_intake::Error::InvalidFixture(format!("could not read stdin: {error}"))
+        })?;
+        return Ok(json);
+    }
+    fs::read_to_string(path).map_err(|error| {
+        evidence_intake::Error::InvalidFixture(format!(
+            "could not read {}: {error}",
+            path.display()
+        ))
+    })
 }
 
 /// Writes a read model to standard output as pretty JSON.

@@ -5,13 +5,16 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use evidence_audio::NativeWhisperBackend;
 use evidence_intake::NormalizedBatch;
 use evidence_intake::{CaseId, TemporalRelation};
 use evidence_video::{
-    CaptionInput, DEFAULT_GAP_MS, DEFAULT_PROMPT, DEFAULT_THRESHOLD, DetectionInput, SceneRequest,
+    CaptionInput, ClockInput, DEFAULT_GAP_MS, DEFAULT_PROMPT, DEFAULT_THRESHOLD, DetectionInput,
+    SceneRequest, SoundtrackInput, SyncOptions, SyncPair, SyncSide, TesseractCliBackend,
     VlmCliBackend, YoloCliBackend, analyze, cut_scenes, describe_from_json, describe_scenes,
-    detect_from_json, detect_objects,
+    detect_from_json, detect_objects, sync_pair,
 };
+use serde::Serialize;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -24,6 +27,10 @@ struct Cli {
 }
 
 #[derive(Debug, Subcommand)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "parsed once at startup; `Analyze` carries every optional backend flag"
+)]
 enum Command {
     /// Detect scene cuts, extract keyframe stills, and write a NormalizedBatch.
     Scenes {
@@ -198,6 +205,60 @@ enum Command {
         /// Instruction given with each still.
         #[arg(long, default_value = DEFAULT_PROMPT)]
         prompt: String,
+        /// Already-produced clock-overlay JSON document. Skips OCR.
+        #[arg(long)]
+        clock_json: Option<PathBuf>,
+        /// Read the burned-in clock overlay with the local `tesseract` CLI.
+        #[arg(long)]
+        tesseract: bool,
+        /// Already-produced WhisperX JSON for the soundtrack. Skips ASR.
+        #[arg(long)]
+        transcript_json: Option<PathBuf>,
+        /// Version stamped on statements read from `--transcript-json`.
+        #[arg(long, default_value = "from-json")]
+        transcript_version: String,
+        /// Local ggml/gguf Whisper model. Transcribes the soundtrack in process.
+        #[arg(long)]
+        model_path: Option<PathBuf>,
+    },
+    /// Measure the audio offset between two recordings of one scene.
+    Sync {
+        /// Existing case identifier that already holds both sources.
+        #[arg(long)]
+        case: String,
+        /// Source identifier of the recording measured from.
+        #[arg(long)]
+        a_source_id: String,
+        /// Path to that untouched original.
+        #[arg(long)]
+        a_path: PathBuf,
+        /// Display name for it. The file name when omitted.
+        #[arg(long)]
+        a_name: Option<String>,
+        /// Source identifier of the recording measured to.
+        #[arg(long)]
+        b_source_id: String,
+        /// Path to that untouched original.
+        #[arg(long)]
+        b_path: PathBuf,
+        /// Display name for it. The file name when omitted.
+        #[arg(long)]
+        b_name: Option<String>,
+        /// Where to write the batch. `-` writes stdout.
+        #[arg(long)]
+        out: PathBuf,
+        /// Mono rate, in hertz, the correlation runs at.
+        #[arg(long, default_value_t = SyncOptions::default().work_rate_hz)]
+        work_rate: u32,
+        /// Largest offset considered, in milliseconds, either direction.
+        #[arg(long, default_value_t = SyncOptions::default().max_lag_ms)]
+        max_lag_ms: u64,
+        /// Least peak height, in units of the correlation's own RMS.
+        #[arg(long, default_value_t = SyncOptions::default().min_prominence)]
+        min_prominence: f64,
+        /// Least normalized correlation coefficient that counts as a match.
+        #[arg(long, default_value_t = SyncOptions::default().min_peak)]
+        min_peak: f64,
     },
 }
 
@@ -351,6 +412,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             vlm,
             vlm_model,
             prompt,
+            clock_json,
+            tesseract,
+            transcript_json,
+            transcript_version,
+            model_path,
         } => {
             let request = SceneRequest {
                 case_id: CaseId(case),
@@ -387,11 +453,96 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 CaptionInput::None
             };
-            let batch = analyze(&request, detections, captions)?;
+            let ocr = TesseractCliBackend::default_local();
+            let clocks = if let Some(path) = clock_json.as_deref() {
+                ClockInput::Json(path)
+            } else if tesseract {
+                ClockInput::Live(&ocr)
+            } else {
+                ClockInput::None
+            };
+            let whisper = model_path.map(NativeWhisperBackend::new);
+            let soundtrack = if let Some(path) = transcript_json.as_deref() {
+                SoundtrackInput::Json {
+                    path,
+                    version: &transcript_version,
+                }
+            } else if let Some(backend) = whisper.as_ref() {
+                SoundtrackInput::Live(backend)
+            } else {
+                SoundtrackInput::None
+            };
+            let batch = analyze(&request, detections, captions, clocks, soundtrack)?;
             write_batch(&out, &batch)?;
+        }
+        Command::Sync {
+            case,
+            a_source_id,
+            a_path,
+            a_name,
+            b_source_id,
+            b_path,
+            b_name,
+            out,
+            work_rate,
+            max_lag_ms,
+            min_prominence,
+            min_peak,
+        } => {
+            let pair = SyncPair {
+                case_id: CaseId(case),
+                a: sync_side(a_source_id, a_name, a_path),
+                b: sync_side(b_source_id, b_name, b_path),
+            };
+            let options = SyncOptions {
+                work_rate_hz: work_rate,
+                max_lag_ms,
+                min_prominence,
+                min_peak,
+            };
+            if let Some(batch) = sync_pair(&pair, &options)? {
+                write_batch(&out, &batch)?;
+            } else {
+                // An honest nothing is a result: no edge is written, and the
+                // exit status stays zero so a batch job keeps going.
+                let reason = format!(
+                    "no correlation peak reached the floors \
+                     (min-peak {min_peak}, min-prominence {min_prominence}) \
+                     over lags up to {max_lag_ms} ms at {work_rate} Hz"
+                );
+                let report = SyncReport {
+                    synced: false,
+                    reason,
+                };
+                println!("{}", serde_json::to_string(&report)?);
+            }
         }
     }
     Ok(())
+}
+
+/// What `sync` prints when the correlation found nothing worth proposing.
+#[derive(Debug, Serialize)]
+struct SyncReport {
+    /// Always false; a measured offset is written to `--out` instead.
+    synced: bool,
+    /// Why nothing was proposed, in the operator's own thresholds.
+    reason: String,
+}
+
+/// One side of a sync pair, named by the file when the operator did not.
+fn sync_side(source_id: String, logical_name: Option<String>, path: PathBuf) -> SyncSide {
+    let logical_name = logical_name.unwrap_or_else(|| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("recording.mp4")
+            .to_owned()
+    });
+    SyncSide {
+        source_id,
+        logical_name,
+        path,
+    }
 }
 
 fn write_batch(path: &PathBuf, batch: &NormalizedBatch) -> Result<(), Box<dyn std::error::Error>> {

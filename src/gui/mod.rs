@@ -13,8 +13,9 @@ use serde::Serialize;
 
 use crate::{
     CaseId, DemoFixture, ExportAudience, NormalizedBatch, ProposedAdvocacyItem, ProposedAnnotation,
-    ProposedBrief, ProposedCharge, ProposedElementMapping, ProposedEntity, ProposedLink,
-    ProposedProposition, ReviewDecision, ReviewState, ReviewTarget, Store, SuggestionKind,
+    ProposedBrief, ProposedCase, ProposedCharge, ProposedElementMapping, ProposedEntity,
+    ProposedLink, ProposedProposition, ReviewDecision, ReviewState, ReviewTarget, Store,
+    SuggestionKind,
 };
 
 #[cfg(all(feature = "gui-winsafe", target_os = "windows"))]
@@ -255,7 +256,7 @@ impl Workspace {
     }
 
     fn with_store(database: Option<PathBuf>, store: Store) -> GuiResult<Self> {
-        let cases = store.cases()?;
+        let cases = docket_pairs(&store)?;
         let active_case = (!cases.is_empty()).then_some(0);
         Ok(Self {
             database,
@@ -292,6 +293,34 @@ impl Workspace {
         }
         self.active_case = Some(index);
         Ok(())
+    }
+
+    /// Opens a new empty case from a JSON payload and selects it.
+    ///
+    /// An empty payload opens an untitled case with an initial production so
+    /// intake can attach originals without a fixture.
+    pub fn open_case_json(&mut self, payload: &str) -> GuiResult<String> {
+        let proposal = if payload.trim().is_empty() {
+            ProposedCase {
+                id: None,
+                name: "Untitled case".to_owned(),
+                reference: None,
+                jurisdiction: None,
+                production: None,
+            }
+        } else {
+            serde_json::from_str(payload)?
+        };
+        let opened = self.store.open_case(&proposal)?;
+        self.refresh_cases()?;
+        if let Some(index) = self
+            .cases
+            .iter()
+            .position(|(candidate, _)| candidate.0 == opened.id)
+        {
+            self.active_case = Some(index);
+        }
+        json(&opened)
     }
 
     /// Seeds one curated demonstration case and selects it.
@@ -428,7 +457,7 @@ impl Workspace {
             .active_case
             .and_then(|index| self.cases.get(index))
             .map(|(id, _)| id.clone());
-        self.cases = self.store.cases()?;
+        self.cases = docket_pairs(&self.store)?;
         self.active_case = selected_id
             .as_ref()
             .and_then(|selected| self.cases.iter().position(|(id, _)| id == selected))
@@ -441,11 +470,17 @@ impl Workspace {
             .and_then(|index| self.cases.get(index))
             .map(|(id, _)| id)
             .ok_or_else(|| {
-                GuiError::new(
-                    "No case is selected. Import a normalized batch or seed a demonstration case.",
-                )
+                GuiError::new("No case is selected. Open a case, or seed a demonstration case.")
             })
     }
+}
+
+fn docket_pairs(store: &Store) -> GuiResult<Vec<(CaseId, String)>> {
+    Ok(store
+        .cases()?
+        .into_iter()
+        .map(|summary| (CaseId(summary.id), summary.name))
+        .collect())
 }
 
 fn json(value: &impl Serialize) -> GuiResult<String> {
@@ -467,6 +502,19 @@ pub fn review_target(label: &str) -> Option<ReviewTarget> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn workspace_opens_an_empty_case_without_a_fixture() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        let opened = workspace
+            .open_case_json(r#"{"name":"State v. Hall","reference":"PD-2026-0900"}"#)
+            .expect("open case");
+        assert!(opened.contains("State v. Hall"));
+        assert!(opened.contains("Initial production"));
+        let overview = workspace.render(WorkspaceView::Overview).expect("overview");
+        assert!(overview.contains("State v. Hall"));
+        assert!(overview.contains("\"productions\": 1"));
+    }
 
     #[test]
     fn workspace_selects_seeded_case_and_renders_views() {

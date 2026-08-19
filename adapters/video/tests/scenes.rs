@@ -6,7 +6,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use evidence_intake::{
-    CaseId, ContentKind, DemoFixture, ReviewState, SourceKind, Store, TemporalRelation,
+    CaseId, ContentKind, DemoFixture, EdgeKind, NodeKind, ReviewState, SourceKind, Store,
+    TemporalRelation,
 };
 use evidence_video::{
     EXTRACTOR_SCENE, Keyframe, Scene, SceneAnalysis, SceneRequest, VideoIdentity, cut_scenes,
@@ -119,6 +120,34 @@ fn a_keyframe_is_a_derived_source_not_the_original() {
             .any(|item| item.source.contains("Oak and Third"))
     );
     assert!(ledger.iter().any(|item| item.source.contains('@')));
+}
+
+#[test]
+fn a_keyframe_says_structurally_which_video_it_was_cut_from() {
+    let (mut store, case_id) = seeded();
+    let batch = scenes_to_batch(&identity(case_id.clone()), &fixture_scenes(true)).expect("map");
+
+    assert_eq!(batch.edges.len(), 3, "one derived_from edge per still");
+    for (still, edge) in batch.sources[1..].iter().zip(&batch.edges) {
+        assert_eq!(edge.from_kind, NodeKind::Source);
+        assert_eq!(edge.from_id, still.id);
+        assert_eq!(edge.relation, EdgeKind::DerivedFrom);
+        assert_eq!(edge.to_kind, NodeKind::Source);
+        assert_eq!(edge.to_id, batch.sources[0].id);
+        assert!(edge.extraction.machine_generated);
+        assert_eq!(edge.extraction.review_state, ReviewState::Suggested);
+        assert!(edge.rationale.contains("derived working copy"));
+    }
+
+    store.import_normalized(&batch).expect("import");
+    let queue = store.review_queue(&case_id).expect("queue");
+    let edges: Vec<_> = queue
+        .iter()
+        .filter(|item| item.target_kind == "edge" && item.target_id.contains("-stilledge-"))
+        .collect();
+    assert_eq!(edges.len(), 3);
+    assert!(edges.iter().all(|item| item.machine_generated));
+    assert!(edges.iter().all(|item| item.review_state == "suggested"));
 }
 
 #[test]

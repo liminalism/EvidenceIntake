@@ -22,9 +22,12 @@ pub enum Error {
     /// Mapping produced a batch the adapter itself refuses.
     #[error("invalid mapping: {0}")]
     Mapping(String),
-    /// The vision backend was missing or failed.
+    /// The vision, caption, or OCR backend was missing or failed.
     #[error("{0}")]
     Backend(String),
+    /// The audio adapter refused the soundtrack.
+    #[error("audio adapter: {0}")]
+    Audio(#[from] evidence_audio::Error),
     /// An I/O failure.
     #[error("i/o: {0}")]
     Io(#[from] std::io::Error),

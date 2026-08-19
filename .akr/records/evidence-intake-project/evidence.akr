@@ -13,6 +13,42 @@ record evidence-intake-project.evidence.analyzer-suite/1 : evidence {
         """
 }
 
+record evidence-intake-project.evidence.audio-channel-is-observation/1 : evidence {
+    title "2 passed: a stereo energy split is an observation with no speaker entity; dual-mono invents no speakers."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-audio -- channel_split_is_an_observation_not_a_person dual_mono_does_not_invent_two_speakers"
+    summary """
+        2 passed: a stereo energy split is an observation with no speaker entity; dual-mono invents no speakers.
+        """
+}
+
+record evidence-intake-project.evidence.audio-mapper-imports/1 : evidence {
+    title "1 passed: transcript JSON maps to suggested audio statements with original-timeline locators."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-audio a_transcript_line_enters_suggested_and_names_whisperx"
+    summary """
+        1 passed: transcript JSON maps to suggested audio statements with original-timeline locators.
+        """
+}
+
+record evidence-intake-project.evidence.audio-no-self-verify/1 : evidence {
+    title "2 passed: machine audio cannot arrive verified; cleaned audio is not imported as the source. Required a one-line fix in the franken_whisper fork (OpenOptions import gate on Windows, fork commit 84282a9)."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-audio -- machine_audio_cannot_arrive_verified cleaned_audio_is_not_imported_as_the_source"
+    summary """
+        2 passed: machine audio cannot arrive verified; cleaned audio is not imported as the source. Required a one-line fix in the franken_whisper fork (OpenOptions import gate on Windows, fork commit 84282a9).
+        """
+}
+
 record evidence-intake-project.evidence.authoring-suite/1 : evidence {
     title "36 tests pass across 4 files, clippy clean under -D warnings, formatting clean. tests/authoring.rs contributes 11 covering unreviewed/contested entry, the named-person requirement, the required rationale, unknown and cross-case endpoints, self-relationships, repeated claims, reused identifiers, queue arrival, and the content-to-proposition round trip."
     state verified
@@ -22,6 +58,104 @@ record evidence-intake-project.evidence.authoring-suite/1 : evidence {
     command "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
     summary """
         36 tests pass across 4 files, clippy clean under -D warnings, formatting clean. tests/authoring.rs contributes 11 covering unreviewed/contested entry, the named-person requirement, the required rationale, unknown and cross-case endpoints, self-relationships, repeated claims, reused identifiers, queue arrival, and the content-to-proposition round trip.
+        """
+}
+
+record evidence-intake-project.evidence.case-opened-without-fixture/1 : evidence {
+    title "cargo test --test cases a_case_can_be_opened_without_a_fixture passed: a named case opened without a fixture and received a first production that accepted an import."
+    state verified
+    result pass
+    method command
+    observed_at git:aa07b628e8b4d3c7153ced96e0d9f1e08f5aa53c
+    command "cargo test --test cases a_case_can_be_opened_without_a_fixture"
+    summary """
+        cargo test --test cases a_case_can_be_opened_without_a_fixture passed: a named case opened without a fixture and received a first production that accepted an import.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.clock-cannot-verify/1 : evidence {
+    title "2 passed: verified machine readings refused; disagreeing overlays on two scenes both survive import."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video -- machine_clock_readings_cannot_arrive_verified two_scenes_can_carry_disagreeing_overlays"
+    summary """
+        2 passed: verified machine readings refused; disagreeing overlays on two scenes both survive import.
+        """
+}
+
+record evidence-intake-project.evidence.clock-no-guess/1 : evidence {
+    title "2 passed: garbage yields nothing; 18 device shapes accepted verbatim (fractions kept), 14 range/junk cases refused."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video -- an_unparseable_overlay_yields_no_reading parse_clock_text_accepts_device_shapes_and_refuses_ranges"
+    summary """
+        2 passed: garbage yields nothing; 18 device shapes accepted verbatim (fractions kept), 14 range/junk cases refused.
+        """
+}
+
+record evidence-intake-project.evidence.clock-raw-time-only/1 : evidence {
+    title "1 passed: reading lands as raw_time `overlay ...`, no normalized interval, no time_basis, suggested, extractor clock_overlay_ocr."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video a_clock_reading_is_raw_time_not_a_normalized_interval"
+    summary """
+        1 passed: reading lands as raw_time `overlay ...`, no normalized interval, no time_basis, suggested, extractor clock_overlay_ocr.
+        """
+}
+
+record evidence-intake-project.evidence.docket-lists-cases-separately/1 : evidence {
+    title "cargo test --test cases the_docket_lists_each_case_without_the_others_counts passed: each docket row carried its own reference and source count, matching that case's overview."
+    state verified
+    result pass
+    method command
+    observed_at git:aa07b628e8b4d3c7153ced96e0d9f1e08f5aa53c
+    command "cargo test --test cases the_docket_lists_each_case_without_the_others_counts"
+    summary """
+        cargo test --test cases the_docket_lists_each_case_without_the_others_counts passed: each docket row carried its own reference and source count, matching that case's overview.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.edges-alone-and-stills/1 : evidence {
+    title "2 passed: a sourceless batch relates two earlier-imported sources (queue shows edge/suggested/machine, extractor suggest:...); a batch relates the stills it brings."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test --test ingest_edges -- an_adapter_may_relate_two_sources_it_did_not_bring a_batch_may_relate_the_stills_it_brings"
+    summary """
+        2 passed: a sourceless batch relates two earlier-imported sources (queue shows edge/suggested/machine, extractor suggest:...); a batch relates the stills it brings.
+        """
+}
+
+record evidence-intake-project.evidence.edges-endpoints-and-pairs/1 : evidence {
+    title "3 passed: missing and other-case endpoints refused; mirror-orientation duplicate refused, different relation allowed; batch JSON without edges parses."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test --test ingest_edges -- an_adapter_edge_needs_both_endpoints_in_the_case an_adapter_edge_is_not_held_twice_in_either_direction an_older_batch_document_without_edges_still_parses"
+    summary """
+        3 passed: missing and other-case endpoints refused; mirror-orientation duplicate refused, different relation allowed; batch JSON without edges parses.
+        """
+}
+
+record evidence-intake-project.evidence.edges-structural-suggested-only/1 : evidence {
+    title "3 passed: supports/contradicts refused; verified and human-attributed edges refused with full rollback; blank rationale refused."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test --test ingest_edges -- an_adapter_edge_cannot_be_evaluative an_adapter_edge_cannot_arrive_verified an_adapter_edge_needs_a_written_rationale"
+    summary """
+        3 passed: supports/contradicts refused; verified and human-attributed edges refused with full rollback; blank rationale refused.
         """
 }
 
@@ -123,6 +257,19 @@ record evidence-intake-project.evidence.gui-workspace-after-chrome-pass/1 : evid
         """
 }
 
+record evidence-intake-project.evidence.ingest-refuses-cross-case/1 : evidence {
+    title "cargo test --test cases ingest_refuses_records_from_another_case passed: speaker and parent content from another case were refused with WrongCase."
+    state verified
+    result pass
+    method command
+    observed_at git:aa07b628e8b4d3c7153ced96e0d9f1e08f5aa53c
+    command "cargo test --test cases ingest_refuses_records_from_another_case"
+    summary """
+        cargo test --test cases ingest_refuses_records_from_another_case passed: speaker and parent content from another case were refused with WrongCase.
+        """
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.evidence.optimization-pass-measured/1 : evidence {
     title "Optimization pass measured against a synthetic case, behavior unchanged"
     state verified
@@ -147,6 +294,55 @@ record evidence-intake-project.evidence.phase-d-complete/1 : evidence {
         """
 }
 
+record evidence-intake-project.evidence.schema-refuses-cross-case/1 : evidence {
+    title "cargo test --lib the_schema_refuses_a_cross_case_attachment passed: hand-updated speaker and parent pointing at another case were aborted by the schema trigger."
+    state verified
+    result pass
+    method command
+    observed_at git:aa07b628e8b4d3c7153ced96e0d9f1e08f5aa53c
+    command "cargo test --lib the_schema_refuses_a_cross_case_attachment"
+    summary """
+        cargo test --lib the_schema_refuses_a_cross_case_attachment passed: hand-updated speaker and parent pointing at another case were aborted by the schema trigger.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.soundtrack-anonymous-speakers/1 : evidence {
+    title "2 passed: SPEAKER labels stay text with no speaker entity; verified machine speech is refused at import."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video -- soundtrack_speakers_stay_anonymous machine_soundtrack_cannot_arrive_verified"
+    summary """
+        2 passed: SPEAKER labels stay text with no speaker entity; verified machine speech is refused at import.
+        """
+}
+
+record evidence-intake-project.evidence.soundtrack-one-source/1 : evidence {
+    title "2 passed: scenes and speech share one video source and hash; a differently hashed soundtrack is refused."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video -- soundtrack_and_scenes_share_one_source_and_hash a_soundtrack_hashed_from_a_different_original_is_refused"
+    summary """
+        2 passed: scenes and speech share one video source and hash; a differently hashed soundtrack is refused.
+        """
+}
+
+record evidence-intake-project.evidence.soundtrack-search-lands-on-video/1 : evidence {
+    title "1 passed: Store::search on a spoken word returns the video's name and the statement's original-timeline locator, machine-generated, suggested."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video a_spoken_line_lands_on_the_video_at_its_second"
+    summary """
+        1 passed: Store::search on a spoken word returns the video's name and the statement's original-timeline locator, machine-generated, suggested.
+        """
+}
+
 record evidence-intake-project.evidence.standing-and-search/1 : evidence {
     title "Case-standing view and full-text search verified against the fixtures"
     state verified
@@ -159,6 +355,186 @@ record evidence-intake-project.evidence.standing-and-search/1 : evidence {
         """
 }
 
+record evidence-intake-project.evidence.still-derived-from-edge/1 : evidence {
+    title "1 passed: scenes_to_batch emits one suggested derived_from edge per still (still Source -> video Source) that imports and reaches the review queue."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video --test scenes a_keyframe_says_structurally_which_video_it_was_cut_from"
+    summary """
+        1 passed: scenes_to_batch emits one suggested derived_from edge per still (still Source -> video Source) that imports and reaches the review queue.
+        """
+}
+
+record evidence-intake-project.evidence.sync-edge-shape/1 : evidence {
+    title "2 passed: one Source->Source temporally_overlaps edge, suggested, machine, rationale in the stable leading form; identical ids refused."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video --test sync -- the_sync_edge_names_both_originals_and_is_suggested a_pair_with_one_source_id_is_refused"
+    summary """
+        2 passed: one Source->Source temporally_overlaps edge, suggested, machine, rationale in the stable leading form; identical ids refused.
+        """
+}
+
+record evidence-intake-project.evidence.sync-imports-between-ingested/1 : evidence {
+    title "1 passed: the sourceless sync batch imports between two previously ingested videos and appears in review_queue as a machine-proposed edge."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video --test sync an_offset_edge_imports_between_two_ingested_videos"
+    summary """
+        1 passed: the sourceless sync batch imports between two previously ingested videos and appears in review_queue as a machine-proposed edge.
+        """
+}
+
+record evidence-intake-project.evidence.sync-known-offset/1 : evidence {
+    title "3 passed: 3410 ms and -3410 ms recovered exactly at 4 kHz (peak ~0.8); unrelated noise and silence yield None. 275 ms debug / 19 ms release for 20 s + 23 s."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video --test sync -- a_known_offset_is_recovered_to_within_one_work_sample unrelated_recordings_yield_no_edge silence_yields_no_edge"
+    summary """
+        3 passed: 3410 ms and -3410 ms recovered exactly at 4 kHz (peak ~0.8); unrelated noise and silence yield None. 275 ms debug / 19 ms release for 20 s + 23 s.
+        """
+}
+
+record evidence-intake-project.evidence.video-analyze-one-batch/1 : evidence {
+    title "1 passed: analyze imports scenes, boxes and captions in one batch."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video analyze_imports_scenes_boxes_and_captions_once"
+    summary """
+        1 passed: analyze imports scenes, boxes and captions in one batch.
+        """
+}
+
+record evidence-intake-project.evidence.video-analyze-scenes-only/1 : evidence {
+    title "1 passed: analyze without backends emits scenes only."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video analyze_without_backends_is_just_scenes"
+    summary """
+        1 passed: analyze without backends emits scenes only.
+        """
+}
+
+record evidence-intake-project.evidence.video-caption-is-observation/1 : evidence {
+    title "1 passed: a scene description is a suggested observation on the original timeline."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video a_scene_description_is_an_observation_not_a_finding"
+    summary """
+        1 passed: a scene description is a suggested observation on the original timeline.
+        """
+}
+
+record evidence-intake-project.evidence.video-captions-cannot-verify/1 : evidence {
+    title "1 passed: machine scene descriptions cannot arrive verified."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video machine_descriptions_cannot_arrive_verified"
+    summary """
+        1 passed: machine scene descriptions cannot arrive verified.
+        """
+}
+
+record evidence-intake-project.evidence.video-detection-is-observation/1 : evidence {
+    title "1 passed: a boxed detection is a suggested observation, not a finding."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video a_boxed_detection_is_an_observation_not_a_finding"
+    summary """
+        1 passed: a boxed detection is a suggested observation, not a finding.
+        """
+}
+
+record evidence-intake-project.evidence.video-detections-cannot-verify/1 : evidence {
+    title "1 passed: machine detections cannot arrive verified."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video machine_detections_cannot_arrive_verified"
+    summary """
+        1 passed: machine detections cannot arrive verified.
+        """
+}
+
+record evidence-intake-project.evidence.video-dropout-gap/1 : evidence {
+    title "1 passed: a tail shorter than the claimed duration becomes a recording_gap."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video a_tail_shorter_than_claimed_duration_is_a_recording_gap"
+    summary """
+        1 passed: a tail shorter than the claimed duration becomes a recording_gap.
+        """
+}
+
+record evidence-intake-project.evidence.video-json-captions-attach/1 : evidence {
+    title "1 passed: JSON captions attach to the video source and import."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video json_descriptions_attach_to_the_video_source"
+    summary """
+        1 passed: JSON captions attach to the video source and import.
+        """
+}
+
+record evidence-intake-project.evidence.video-json-detections-attach/1 : evidence {
+    title "1 passed: JSON detections attach to the video source and import."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video json_detections_attach_to_the_video_source"
+    summary """
+        1 passed: JSON detections attach to the video source and import.
+        """
+}
+
+record evidence-intake-project.evidence.video-keyframe-derived-source/1 : evidence {
+    title "1 passed: a keyframe still imports as its own derived source, not in place of the original hash."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video a_keyframe_is_a_derived_source_not_the_original"
+    summary """
+        1 passed: a keyframe still imports as its own derived source, not in place of the original hash.
+        """
+}
+
+record evidence-intake-project.evidence.video-scene-suggested-on-timeline/1 : evidence {
+    title "1 passed: scene cuts map to suggested observations on the original timeline and import as SourceKind::Video."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo test -p evidence-video a_scene_observation_enters_suggested_on_the_original_timeline"
+    summary """
+        1 passed: scene cuts map to suggested observations on the original timeline and import as SourceKind::Video.
+        """
+}
+
 record evidence-intake-project.evidence.work-product-suite/1 : evidence {
     title "58 tests pass, clippy clean under -D warnings, formatting clean. tests/work_product.rs adds 9 covering privileged v1 entry, supersede-not-overwrite with full history from any version identifier, refusal to revise a superseded version, a rewritten issue appearing once in the workspace, current-only annotations, cross-case refusal, per-posture brief numbering continuing the fixture's chain, and work product staying out of the discovery ledger. A schema test proves the author trigger fires on all three tables, and a collation test proves the two hit-and-run issues no longer carry identical task lists. Verified by hand that migration 0005 re-runs against a pre-0005 database."
     state verified
@@ -168,5 +544,17 @@ record evidence-intake-project.evidence.work-product-suite/1 : evidence {
     command "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
     summary """
         58 tests pass, clippy clean under -D warnings, formatting clean. tests/work_product.rs adds 9 covering privileged v1 entry, supersede-not-overwrite with full history from any version identifier, refusal to revise a superseded version, a rewritten issue appearing once in the workspace, current-only annotations, cross-case refusal, per-posture brief numbering continuing the fixture's chain, and work product staying out of the discovery ledger. A schema test proves the author trigger fires on all three tables, and a collation test proves the two hit-and-run issues no longer carry identical task lists. Verified by hand that migration 0005 re-runs against a pre-0005 database.
+        """
+}
+
+record evidence-intake-project.evidence.workspace-gate-after-video-slices/1 : evidence {
+    title "fmt clean, clippy clean, 177 tests passed / 0 failed across kernel, audio adapter and video adapter after soundtrack, clock OCR, structural edges and audio sync landed."
+    state verified
+    result pass
+    method command
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    command "cargo fmt --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features"
+    summary """
+        fmt clean, clippy clean, 177 tests passed / 0 failed across kernel, audio adapter and video adapter after soundtrack, clock OCR, structural edges and audio sync landed.
         """
 }

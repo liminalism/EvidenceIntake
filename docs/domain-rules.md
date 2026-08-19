@@ -115,4 +115,10 @@ These rules are invariants for the kernel and future UI.
     measurement of the excerpt. The index lives in the same file and the same
     transaction as the writes, so it can never hold a passage the record does
     not.
+37. Cases do not share records. A speaker, attributed person, parent statement,
+    production, superseded original, element mapping, or relationship may not
+    name a row that belongs to another case. The store refuses the write; the
+    schema refuses it too, so a hand-edited database cannot smuggle one
+    matter's evidence into another. Identifiers are unique in the file, not
+    per case, which is how that refusal stays unambiguous.
 

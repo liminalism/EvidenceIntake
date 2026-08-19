@@ -1,6 +1,6 @@
 //! `SQLite` persistence and decision-oriented queries.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -8,15 +8,16 @@ use uuid::Uuid;
 
 use crate::{
     AnalyzerReport, AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredEntity,
-    AuthoredLink, AuthoredProposition, CaseExport, CaseId, CaseStanding, ChargeStanding,
-    DecisionBrief, DiscoveryItem, EdgeKind, ElementAssessment, ElementCoverage, ElementRow,
-    ElementStanding, Error, ExportAudience, ExportedProposition, ExportedWorkProduct,
+    AuthoredLink, AuthoredProposition, CaseExport, CaseId, CaseStanding, CaseSummary,
+    ChargeStanding, DecisionBrief, DiscoveryItem, EdgeKind, ElementAssessment, ElementCoverage,
+    ElementRow, ElementStanding, Error, ExportAudience, ExportedProposition, ExportedWorkProduct,
     IssueWorkspace, LiveDispute, LoadBearingSource, NodeKind, NodeRef, NormalizedBatch,
-    OffenseComparison, OpenGap, Overview, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief,
-    ProposedCharge, ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProposition,
-    PropositionEvidence, Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState,
-    ReviewTarget, SearchHit, SuggestionKind, SuggestionRun, TimelineEntry, UnsupportedProposition,
-    WitnessStatement, WorkProductVersion, review::transition_allowed, suggest::Finding,
+    OffenseComparison, OpenGap, OpenedCase, OpenedProduction, Overview, ProposedAdvocacyItem,
+    ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge, ProposedElementMapping,
+    ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition, PropositionEvidence,
+    Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, SearchHit,
+    SuggestionKind, SuggestionRun, TimelineEntry, UnsupportedProposition, WitnessStatement,
+    WorkProductVersion, review::transition_allowed, suggest::Finding,
 };
 
 /// Number of migrations applied by [`Store::migrate`].
@@ -26,7 +27,7 @@ use crate::{
 /// migrations stay additive and re-runnable regardless: a database at any
 /// earlier version — including one written before this stamp existed, which
 /// reads as zero — runs all of them again.
-const SCHEMA_VERSION: i64 = 7;
+const SCHEMA_VERSION: i64 = 8;
 
 /// Distinct prepared statements kept compiled per connection.
 ///
@@ -108,6 +109,7 @@ impl Store {
         connection.execute_batch(include_str!("../migrations/0005_work_product.sql"))?;
         connection.execute_batch(include_str!("../migrations/0006_read_paths.sql"))?;
         connection.execute_batch(include_str!("../migrations/0007_search.sql"))?;
+        connection.execute_batch(include_str!("../migrations/0008_case_isolation.sql"))?;
         Ok(())
     }
 
@@ -140,12 +142,169 @@ impl Store {
         Ok(())
     }
 
-    /// Returns all cases in stable name order.
-    pub fn cases(&self) -> Result<Vec<(CaseId, String)>> {
-        let mut statement = self
-            .connection
-            .prepare("SELECT id, name FROM cases ORDER BY name, id")?;
-        let rows = statement.query_map([], |row| Ok((CaseId(row.get(0)?), row.get(1)?)))?;
+    /// Returns every case on the docket, in stable name order.
+    ///
+    /// Each row is enough to pick a matter. It is not a reading of the case.
+    pub fn cases(&self) -> Result<Vec<CaseSummary>> {
+        let mut statement = self.connection.prepare(
+            "SELECT c.id, c.name, c.reference, c.jurisdiction, c.created_at,
+                    (SELECT count(*) FROM productions p WHERE p.case_id = c.id),
+                    (SELECT count(*) FROM sources s WHERE s.case_id = c.id),
+                    (SELECT count(*) FROM (
+                       SELECT id FROM content
+                        WHERE case_id = c.id AND review_state IN ('unreviewed','suggested')
+                       UNION ALL
+                       SELECT id FROM sources
+                        WHERE case_id = c.id AND review_state IN ('unreviewed','suggested')
+                       UNION ALL
+                       SELECT id FROM edges
+                        WHERE case_id = c.id AND review_state IN ('unreviewed','suggested')
+                       UNION ALL
+                       SELECT id FROM propositions
+                        WHERE case_id = c.id AND review_state IN ('unreviewed','suggested')
+                       UNION ALL
+                       SELECT id FROM events
+                        WHERE case_id = c.id AND review_state IN ('unreviewed','suggested')))
+             FROM cases c
+             ORDER BY c.name, c.id",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok(CaseSummary {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                reference: row.get(2)?,
+                jurisdiction: row.get(3)?,
+                created_at: row.get(4)?,
+                productions: row.get(5)?,
+                sources: row.get(6)?,
+                pending_review: row.get(7)?,
+            })
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Opens a new case and its first production.
+    ///
+    /// A case starts empty of evidence. The production is the intake hook
+    /// adapters already require; without it nothing can be imported. Opening a
+    /// case confers no review and shares nothing with any other case.
+    pub fn open_case(&mut self, proposal: &ProposedCase) -> Result<OpenedCase> {
+        let name = require_text(&proposal.name, "a case must have a name")?;
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_row("case", "cases", supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+        let reference = trimmed(proposal.reference.as_deref());
+        let jurisdiction = trimmed(proposal.jurisdiction.as_deref());
+        let production_label = proposal
+            .production
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("Initial production");
+
+        let production_id = Uuid::now_v7().to_string();
+        let transaction = self.connection.transaction()?;
+        transaction.execute(
+            "INSERT INTO cases (id, name, reference, jurisdiction)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![id, name, reference, jurisdiction],
+        )?;
+        transaction.execute(
+            "INSERT INTO productions (id, case_id, label, received_at, producing_party, notes)
+             VALUES (?1, ?2, ?3, NULL, NULL, NULL)",
+            params![production_id, id, production_label],
+        )?;
+        transaction.commit()?;
+
+        Ok(OpenedCase {
+            production: OpenedProduction {
+                id: production_id,
+                case_id: id.clone(),
+                label: production_label.to_owned(),
+                received_at: None,
+                producing_party: None,
+                notes: None,
+            },
+            id,
+            name,
+            reference,
+            jurisdiction,
+        })
+    }
+
+    /// Opens a new production on an existing case.
+    ///
+    /// The label must be unique inside the case. Identifiers are globally
+    /// unique, so two cases cannot share a production row.
+    pub fn open_production(
+        &mut self,
+        case_id: &CaseId,
+        proposal: &ProposedProduction,
+    ) -> Result<OpenedProduction> {
+        self.require_case(case_id)?;
+        let label = require_text(&proposal.label, "a production must have a label")?;
+        let id = match proposal.id.as_deref().map(str::trim) {
+            Some(supplied) if !supplied.is_empty() => {
+                self.refuse_existing_row("production", "productions", supplied)?;
+                supplied.to_owned()
+            }
+            _ => Uuid::now_v7().to_string(),
+        };
+        let received_at = trimmed(proposal.received_at.as_deref());
+        let producing_party = trimmed(proposal.producing_party.as_deref());
+        let notes = trimmed(proposal.notes.as_deref());
+
+        if self.exists(
+            "SELECT 1 FROM productions WHERE case_id = ?1 AND label = ?2",
+            params![case_id.0, label],
+        )? {
+            return Err(Error::AlreadyExists {
+                kind: "production",
+                id: label,
+            });
+        }
+
+        self.connection.execute(
+            "INSERT INTO productions
+               (id, case_id, label, received_at, producing_party, notes)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, case_id.0, label, received_at, producing_party, notes],
+        )?;
+
+        Ok(OpenedProduction {
+            id,
+            case_id: case_id.0.clone(),
+            label,
+            received_at,
+            producing_party,
+            notes,
+        })
+    }
+
+    /// Returns the productions on one case, oldest first.
+    pub fn productions(&self, case_id: &CaseId) -> Result<Vec<OpenedProduction>> {
+        self.require_case(case_id)?;
+        let mut statement = self.connection.prepare_cached(
+            "SELECT id, case_id, label, received_at, producing_party, notes
+             FROM productions
+             WHERE case_id = ?1
+             ORDER BY COALESCE(received_at, ''), label, id",
+        )?;
+        let rows = statement.query_map([&case_id.0], |row| {
+            Ok(OpenedProduction {
+                id: row.get(0)?,
+                case_id: row.get(1)?,
+                label: row.get(2)?,
+                received_at: row.get(3)?,
+                producing_party: row.get(4)?,
+                notes: row.get(5)?,
+            })
+        })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(Into::into)
     }
@@ -158,6 +317,7 @@ impl Store {
     pub fn import_normalized(&mut self, batch: &NormalizedBatch) -> Result<()> {
         self.require_case(&batch.case_id)?;
         validate_batch(batch)?;
+        self.refuse_cross_case_batch(batch)?;
         let transaction = self.connection.transaction()?;
 
         // A batch is many rows of three shapes, so each statement is compiled
@@ -262,7 +422,122 @@ impl Store {
         drop(insert_segment);
         drop(insert_source);
         drop(owning_production);
+
+        if !batch.edges.is_empty() {
+            Self::import_edges(&transaction, batch)?;
+        }
+
         transaction.commit()?;
+        Ok(())
+    }
+
+    /// Writes an adapter's proposed relationships inside the import transaction.
+    ///
+    /// This runs after the batch's own sources and content are inserted, which
+    /// is what lets a batch relate the stills it brings while an endpoint the
+    /// case does not hold is still refused. `require_node` answers the same
+    /// question, but it takes `&self` and the open transaction has borrowed the
+    /// connection, so the lookup is issued through the transaction instead.
+    fn import_edges(
+        transaction: &rusqlite::Transaction<'_>,
+        batch: &NormalizedBatch,
+    ) -> Result<()> {
+        let mut existing_edge = transaction.prepare_cached("SELECT 1 FROM edges WHERE id = ?1")?;
+        // An adapter points at a *pair*. If the case already relates that pair
+        // this way the claim is held however it happens to be oriented, and the
+        // mirror image is not a second thing to review. The unique index sees
+        // only one orientation, so the check is made here.
+        let mut already_held = transaction.prepare_cached(
+            "SELECT 1 FROM edges
+             WHERE case_id = ?1 AND relation = ?2
+               AND ((source_kind = ?3 AND source_id = ?4
+                     AND target_kind = ?5 AND target_id = ?6)
+                 OR (source_kind = ?5 AND source_id = ?6
+                     AND target_kind = ?3 AND target_id = ?4))",
+        )?;
+        let mut insert_edge = transaction.prepare_cached(
+            "INSERT INTO edges
+               (id, case_id, source_kind, source_id, relation, target_kind, target_id,
+                rationale, review_state, created_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'suggested', ?9)",
+        )?;
+
+        for edge in &batch.edges {
+            if existing_edge
+                .query_row([&edge.id], |_| Ok(()))
+                .optional()?
+                .is_some()
+            {
+                return Err(Error::AlreadyExists {
+                    kind: NodeKind::Edge.as_str(),
+                    id: edge.id.clone(),
+                });
+            }
+
+            for (kind, id) in [(edge.from_kind, &edge.from_id), (edge.to_kind, &edge.to_id)] {
+                let owner: Option<String> = transaction
+                    .prepare_cached(&format!(
+                        "SELECT case_id FROM {} WHERE id = ?1",
+                        kind.table()
+                    ))?
+                    .query_row([id], |row| row.get(0))
+                    .optional()?;
+                match owner {
+                    Some(owner) if owner == batch.case_id.0 => {}
+                    Some(_) => {
+                        return Err(Error::WrongCase {
+                            kind: kind.as_str(),
+                            id: id.clone(),
+                        });
+                    }
+                    None => {
+                        return Err(Error::NotFound {
+                            kind: kind.as_str(),
+                            id: id.clone(),
+                        });
+                    }
+                }
+            }
+
+            let held = already_held
+                .query_row(
+                    params![
+                        batch.case_id.0,
+                        edge.relation.as_str(),
+                        edge.from_kind.as_str(),
+                        edge.from_id,
+                        edge.to_kind.as_str(),
+                        edge.to_id
+                    ],
+                    |_| Ok(()),
+                )
+                .optional()?
+                .is_some();
+            if held {
+                return Err(Error::AlreadyExists {
+                    kind: "relationship",
+                    id: format!("{} {} {}", edge.from_id, edge.relation.as_str(), edge.to_id),
+                });
+            }
+
+            // The same attribution prefix the analyzers write: that prefix is
+            // how `review_queue` recognises a machine-proposed edge, and an
+            // adapter's proposal is exactly that.
+            insert_edge.execute(params![
+                edge.id,
+                batch.case_id.0,
+                edge.from_kind.as_str(),
+                edge.from_id,
+                edge.relation.as_str(),
+                edge.to_kind.as_str(),
+                edge.to_id,
+                edge.rationale.trim(),
+                format!(
+                    "suggest:{}@{}",
+                    edge.extraction.extractor, edge.extraction.version
+                )
+            ])?;
+        }
         Ok(())
     }
 
@@ -2501,19 +2776,28 @@ impl Store {
         let author = require_named_person(&proposal.author)?;
 
         // Elements are scoped to a case through their charge, not directly.
-        self.connection
-            .query_row(
-                "SELECT 1 FROM elements el
-                 JOIN charges ch ON ch.id = el.charge_id
-                 WHERE el.id = ?1 AND ch.case_id = ?2",
-                params![proposal.element_id, case_id.0],
-                |_| Ok(()),
-            )
-            .optional()?
-            .ok_or_else(|| Error::NotFound {
-                kind: "element",
-                id: proposal.element_id.clone(),
-            })?;
+        let element_case: Option<String> = self.query_one(
+            "SELECT ch.case_id FROM elements el
+             JOIN charges ch ON ch.id = el.charge_id
+             WHERE el.id = ?1",
+            [&proposal.element_id],
+            |row| row.get(0),
+        )?;
+        match element_case {
+            Some(found) if found == case_id.0 => {}
+            Some(_) => {
+                return Err(Error::WrongCase {
+                    kind: "element",
+                    id: proposal.element_id.clone(),
+                });
+            }
+            None => {
+                return Err(Error::NotFound {
+                    kind: "element",
+                    id: proposal.element_id.clone(),
+                });
+            }
+        }
         self.require_node(
             case_id,
             &NodeRef::new(NodeKind::Proposition, &proposal.proposition_id),
@@ -2594,18 +2878,71 @@ impl Store {
     }
 
     /// Requires that a node exists and belongs to the case being worked on.
+    ///
+    /// A node that exists only in another case is a different error from a
+    /// missing node: attaching it would share evidence across the docket.
     fn require_node(&self, case_id: &CaseId, node: &NodeRef) -> Result<()> {
-        let sql = format!(
-            "SELECT 1 FROM {} WHERE id = ?1 AND case_id = ?2",
-            node.kind.table()
-        );
-        if self.exists(&sql, params![node.id, case_id.0])? {
-            return Ok(());
+        let found_case: Option<String> = self.query_one(
+            &format!("SELECT case_id FROM {} WHERE id = ?1", node.kind.table()),
+            [&node.id],
+            |row| row.get(0),
+        )?;
+        match found_case {
+            Some(found) if found == case_id.0 => Ok(()),
+            Some(_) => Err(Error::WrongCase {
+                kind: node.kind.as_str(),
+                id: node.id.clone(),
+            }),
+            None => Err(Error::NotFound {
+                kind: node.kind.as_str(),
+                id: node.id.clone(),
+            }),
         }
-        Err(Error::NotFound {
-            kind: node.kind.as_str(),
-            id: node.id.clone(),
-        })
+    }
+
+    /// Refuses ingest pointers that name a record from another case.
+    ///
+    /// Production ownership is checked at insert. Speaker, attributed person,
+    /// and parent content are not: they are ordinary foreign keys on id, so
+    /// without this check a batch could attach another case's person or nest
+    /// under another case's statement.
+    fn refuse_cross_case_batch(&self, batch: &NormalizedBatch) -> Result<()> {
+        let mut same_batch = HashSet::new();
+        for source in &batch.sources {
+            for segment in &source.segments {
+                for content in &segment.content {
+                    same_batch.insert(content.id.as_str());
+                }
+            }
+        }
+
+        for source in &batch.sources {
+            for segment in &source.segments {
+                for content in &segment.content {
+                    if let Some(speaker) = content.speaker_entity_id.as_deref() {
+                        self.require_node(
+                            &batch.case_id,
+                            &NodeRef::new(NodeKind::Entity, speaker),
+                        )?;
+                    }
+                    if let Some(attributed) = content.attributed_to_entity_id.as_deref() {
+                        self.require_node(
+                            &batch.case_id,
+                            &NodeRef::new(NodeKind::Entity, attributed),
+                        )?;
+                    }
+                    if let Some(parent) = content.parent_content_id.as_deref()
+                        && !same_batch.contains(parent)
+                    {
+                        self.require_node(
+                            &batch.case_id,
+                            &NodeRef::new(NodeKind::Content, parent),
+                        )?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Returns the append-only review history in the order it was written.
@@ -2655,10 +2992,23 @@ impl Store {
         );
         let raw: Option<String> =
             self.query_one(&sql, params![target_id, case_id.0], |row| row.get(0))?;
-        let raw = raw.ok_or_else(|| Error::NotFound {
-            kind: "review target",
-            id: target_id.to_owned(),
-        })?;
+        let Some(raw) = raw else {
+            let elsewhere = self.exists(
+                &format!("SELECT 1 FROM {} WHERE id = ?1", target.table()),
+                [target_id],
+            )?;
+            return Err(if elsewhere {
+                Error::WrongCase {
+                    kind: "review target",
+                    id: target_id.to_owned(),
+                }
+            } else {
+                Error::NotFound {
+                    kind: "review target",
+                    id: target_id.to_owned(),
+                }
+            });
+        };
         ReviewState::from_db(&raw).ok_or_else(|| {
             Error::InvalidReview(format!(
                 "{} `{target_id}` holds unrecognized review state `{raw}`",
@@ -2927,9 +3277,12 @@ fn require_justification(
 }
 
 fn validate_batch(batch: &NormalizedBatch) -> Result<()> {
-    if batch.sources.is_empty() {
+    // A later pass may carry nothing but relationships between originals
+    // imported on different days, so a batch without sources is empty only
+    // when it proposes nothing at all.
+    if batch.sources.is_empty() && batch.edges.is_empty() {
         return Err(Error::InvalidFixture(
-            "a normalized batch must contain at least one source".to_owned(),
+            "a normalized batch must contain at least one source or edge".to_owned(),
         ));
     }
     for source in &batch.sources {
@@ -2970,6 +3323,76 @@ fn validate_batch(batch: &NormalizedBatch) -> Result<()> {
                     )));
                 }
             }
+        }
+    }
+    validate_edges(batch)
+}
+
+/// Checks what an adapter's proposed relationships must satisfy on their face.
+///
+/// An adapter may say how records sit relative to each other and never what
+/// they establish, so only the structural relations are admitted, and only in
+/// the state a machine is allowed to write. Everything decidable from the batch
+/// document alone is decided here; whether the endpoints exist, belong to this
+/// case, and are not already related is settled inside the import transaction,
+/// once the batch's own rows are in.
+fn validate_edges(batch: &NormalizedBatch) -> Result<()> {
+    let mut seen = HashSet::new();
+    for edge in &batch.edges {
+        if !seen.insert(edge.id.as_str()) {
+            return Err(Error::AlreadyExists {
+                kind: NodeKind::Edge.as_str(),
+                id: edge.id.clone(),
+            });
+        }
+        if !matches!(
+            edge.relation,
+            EdgeKind::TemporallyOverlaps | EdgeKind::DerivedFrom | EdgeKind::RefersTo
+        ) {
+            return Err(Error::InvalidFixture(format!(
+                "edge `{}` proposes `{}`; import admits only the structural relations \
+                 temporally_overlaps, derived_from and refers_to. An adapter may say how \
+                 records sit relative to each other, never what they establish",
+                edge.id,
+                edge.relation.as_str()
+            )));
+        }
+        for (endpoint, kind) in [("from", edge.from_kind), ("to", edge.to_kind)] {
+            if !matches!(kind, NodeKind::Source | NodeKind::Content) {
+                return Err(Error::InvalidFixture(format!(
+                    "edge `{}` names a `{}` as its {endpoint} endpoint; import relates only \
+                     sources and content",
+                    edge.id,
+                    kind.as_str()
+                )));
+            }
+        }
+        if edge.from_kind == edge.to_kind && edge.from_id == edge.to_id {
+            return Err(Error::InvalidFixture(format!(
+                "edge `{}` cannot stand in a relationship to itself",
+                edge.id
+            )));
+        }
+        if edge.rationale.trim().is_empty() {
+            return Err(Error::InvalidFixture(format!(
+                "edge `{}` requires a written rationale; a relationship has no original of \
+                 its own to check it against",
+                edge.id
+            )));
+        }
+        let provenance = &edge.extraction;
+        if !provenance.machine_generated {
+            return Err(Error::InvalidFixture(format!(
+                "edge `{}` is attributed to a person; import proposes a relationship, \
+                 a named person authors one",
+                edge.id
+            )));
+        }
+        if provenance.review_state != ReviewState::Suggested {
+            return Err(Error::InvalidFixture(format!(
+                "machine edge `{}` must enter as suggested",
+                edge.id
+            )));
         }
     }
     Ok(())
@@ -3060,14 +3483,40 @@ mod schema {
         }
     }
 
-    /// The store refuses to write one, but the view must not depend on that: a
-    /// row reaching another case's proposition is exactly the kind of thing a
-    /// future writer, an import, or a hand-edited database could introduce, and
-    /// it would put privileged material from one case into another's matrix.
+    /// A speaker, parent, or element mapping that names another case is
+    /// refused by the schema, not only by the store API.
+    #[test]
+    fn the_schema_refuses_a_cross_case_attachment() {
+        let store = both_cases();
+        let speaker = store
+            .connection
+            .execute(
+                "UPDATE content SET speaker_entity_id = 'person-chen'
+                 WHERE id = 'hr-content-911-injury'",
+                [],
+            )
+            .expect_err("a speaker from another case must be refused");
+        assert!(speaker.to_string().contains("same case"), "{speaker}");
+
+        let parent = store
+            .connection
+            .execute(
+                "UPDATE content SET parent_content_id = 'content-report-consent'
+                 WHERE id = 'hr-content-911-injury'",
+                [],
+            )
+            .expect_err("parent content from another case must be refused");
+        assert!(parent.to_string().contains("same case"), "{parent}");
+    }
+
+    /// A mapping that names another case's proposition is refused at write
+    /// time. The views still constrain `propositions.case_id` themselves, so a
+    /// future writer cannot make one case's matrix display the other's claim
+    /// even if the trigger were ever removed.
     #[test]
     fn a_cross_case_element_mapping_never_surfaces_in_a_view() {
         let store = both_cases();
-        store
+        let error = store
             .connection
             .execute(
                 "INSERT INTO element_links
@@ -3075,7 +3524,8 @@ mod schema {
                  VALUES ('smuggled', 'hr-el-fi-drive', 'prop-consent', 'supports', 'nobody')",
                 [],
             )
-            .expect("the schema alone does not stop this");
+            .expect_err("the schema refuses a cross-case element mapping");
+        assert!(error.to_string().contains("one case"), "{error}");
 
         let hit_run = crate::CaseId("case-hit-run-001".to_owned());
         let leaked = store

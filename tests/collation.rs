@@ -202,6 +202,7 @@ fn hit_and_run_keeps_report_creation_distinct_from_alleged_event_time() {
 fn sample_machine_batch(case_id: CaseId, review_state: ReviewState) -> NormalizedBatch {
     NormalizedBatch {
         case_id,
+        edges: Vec::new(),
         sources: vec![NormalizedSource {
             id: "adapter-source".to_owned(),
             production_id: "prod-01".to_owned(),

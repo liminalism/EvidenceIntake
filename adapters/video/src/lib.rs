@@ -1,17 +1,27 @@
 //! Video intake adapter for the evidence collation kernel.
 //!
 //! Slice 1 cuts scenes. Slice 2 attaches boxed detections. Slice 3 attaches
-//! one VLM description per scene. The kernel crate never depends on this one.
+//! one VLM description per scene. Slice 4 hands the original container's audio
+//! to the audio adapter and merges the spoken statements into the same batch,
+//! under the same source. The kernel crate never depends on this one.
 
 mod caption;
+mod clock;
 mod error;
 mod map;
 mod scene;
+mod soundtrack;
+mod sync;
 mod vision;
 
 pub use caption::{
     CaptionBackend, CaptionDocument, DEFAULT_PROMPT, EXTRACTOR_CAPTION, JsonCaptionBackend,
     SceneCaption, VlmCliBackend, caption_scene, caption_scenes,
+};
+pub use clock::{
+    ClockBackend, ClockDocument, ClockReading, EXTRACTOR_CLOCK, JsonClockBackend, OverlayBand,
+    RawClockText, TesseractCliBackend, attach_clock_readings, parse_clock_text,
+    read_clock_overlays, read_clocks, read_clocks_from_json,
 };
 pub use error::{Error, Result};
 pub use map::{
@@ -22,6 +32,14 @@ pub use map::{
 pub use scene::{
     DEFAULT_GAP_MS, DEFAULT_THRESHOLD, Keyframe, Scene, SceneAnalysis, detect_scenes, dropout_span,
     ffprobe_available, jpeg_dimensions, parse_scene_report,
+};
+pub use soundtrack::{
+    DEFAULT_SPEECH_GAP_MS, SoundtrackInput, SoundtrackOptions, merge_soundtrack, soundtrack_batch,
+    soundtrack_request,
+};
+pub use sync::{
+    EXTRACTOR_SYNC, SYNC_VERSION, SyncMeasurement, SyncOptions, SyncPair, SyncSide, measure_offset,
+    measurement_to_batch, sync_pair,
 };
 pub use vision::{
     Detection, DetectionDocument, EXTRACTOR_DETECT, JsonVisionBackend, RawDetection, VisionBackend,
@@ -119,11 +137,28 @@ pub enum CaptionInput<'a> {
     Live(&'a dyn CaptionBackend),
 }
 
-/// Cut scenes once, then optionally attach boxes and captions in one batch.
+/// Where clock-overlay readings come from during [`analyze`].
+#[derive(Clone, Copy)]
+pub enum ClockInput<'a> {
+    /// Skip the overlay OCR.
+    None,
+    /// Load a prior clock document.
+    Json(&'a Path),
+    /// Run a live OCR backend on each still.
+    Live(&'a dyn ClockBackend),
+}
+
+/// Cut scenes once, then optionally attach boxes, captions, clock readings, and speech.
+///
+/// The soundtrack is transcribed from the same original container and merged
+/// onto the same source, so a scene and the statements spoken inside it are
+/// siblings.
 pub fn analyze(
     request: &SceneRequest,
     detections: DetectionInput<'_>,
     captions: CaptionInput<'_>,
+    clocks: ClockInput<'_>,
+    soundtrack: SoundtrackInput<'_>,
 ) -> Result<NormalizedBatch> {
     let (identity, analysis) = open_and_cut(request)?;
     let (boxes, box_version) = match detections {
@@ -162,13 +197,49 @@ pub fn analyze(
             (hits, backend.version())
         }
     };
-    analyze_to_batch(
+    let mut batch = analyze_to_batch(
         &identity,
         &analysis,
         &boxes,
         &box_version,
         &texts,
         &text_version,
+    )?;
+    match clocks {
+        ClockInput::None => {}
+        ClockInput::Json(path) => {
+            let document = JsonClockBackend {
+                path: path.to_path_buf(),
+            }
+            .load()?;
+            let version = document
+                .version
+                .clone()
+                .unwrap_or_else(|| "from-json".to_owned());
+            attach_clock_readings(&mut batch, &identity, &document.readings, &version)?;
+        }
+        ClockInput::Live(backend) => {
+            let readings = read_clocks(&analysis, backend)?;
+            attach_clock_readings(&mut batch, &identity, &readings, &backend.version())?;
+        }
+    }
+    if let Some(spoken) = soundtrack_batch(request, soundtrack, SoundtrackOptions::default())? {
+        merge_soundtrack(&mut batch, &identity, spoken)?;
+    }
+    Ok(batch)
+}
+
+/// Cut scenes and transcribe the soundtrack into one batch, nothing else.
+pub fn transcribe_soundtrack(
+    request: &SceneRequest,
+    backend: &dyn evidence_audio::TranscriptBackend,
+) -> Result<NormalizedBatch> {
+    analyze(
+        request,
+        DetectionInput::None,
+        CaptionInput::None,
+        ClockInput::None,
+        SoundtrackInput::Live(backend),
     )
 }
 
@@ -186,7 +257,7 @@ pub fn describe_from_json(request: &SceneRequest, json_path: &Path) -> Result<No
     scenes_and_captions_to_batch(&identity, &analysis, &document.captions, &version)
 }
 
-fn open_and_cut(request: &SceneRequest) -> Result<(VideoIdentity, SceneAnalysis)> {
+pub(crate) fn open_and_cut(request: &SceneRequest) -> Result<(VideoIdentity, SceneAnalysis)> {
     match classify(&request.path) {
         MediaClass::Video => {}
         other => {

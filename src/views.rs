@@ -2,6 +2,27 @@
 
 use serde::Serialize;
 
+/// One row of the case docket: enough to pick a matter, not a reading of it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CaseSummary {
+    /// Stable case identifier.
+    pub id: String,
+    /// Human-readable case name.
+    pub name: String,
+    /// Docket, incident, or file number.
+    pub reference: Option<String>,
+    /// Court or charging jurisdiction.
+    pub jurisdiction: Option<String>,
+    /// When the case row was opened.
+    pub created_at: String,
+    /// Number of discovery productions.
+    pub productions: u32,
+    /// Number of immutable source records.
+    pub sources: u32,
+    /// Records still in an intake state and awaiting a person.
+    pub pending_review: u32,
+}
+
 /// Counts that describe a case without pretending to assess its truth.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Overview {

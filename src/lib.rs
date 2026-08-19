@@ -18,9 +18,9 @@ mod views;
 
 pub use authoring::{
     AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredEntity, AuthoredLink,
-    AuthoredProposition, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCharge,
-    ProposedElement, ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProposition,
-    WorkProductVersion,
+    AuthoredProposition, OpenedCase, OpenedProduction, ProposedAdvocacyItem, ProposedAnnotation,
+    ProposedBrief, ProposedCase, ProposedCharge, ProposedElement, ProposedElementMapping,
+    ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition, WorkProductVersion,
 };
 pub use error::{Error, Result};
 pub use export::{
@@ -28,7 +28,8 @@ pub use export::{
 };
 pub use fixture::DemoFixture;
 pub use ingest::{
-    ExtractionProvenance, NormalizedBatch, NormalizedContent, NormalizedSegment, NormalizedSource,
+    ExtractionProvenance, NormalizedBatch, NormalizedContent, NormalizedEdge, NormalizedSegment,
+    NormalizedSource,
 };
 pub use model::{
     AdvocacyKind, CaseId, ChargePosture, ContentKind, EdgeKind, ElementAssessment, EntityKind,
@@ -38,7 +39,7 @@ pub use review::{ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewTarget};
 pub use store::Store;
 pub use suggest::{AnalyzerReport, Finding, SuggestionKind, SuggestionRun};
 pub use views::{
-    CaseStanding, ChargeStanding, DecisionBrief, DiscoveryItem, ElementCoverage, ElementRow,
-    ElementStanding, IssueWorkspace, LiveDispute, LoadBearingSource, OffenseComparison, OpenGap,
-    Overview, PropositionEvidence, SearchHit, TimelineEntry, WitnessStatement,
+    CaseStanding, CaseSummary, ChargeStanding, DecisionBrief, DiscoveryItem, ElementCoverage,
+    ElementRow, ElementStanding, IssueWorkspace, LiveDispute, LoadBearingSource, OffenseComparison,
+    OpenGap, Overview, PropositionEvidence, SearchHit, TimelineEntry, WitnessStatement,
 };

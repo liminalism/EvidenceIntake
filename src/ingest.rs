@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{CaseId, ContentKind, ReviewState, SourceKind, TemporalRelation};
+use crate::{CaseId, ContentKind, EdgeKind, NodeKind, ReviewState, SourceKind, TemporalRelation};
 
 /// One source and all normalized records extracted from it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -98,6 +98,35 @@ pub struct ExtractionProvenance {
     pub review_state: ReviewState,
 }
 
+/// A machine-proposed structural relationship between two nodes the case holds.
+///
+/// An adapter may say how records sit relative to each other -- a still is
+/// `derived_from` its video, camera B `temporally_overlaps` camera A at a
+/// measured offset -- but never what they establish. Import therefore admits
+/// only the structural relations (`temporally_overlaps`, `derived_from`,
+/// `refers_to`), only `Source` and `Content` endpoints that exist in the case
+/// once the batch's own rows are in, only machine-generated provenance in the
+/// `suggested` state, and never a pair already held in either direction.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NormalizedEdge {
+    /// Adapter-assigned stable edge identifier.
+    pub id: String,
+    /// Kind of the originating node: `Source` or `Content`.
+    pub from_kind: NodeKind,
+    /// Identifier of the originating node.
+    pub from_id: String,
+    /// Structural relation: `temporally_overlaps`, `derived_from`, or `refers_to`.
+    pub relation: EdgeKind,
+    /// Kind of the target node: `Source` or `Content`.
+    pub to_kind: NodeKind,
+    /// Identifier of the target node.
+    pub to_id: String,
+    /// Written, reviewable basis for the proposal; the measurement lives here.
+    pub rationale: String,
+    /// Extraction provenance; must be machine-generated and `suggested`.
+    pub extraction: ExtractionProvenance,
+}
+
 /// An atomic delivery from one or more extraction adapters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NormalizedBatch {
@@ -105,4 +134,8 @@ pub struct NormalizedBatch {
     pub case_id: CaseId,
     /// Originals and their normalized extracted content.
     pub sources: Vec<NormalizedSource>,
+    /// Structural relationships proposed between nodes the case holds after
+    /// this batch's own rows are inserted. Absent in older batch documents.
+    #[serde(default)]
+    pub edges: Vec<NormalizedEdge>,
 }

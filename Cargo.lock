@@ -351,6 +351,7 @@ dependencies = [
  "evidence-audio",
  "evidence-intake",
  "hex",
+ "rustfft",
  "serde",
  "serde_json",
  "sha2",

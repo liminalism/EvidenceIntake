@@ -78,6 +78,94 @@ record evidence-intake-project.assisted.findings-and-remaining-analyzers/1 : wor
     }
 }
 
+record evidence-intake-project.audio.intake-adapter/1 : work {
+    title "Audio intake adapter for 911 and police recordings"
+    state completed
+    intent """
+        Build a replaceable audio intake adapter outside the collation kernel.
+        Decode discovery recordings, run channel and level analysis on the original
+        PCM, clean a working copy with resampler and nnnoiseless, transcribe with
+        WhisperX, and emit a NormalizedBatch whose locators address the original
+        timeline. Machine lines enter suggested. Channel and volume splits are
+        observations, never persons. Do not persist cleaned audio as the source.
+        """
+    acceptance {
+        check channel-is-observation {
+            statement """
+                A stereo energy split is an observation with no speaker entity, and a dual-mono file invents no speakers.
+                """
+            method command
+            command "cargo test -p evidence-audio -- channel_split_is_an_observation_not_a_person dual_mono_does_not_invent_two_speakers"
+            verified_by [ @evidence-intake-project.evidence.audio-channel-is-observation/1 ]
+        }
+        check mapper-imports {
+            statement """
+                WhisperX JSON maps to a NormalizedBatch the kernel accepts as suggested audio statements with original-timeline millisecond locators.
+                """
+            method command
+            command "cargo test -p evidence-audio a_transcript_line_enters_suggested_and_names_whisperx"
+            verified_by [ @evidence-intake-project.evidence.audio-mapper-imports/1 ]
+        }
+        check no-self-verify {
+            statement """
+                The mapper cannot mark machine audio verified, and cleaned audio is not imported as the source.
+                """
+            method command
+            command "cargo test -p evidence-audio -- machine_audio_cannot_arrive_verified cleaned_audio_is_not_imported_as_the_source"
+            verified_by [ @evidence-intake-project.evidence.audio-no-self-verify/1 ]
+        }
+    }
+    implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+}
+
+record evidence-intake-project.case.isolation-and-lifecycle/1 : work {
+    title "Case lifecycle and complete isolation between cases"
+    state completed
+    intent """
+        Open real cases and productions through the kernel, and make sharing
+        between cases impossible: a record in one case cannot name, attach, or
+        surface a record in another, at both the store API and the schema.
+        """
+    acceptance {
+        check docket {
+            statement """
+                The case list is a docket row (name, reference, counts), not a bare
+                pair of identifiers.
+                """
+            method command
+            command "cargo test --test cases the_docket_lists_each_case_without_the_others_counts"
+            verified_by [ @evidence-intake-project.evidence.docket-lists-cases-separately/1 ]
+        }
+        check no-cross-ingest {
+            statement """
+                Import refuses a speaker, attributed person, or parent content that
+                belongs to another case.
+                """
+            method command
+            command "cargo test --test cases ingest_refuses_records_from_another_case"
+            verified_by [ @evidence-intake-project.evidence.ingest-refuses-cross-case/1 ]
+        }
+        check open-case {
+            statement """
+                A named case can be opened without a fixture and receives a first
+                production so intake has a ledger to attach to.
+                """
+            method command
+            command "cargo test --test cases a_case_can_be_opened_without_a_fixture"
+            verified_by [ @evidence-intake-project.evidence.case-opened-without-fixture/1 ]
+        }
+        check schema-isolates {
+            statement """
+                The schema itself refuses a hand-inserted cross-case speaker or
+                element mapping; views still filter by case as defense in depth.
+                """
+            method command
+            command "cargo test --lib the_schema_refuses_a_cross_case_attachment"
+            verified_by [ @evidence-intake-project.evidence.schema-refuses-cross-case/1 ]
+        }
+    }
+}
+
 record evidence-intake-project.gui.winsafe-shell/1 : work {
     title "Feature-gated WinSafe evidence workspace"
     state completed
@@ -129,6 +217,50 @@ record evidence-intake-project.gui.winsafe-shell/1 : work {
         }
     }
     author "GitHub Uploader"
+}
+
+record evidence-intake-project.ingest.structural-edges/1 : work {
+    title "import_normalized accepts adapter-proposed structural edges"
+    state completed
+    scope [
+        path "docs/normalized-input.md",
+        path "src/ingest.rs",
+        path "src/store.rs",
+        path "tests/ingest_edges.rs"
+    ]
+    intent """
+        Add NormalizedEdge and NormalizedBatch.edges (serde default) to the ingest contract; validate statically (structural relation, Source/Content endpoints, from != to, written rationale, machine_generated and suggested, unique ids) and inside the import transaction (edge id not held, both endpoints exist in this case after the batch's own rows are in, pair not already held in either orientation), then insert with created_by `suggest:<extractor>@<version>` so the review queue treats it as machine-proposed. A batch of edges alone is valid; any refusal rolls back the whole batch. Document the shape in docs/normalized-input.md. No migration: the edges table already admits the relations and kinds.
+        """
+    note """
+        The endpoint lookup is re-issued through the transaction (prepare_cached over NodeKind::table()) rather than via `require_node`, which takes &self while the transaction holds the connection. `confidence` on an edge is dropped: the edges table has no column for it and the rationale is what a reviewer weighs.
+        """
+    acceptance {
+        check edges-alone-and-stills {
+            statement """
+                A batch with no sources may relate two previously imported sources; a batch may relate the stills it brings.
+                """
+            method command
+            command "cargo test --test ingest_edges -- an_adapter_may_relate_two_sources_it_did_not_bring a_batch_may_relate_the_stills_it_brings"
+            verified_by [ @evidence-intake-project.evidence.edges-alone-and-stills/1 ]
+        }
+        check endpoints-and-pairs {
+            statement """
+                Both endpoints must exist in this case; a pair already held in either direction with the same relation is refused; older batch documents without edges still parse.
+                """
+            method command
+            command "cargo test --test ingest_edges -- an_adapter_edge_needs_both_endpoints_in_the_case an_adapter_edge_is_not_held_twice_in_either_direction an_older_batch_document_without_edges_still_parses"
+            verified_by [ @evidence-intake-project.evidence.edges-endpoints-and-pairs/1 ]
+        }
+        check structural-suggested-only {
+            statement """
+                Evaluative relations, verified or human-attributed provenance, and blank rationales are refused and the batch rolls back.
+                """
+            method command
+            command "cargo test --test ingest_edges -- an_adapter_edge_cannot_be_evaluative an_adapter_edge_cannot_arrive_verified an_adapter_edge_needs_a_written_rationale"
+            verified_by [ @evidence-intake-project.evidence.edges-structural-suggested-only/1 ]
+        }
+    }
+    implements [ @evidence-intake-project.decision.adapters-may-propose-structural-edges ]
 }
 
 record evidence-intake-project.mutation-api.element-mapping/1 : work {
@@ -282,6 +414,321 @@ record evidence-intake-project.performance.read-path-optimization/1 : work {
             PRAGMA user_version records SCHEMA_VERSION so an already-current database skips the migration DDL on open. Migrations stay additive and re-runnable because any database at a lower version -- including zero, which is every database written before the stamp -- runs all of them.
             """
     }
+}
+
+record evidence-intake-project.video.analyze-job/1 : work {
+    title "Overnight analyze job: scenes, boxes, and captions in one batch"
+    state completed
+    intent """
+        Add an overnight analyze job that cuts scenes once and optionally
+        attaches detector boxes and VLM captions in a single NormalizedBatch,
+        so the original video is imported only once.
+        """
+    acceptance {
+        check one-batch {
+            statement """
+                Analyze emits one video source carrying scenes, boxes, and
+                captions, and the kernel accepts the import.
+                """
+            method command
+            command "cargo test -p evidence-video analyze_imports_scenes_boxes_and_captions_once"
+            verified_by [ @evidence-intake-project.evidence.video-analyze-one-batch/1 ]
+        }
+        check scenes-only {
+            statement """
+                Analyze with no backends is the same as a scene-only batch.
+                """
+            method command
+            command "cargo test -p evidence-video analyze_without_backends_is_just_scenes"
+            verified_by [ @evidence-intake-project.evidence.video-analyze-scenes-only/1 ]
+        }
+    }
+    depends_on [
+        @evidence-intake-project.video.detector-observations,
+        @evidence-intake-project.video.scene-captions,
+        @evidence-intake-project.video.scene-core
+    ]
+    implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+}
+
+record evidence-intake-project.video.audio-cross-correlation-sync/1 : work {
+    title "Align multiple cameras at one scene by cross-correlating their audio tracks"
+    state completed
+    scope [ path "adapters/audio/**", path "adapters/video/**" ]
+    intent """
+        Given two recordings claimed to cover the same event (several officers' BWC, a dashcam and a BWC, a 911 call and a camera), decode both through the audio adapter, mix to mono, low-pass and resample to a work rate (default 4 kHz), and cross-correlate by FFT (zero-padded, linear) over lags up to a maximum (default ±120 s), normalising every lag by the energy of exactly the overlapping samples so the peak is a true coefficient. Emit the offset as one suggested `temporally_overlaps` edge from source A to source B whose rationale carries the measurement in a stable leading form (`audio cross-correlation: <B> lags <A> by <n> ms (peak p, prominence q, ...)`); the batch has no sources. Nothing about who or what is on the recordings is inferred; only that the same ambient sound occurs at t_a in one and t_b in the other. A weak peak (below the coefficient floor or the prominence floor over the searched lags), an ambiguous one (a rival within 90% of the peak more than 50 ms away -- a periodic sound), silence, or too little overlap emits nothing.
+        """
+    note """
+        Signal processing only; the one new dependency is rustfft, already in the lock. evidence_audio::resample_to could not be reused because its resampler supports no rate below 16 kHz, so sync.rs carries a one-pass biquad low-pass plus linear resample applied identically to both sides (common-mode phase, cancels in the correlation). Thresholds (min_peak 0.2, min_prominence 8, 90% ambiguity, overlap floor max(2 s, 1/5 shorter)) are settled on synthetic pairs only and should be revisited against real BWC pairs; the expected failure on a continuous idle is a suppressed correct alignment, not a wrong one.
+        """
+    acceptance {
+        check edge-shape {
+            statement """
+                The sync edge names both originals as Source endpoints, is temporally_overlaps, suggested and machine-generated, with the measurement in the rationale; a pair with one source id is refused.
+                """
+            method command
+            command "cargo test -p evidence-video --test sync -- the_sync_edge_names_both_originals_and_is_suggested a_pair_with_one_source_id_is_refused"
+            verified_by [ @evidence-intake-project.evidence.sync-edge-shape/1 ]
+        }
+        check imports-between-ingested {
+            statement """
+                The sync batch imports between two videos ingested earlier and appears in the review queue as a machine-proposed edge.
+                """
+            method command
+            command "cargo test -p evidence-video --test sync an_offset_edge_imports_between_two_ingested_videos"
+            verified_by [ @evidence-intake-project.evidence.sync-imports-between-ingested/1 ]
+        }
+        check known-offset {
+            statement """
+                A known offset between two noise recordings is recovered to within one work sample in both directions; unrelated recordings and silence yield no edge.
+                """
+            method command
+            command "cargo test -p evidence-video --test sync -- a_known_offset_is_recovered_to_within_one_work_sample unrelated_recordings_yield_no_edge silence_yields_no_edge"
+            verified_by [ @evidence-intake-project.evidence.sync-known-offset/1 ]
+        }
+    }
+    depends_on [
+        @evidence-intake-project.audio.intake-adapter,
+        @evidence-intake-project.ingest.structural-edges,
+        @evidence-intake-project.video.scene-core
+    ]
+    implements [
+        @evidence-intake-project.decision.adapters-may-propose-structural-edges,
+        @evidence-intake-project.decision.video-intake-points-never-asserts
+    ]
+}
+
+record evidence-intake-project.video.audio-track-through-audio-adapter/1 : work {
+    title "Route a video's audio track through the audio adapter so BWC speech is transcribed and searchable"
+    state completed
+    scope [ path "adapters/audio/**", path "adapters/video/**" ]
+    intent """
+        The video adapter hands the original container's audio to evidence-audio (decode, clean, transcribe, anonymous SPEAKER_nn diarization) and merges the resulting statement observations into the same NormalizedBatch as the scenes, locating each statement on the original video's timeline and hashing the same original -- so a search hit on a spoken sentence lands on the video at that second, and a scene and the statements inside it are siblings under one source. Most of body-worn camera's evidentiary content is what is said (commands, Miranda, consent, statements), so this slice alone delivers most of the review time saved. Speaker labels stay anonymous; linking a speaker to an entity is authored.
+        """
+    note """
+        Composes two existing adapters; adds no new model. Highest value-per-effort slice after scene-core.
+        """
+    acceptance {
+        check anonymous-speakers {
+            statement """
+                Diarization labels stay text; no merged content carries a speaker entity, and machine speech cannot arrive verified.
+                """
+            method command
+            command "cargo test -p evidence-video -- soundtrack_speakers_stay_anonymous machine_soundtrack_cannot_arrive_verified"
+            verified_by [ @evidence-intake-project.evidence.soundtrack-anonymous-speakers/1 ]
+        }
+        check one-source {
+            statement """
+                Scenes and spoken statements share one video source with the original's hash; a soundtrack hashed from a different original is refused.
+                """
+            method command
+            command "cargo test -p evidence-video -- soundtrack_and_scenes_share_one_source_and_hash a_soundtrack_hashed_from_a_different_original_is_refused"
+            verified_by [ @evidence-intake-project.evidence.soundtrack-one-source/1 ]
+        }
+        check search-lands-on-video {
+            statement """
+                A search hit on a spoken sentence carries the video's name and the statement's original-timeline locator.
+                """
+            method command
+            command "cargo test -p evidence-video a_spoken_line_lands_on_the_video_at_its_second"
+            verified_by [ @evidence-intake-project.evidence.soundtrack-search-lands-on-video/1 ]
+        }
+    }
+    depends_on [
+        @evidence-intake-project.audio.intake-adapter,
+        @evidence-intake-project.video.scene-core
+    ]
+    implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+}
+
+record evidence-intake-project.video.clock-overlay-ocr/1 : work {
+    title "OCR the burned-in clock overlay of BWC and dashcam footage as raw_time per scene"
+    state completed
+    scope [ path "adapters/video/**" ]
+    intent """
+        Read the timestamp overlay that body-worn and in-car cameras burn into the frame, once per scene keyframe, and carry it as raw_time (`overlay <verbatim reading>`) on a suggested observation attached to the scene -- never as a normalized interval and with no time_basis, since normalization is a reviewable hypothesis a person writes. The OCR engine sits behind a ClockBackend trait: a Tesseract CLI over ffmpeg-cropped top and bottom bands, or a JSON document for tests. Readings are parsed by a strict hand parser that keeps the overlay's own characters (fractions included) and refuses ranges, implausible fields and anything it does not recognise; a frame whose overlay does not parse yields no raw_time, never a guess. Two cameras whose overlays disagree survive import unreconciled; ordering them is the timeline's job.
+        """
+    note """
+        Deterministic; the only model is OCR. Band crops and Tesseract flags are untested against real footage (tesseract is not installed on the development machine); white-on-dark overlays may need inversion or upscaling before OCR. First/last-frame readings beyond scene keyframes were skipped.
+        """
+    acceptance {
+        check cannot-verify {
+            statement """
+                Machine clock readings cannot arrive verified, and disagreeing overlays on two scenes both survive import.
+                """
+            method command
+            command "cargo test -p evidence-video -- machine_clock_readings_cannot_arrive_verified two_scenes_can_carry_disagreeing_overlays"
+            verified_by [ @evidence-intake-project.evidence.clock-cannot-verify/1 ]
+        }
+        check no-guess {
+            statement """
+                Unparseable overlay text yields no reading; the parser accepts device shapes verbatim and refuses ranges.
+                """
+            method command
+            command "cargo test -p evidence-video -- an_unparseable_overlay_yields_no_reading parse_clock_text_accepts_device_shapes_and_refuses_ranges"
+            verified_by [ @evidence-intake-project.evidence.clock-no-guess/1 ]
+        }
+        check raw-time-only {
+            statement """
+                A clock reading lands as raw_time with no normalized interval and no time_basis, suggested, extractor clock_overlay_ocr.
+                """
+            method command
+            command "cargo test -p evidence-video a_clock_reading_is_raw_time_not_a_normalized_interval"
+            verified_by [ @evidence-intake-project.evidence.clock-raw-time-only/1 ]
+        }
+    }
+    depends_on [ @evidence-intake-project.video.scene-core ]
+    implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+}
+
+record evidence-intake-project.video.detector-observations/1 : work {
+    title "Boxed detector observations on scene keyframes"
+    state completed
+    intent """
+        Attach boxed detector observations to the video scene core. Detections
+        enter as suggested observations with a bounding box on the original
+        timeline. They never name a person, never verify themselves, and never
+        replace the original. The live backend is a VisionBackend trait: JSON
+        for tests, optional YOLO CLI on scene keyframes for overnight runs.
+        """
+    acceptance {
+        check boxed-observation {
+            statement """
+                A detector hit is a suggested observation with a bbox on the
+                original video, not a finding of fact and not a person.
+                """
+            method command
+            command "cargo test -p evidence-video a_boxed_detection_is_an_observation_not_a_finding"
+            verified_by [ @evidence-intake-project.evidence.video-detection-is-observation/1 ]
+        }
+        check cannot-verify {
+            statement """
+                Machine detections cannot arrive verified.
+                """
+            method command
+            command "cargo test -p evidence-video machine_detections_cannot_arrive_verified"
+            verified_by [ @evidence-intake-project.evidence.video-detections-cannot-verify/1 ]
+        }
+        check json-backend {
+            statement """
+                JSON detections attach to the video source and import.
+                """
+            method command
+            command "cargo test -p evidence-video json_detections_attach_to_the_video_source"
+            verified_by [ @evidence-intake-project.evidence.video-json-detections-attach/1 ]
+        }
+    }
+    depends_on [
+        @evidence-intake-project.video.no-forensic-assertions,
+        @evidence-intake-project.video.scene-core
+    ]
+    implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+}
+
+record evidence-intake-project.video.keyframe-embedding-retrieval/1 : work {
+    title "Text-to-frame retrieval over scene keyframes as the visual finder, instead of more detector classes"
+    state proposed
+    scope [ path "adapters/video/**", path "src/store.rs", path "src/views.rs" ]
+    intent """
+        Embed each scene keyframe once with a CLIP/SigLIP-class image encoder behind the VisionBackend-style trait (JSON backend for tests, local CLI or ONNX for overnight runs) and store the vector against the derived still, so a lawyer can later ask for frames matching "person on the ground", "handcuffs", "firearm", "vehicle interior at night" without the adapter having predicted the class. A query returns SearchHit-style locators (original hash, time range, still) ordered by identifier within a similarity cut, never a similarity number, and every hit is a suggestion a person looks at; recall is preferred over precision because a false positive costs one look and a false negative hides evidence. Retrieval never writes an observation or an edge; only what a reviewer confirms is authored. Vectors are stored per case in SQLite (a blob column or the sqlite-vec extension), never shared across cases, and excluded from every export.
+        """
+    note """
+        Optional overnight slice; preferred over widening the closed-set YOLO detector, whose COCO classes lack a gun and which must be fine-tuned per class.
+        """
+    after [
+        @evidence-intake-project.video.audio-track-through-audio-adapter,
+        @evidence-intake-project.video.clock-overlay-ocr
+    ]
+    depends_on [ @evidence-intake-project.video.scene-core ]
+    implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+}
+
+record evidence-intake-project.video.scene-captions/1 : work {
+    title "VLM scene descriptions as suggested observations"
+    state completed
+    intent """
+        Add an optional VLM pass: one suggested scene description per keyframe.
+        Captions enter as observations on the original video timeline, never as
+        facts, never verified, never naming a person. JSON is the test path; a
+        local CLI (ollama-class) is the overnight path.
+        """
+    acceptance {
+        check cannot-verify {
+            statement """
+                Machine scene descriptions cannot arrive verified.
+                """
+            method command
+            command "cargo test -p evidence-video machine_descriptions_cannot_arrive_verified"
+            verified_by [ @evidence-intake-project.evidence.video-captions-cannot-verify/1 ]
+        }
+        check caption-observation {
+            statement """
+                A scene description is a suggested observation on the original
+                timeline and does not claim what happened.
+                """
+            method command
+            command "cargo test -p evidence-video a_scene_description_is_an_observation_not_a_finding"
+            verified_by [ @evidence-intake-project.evidence.video-caption-is-observation/1 ]
+        }
+        check json-backend {
+            statement """
+                JSON captions attach to the video source and import.
+                """
+            method command
+            command "cargo test -p evidence-video json_descriptions_attach_to_the_video_source"
+            verified_by [ @evidence-intake-project.evidence.video-json-captions-attach/1 ]
+        }
+    }
+    depends_on [
+        @evidence-intake-project.video.no-forensic-assertions,
+        @evidence-intake-project.video.scene-core
+    ]
+    implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+}
+
+record evidence-intake-project.video.scene-core/1 : work {
+    title "Video scene-cut core before any vision model"
+    state completed
+    intent """
+        Build the video intake core before any vision model: hash the original
+        container, detect scene cuts with ffmpeg, extract a keyframe still per
+        scene as a derived source, and emit a NormalizedBatch of suggested
+        observations (and recording_gap on a claimed-duration dropout). Locators
+        address the original timeline in the same shape as the hit-and-run camera
+        fixture. No neural net.
+        """
+    acceptance {
+        check derived-stills {
+            statement """
+                A keyframe still is imported as its own derived source and is not
+                substituted for the original video hash.
+                """
+            method command
+            command "cargo test -p evidence-video a_keyframe_is_a_derived_source_not_the_original"
+            verified_by [ @evidence-intake-project.evidence.video-keyframe-derived-source/1 ]
+        }
+        check dropout-gap {
+            statement """
+                A tail shorter than the container's claimed duration becomes a
+                recording_gap.
+                """
+            method command
+            command "cargo test -p evidence-video a_tail_shorter_than_claimed_duration_is_a_recording_gap"
+            verified_by [ @evidence-intake-project.evidence.video-dropout-gap/1 ]
+        }
+        check mapper-scenes {
+            statement """
+                Hand-built scene cuts map to suggested observations whose locators
+                match the fixture clock style and import as SourceKind::Video.
+                """
+            method command
+            command "cargo test -p evidence-video a_scene_observation_enters_suggested_on_the_original_timeline"
+            verified_by [
+                @evidence-intake-project.evidence.video-scene-suggested-on-timeline/1
+            ]
+        }
+    }
+    implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
 }
 
 record evidence-intake-project.workspace.source-linked-export/1 : work {

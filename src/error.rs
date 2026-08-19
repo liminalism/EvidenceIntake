@@ -72,6 +72,14 @@ pub enum Error {
         /// The application identifier or the claim being repeated.
         id: String,
     },
+    /// A write tried to attach a record that belongs to a different case.
+    #[error("{kind} `{id}` belongs to another case; cases do not share records")]
+    WrongCase {
+        /// The type of record being attached.
+        kind: &'static str,
+        /// The application identifier that belongs elsewhere.
+        id: String,
+    },
     /// A review decision asked for a state change the workflow does not allow.
     #[error("cannot move {target} `{id}` from `{from}` to `{to}`: {reason}")]
     InvalidTransition {

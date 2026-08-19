@@ -1,6 +1,97 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.decision.adapters-may-propose-structural-edges/1 : decision {
+    title "A NormalizedBatch may carry suggested structural edges (temporally_overlaps, derived_from, refers_to) between nodes the case already holds"
+    state proposed
+    scope [
+        path "adapters/**",
+        path "docs/normalized-input.md",
+        path "src/ingest.rs",
+        path "src/store.rs"
+    ]
+    decision """
+        The ingest contract gains `NormalizedBatch.edges: Vec<NormalizedEdge>` (serde default empty, so every existing batch document still parses). A NormalizedEdge names two endpoints by (NodeKind, id) restricted to Source and Content, a relation restricted to the structural kinds `temporally_overlaps`, `derived_from` and `refers_to`, a required written rationale, and an ExtractionProvenance that must be machine_generated with review_state `suggested`. `import_normalized` inserts them after the batch's own sources and content, in the same transaction, with `created_by = "suggest:<extractor>@<version>"` -- the same prefix the analyzers use, because that prefix is how `review_queue` recognises a machine-proposed edge and an adapter's proposal is exactly that. Import refuses: an endpoint that does not exist in the case (checked with the same node lookup `link_evidence` uses, after the batch's own rows are inserted, so a batch may relate the sources it brings), an endpoint in another case, any relation outside the three, any non-suggested or human-attributed provenance, an empty rationale, and an edge already held between the same pair in either direction with the same relation. A batch may contain edges and no sources at all: that is how a later pass relates two originals imported on different days.
+        """
+    context """
+        The cross-camera audio sync slice needs to state one fact about two originals -- camera B's soundtrack lags camera A's by so many milliseconds -- and the kernel had no place for it: `import_normalized` refuses an already-imported source id or hash, and NormalizedBatch carried only sources, segments and content. An observation on one source's segment naming the other in prose would be lossy and one-sided; the kernel already has the vocabulary (`EdgeKind::TemporallyOverlaps`, `NodeKind::Source`) and the machine-edge convention (`suggest:` created_by, direction-blind duplicate check) from the analyzers. Restricting adapters to structural relations keeps the evaluative ones (supports, contradicts, corroborates, impeaches ...) with the analyzers and with people: an adapter measures how records sit relative to each other; it never says what they establish. Derived stills also finally get an honest `derived_from` edge to their original instead of a prose note.
+        """
+    consequences """
+        docs/normalized-input.md documents the edge shape. The video adapter's soundtrack, still, and sync mappers can emit edges; the first users are `derived_from` (still -> original video, statement content -> soundtrack) and `temporally_overlaps` (source A -> source B with the measured offset and correlation peak in the rationale). The numeric offset lives in the rationale text with a stable leading form (`audio cross-correlation: <B> lags <A> by <n> ms (peak <p>)`) rather than a new column: normalising two device clocks onto one axis remains a hypothesis a person writes as a time_basis, so the kernel needs the measurement to be reviewable, not computable. Whether a later pass may also append new segments to an already-imported identical original is a separate open question (@evidence-intake-project.ingest.append-to-identical-source-question).
+        """
+    claim endpoints-in-case {
+        text """
+            Both endpoints must exist in the batch's case (including nodes the same batch inserts); a batch of edges alone is valid.
+            """
+    }
+    claim no-duplicate-pair {
+        text """
+            An edge already held between the same two nodes with the same relation, in either direction, is refused.
+            """
+    }
+    claim structural-only {
+        text """
+            An imported edge's relation is one of temporally_overlaps, derived_from, refers_to; import refuses every other EdgeKind from an adapter.
+            """
+    }
+    claim suggested-only {
+        text """
+            An imported edge is machine_generated, enters `suggested`, and is written with the `suggest:` created_by prefix so the review queue treats it as machine-proposed.
+            """
+    }
+    depends_on [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+}
+
+record evidence-intake-project.decision.audio-adapter-native-whisper-engine/1 : decision {
+    title "The audio adapter transcribes in process with a feature-gated fork of franken_whisper, not whisper-rs"
+    state proposed
+    scope [ path "adapters/audio/**" ]
+    decision """
+        The `--model-path` backend of `evidence-audio` is `NativeWhisperBackend` (adapters/audio/src/native.rs), built on the pure-Rust native engine of franken_whisper (github.com/Dicklesworthstone/franken_whisper). It replaces the whisper-rs/whisper.cpp backend, which is removed. The crate is consumed with `default-features = false` from a local fork -- sibling checkout `../franken_whisper`, branch `evidence-intake`, `upstream` remote pointing at the original -- whose only change is a `full` feature (default-on upstream) that gates the CLI, orchestrator, bridge backends, diarization, storage, sync, robot and YouTube modules, plus a `distribution` feature for the model downloader. The engine reads the same ggml/gguf files whisper.cpp reads; the adapter never resolves or downloads a model. Statements are stamped `franken_whisper@<model>/<crate version>`. The `native-whisper` feature is on by default because the build is pure Rust (no cmake, no C++ toolchain).
+        """
+    context """
+        Unforked, franken_whisper pulls 353 crates including a TLS stack, a second pure-Rust SQLite, and an async runtime -- none of it reachable from the engine, none of it optional. The engine itself (src/native_engine) depends only on ft-core, ft-kernel-cpu, half, rayon, serde, sha2 and thiserror, about thirty crates. Gating the rest raised the adapter's dependency count from 90 to 118 rather than to 350. The upstream license is MIT with a rider withholding rights from named AI companies; the owner judged that rider not to bear on this project's use of it, and intends to move the project off AGPL. Measured on jfk.wav (11 s) with tiny.en on a plain `nightly` build without target-cpu flags: 0.54 s wall.
+        """
+    consequences """
+        The engine's decode parameters can be overridden by `FW_*` environment variables (FW_BEAM_SIZE, FW_INITIAL_PROMPT, FW_TEMP_BEST_OF, FW_RETRY_FAILED_WINDOW, ...) which the stamped version string does not record; an operator's environment could change decoding silently. Word timings from the engine carry no per-word probability, so statement confidence is the segment's exp(mean token logprob) carried through `avg_logprob`. The upstream measures its speed advantage with `-C target-cpu=x86-64-v3`; without that flag in this workspace's cargo config the kernels run on the SSE2 baseline. The path dependency assumes the sibling checkout exists; a git dependency on a pushed fork would make clean clones build. Syncing upstream means merging into `evidence-intake` and re-checking `cargo check --no-default-features` in the fork.
+        """
+    claim engine-only-dependency-surface {
+        text """
+            With `default-features = false` the fork compiles only `native_engine`, `error`, `transcript`, and the offline (cache-lookup, hash-verify) half of `model_distribution`; `cargo check --no-default-features` and the lib unit tests build without asupersync, fsqlite, symphonia, clap-driven CLI, or tracing-subscriber.
+            """
+    }
+    claim same-model-files {
+        text """
+            NativeWhisperModel::load takes an explicit ggml/gguf path (f16/f32 and Q4_0/Q5_0/Q5_1/Q8_0), so operators' existing whisper.cpp model files keep working and no weight is ever downloaded by the adapter.
+            """
+    }
+}
+
+record evidence-intake-project.decision.not-a-case-management-system/1 : decision {
+    title "The product is discovery collation, not a CMS, DEMS or time tracker; platform interop is at the export-folder level"
+    state proposed
+    scope [ all ]
+    decision """
+        The software reads a discovery production and produces the discovery review a defender otherwise writes by hand -- what the state has for each element, what contradicts, what is missing, what to raise, what to ask the client -- through the existing read models (Overview, CaseStanding, DecisionBrief, exports). It does not become a case-management system: no calendar, scheduling, notes-as-CMS, SMS, timekeeping, reporting for funders, client demographics, conflict checks, or document assembly. It does not become a digital evidence management system that hosts, streams, redacts or shares productions. Interoperability with the platforms discovery arrives on (Axon Evidence exports, prosecutor portals, USB dumps) is at the file level: ingest the exported folder -- media plus its metadata and audit CSV -- into a production; never integrate with the platform, log in to it, or hold credentials for it.
+        """
+    context """
+        Practitioner threads in r/publicdefenders describe DefenderData, Clio, MyCase and LegalServer; every complaint is CMS UX (calendar, notes placement, mobile, reports, tabs) and every positive use is administrative (dockets by date, assignments, storing Axon links). None of it is analysis of the record. Meanwhile the artifact defenders build from a discovery packet by hand -- a Word memo of charges, exposure, brief facts, witnesses, bond, criminal history and open issues, written "so anyone can pick up my file" -- is exactly the read models this kernel already produces. Building CMS features would compete with entrenched, cheap, funder-mandated tools on their turf; the collation kernel is the part nobody serves.
+        """
+    consequences """
+        Feature requests that are really CMS or DEMS requests are declined and pointed at the office's existing system; the export read models are the integration surface for anyone who wants collation output inside a CMS. An Axon export-folder ingest is a legitimate adapter and can be planned; an Axon API client is not. Case isolation and the docket view stay minimal: enough to open, list and separate cases, not to manage them.
+        """
+    claim file-level-interop {
+        text """
+            Discovery platforms are integrated only by ingesting their exported folders; the software never authenticates to a platform.
+            """
+    }
+    claim not-a-cms {
+        text """
+            No calendar, scheduling, timekeeping, messaging, funder reporting, client demographics or document assembly is built into the kernel or its GUI.
+            """
+    }
+}
+
 record evidence-intake-project.decision.painted-window-chrome/1 : decision {
     title "The Windows frontend keeps native buttons and paints its own depth and grouping"
     state proposed
@@ -62,6 +153,120 @@ record evidence-intake-project.decision.structure-not-verdict/1 : decision {
     claim structure-is-checkable {
         text """
             "One supporting proposition, one source behind it, nobody has opened it" is a description of the record whose every part can be verified and argued with; "this element is weak" is an argument belonging to the person who signs the motion.
+            """
+    }
+}
+
+record evidence-intake-project.decision.video-intake-points-never-asserts/1 : decision {
+    title "Video is in scope as intake that points at the original; video analysis that asserts a fact is forensics and out"
+    state proposed
+    scope [
+        path "adapters/audio/**",
+        path "adapters/video/**",
+        path "src/export.rs",
+        path "src/suggest.rs"
+    ]
+    decision """
+        The video adapter stays in the product, and the line it may not cross is not "video versus no video" but "point versus assert". Every output of video intake is a locator on the original -- container hash, start and end time on the original timeline, and a derived still -- carrying a suggested, machine-stamped label that tells a lawyer where to look. No video output ever states what the video shows as a fact: it never names a person, never verifies itself, never reaches an export as anything but an unreviewed machine suggestion. Reviewing discovery, including watching every minute of body-worn camera, is core defense work; producing a new evidentiary claim from footage that an expert would have to sponsor is forensics and belongs to a retained expert, not this software.
+
+        In scope, in priority order. Tier 1, deterministic and no neural net: container hash and metadata (device, claimed versus actual duration, creation time), scene cuts, dropout and recording_gap, silent-segment detection, OCR of the burned-in clock overlay as raw_time per scene, multi-camera alignment by audio cross-correlation, and the video's audio track through the audio adapter (ASR with anonymous SPEAKER_nn diarization). Tier 2, a coarse visual finder that runs overnight and is optional: per-keyframe text-to-frame retrieval (CLIP/SigLIP-class embeddings, or open-vocabulary boxes from OWLv2/Grounding-DINO/YOLO-World-class detectors) tuned for recall over precision because a person reviews every hit; and one VLM caption per scene as a skim index, indexed by FTS as machine-generated content of a derived source. Tier 3 is excluded by @evidence-intake-project.video.no-forensic-assertions.
+        """
+    context """
+        Body-worn camera is the dominant discovery burden, not a corner case: an OJP survey found BWC review takes more than ten hours a month for over two-thirds of defenders and 63% say most cases carry audiovisual evidence; felony attorneys in some offices carry about 100 cases with four to six hours of BWC each and review by watching and typing into Word; 93% of Virginia defenders reported being unable to review all footage. Practitioner threads in r/publicdefenders show Axon links stored in the case-management system as routine. So dropping video would leave out the modality that costs the most hours -- but those hours are spent finding things in footage, not analysing it, which is what fixes the boundary. The closed-set detectors (COCO has no gun class) and the vendored gun-detection paper are finders for one class each; embedding retrieval indexes once and answers arbitrary queries later, which suits a tool that cannot predict what a defense will need. Identity claims (face, gait, voice, speaker-to-face) are the exact thing rules 1 and 3 and the no-automatic-possibly_same_person invariant already forbid a machine to make. Speed, enhancement, authenticity and reconstruction each produce an assertion needing calibration or an expert.
+        """
+    consequences """
+        The four proposed video work records (scene-core, detector-observations, scene-captions, analyze-job) implement this decision and keep their cannot-verify claims. Detections and captions may be searched and reviewed but never quoted in an export as fact; the export read models treat them as unreviewed inclusions and count them in the header. Video adds two deterministic slices before any further model work: clock-overlay OCR (@evidence-intake-project.video.clock-overlay-ocr) and cross-camera audio sync (@evidence-intake-project.video.audio-cross-correlation-sync), and routes its audio through the audio adapter (@evidence-intake-project.video.audio-track-through-audio-adapter). Text-to-frame retrieval (@evidence-intake-project.video.keyframe-embedding-retrieval) is the preferred visual finder over adding detector classes. The GUI must render machine video suggestions as visibly unreviewed and one action from the original still and time range, since the remaining risk is social: a caption that reads like a finding.
+        """
+    claim captions-are-skim-index {
+        text """
+            VLM scene captions exist to answer "should I watch this scene"; they are searchable machine-generated content and are never quotable as what the video shows.
+            """
+    }
+    claim finder-recall-over-precision {
+        text """
+            Visual finders are tuned for recall: a false positive costs a lawyer one look at a still, a false negative hides evidence, and every hit is reviewed by a person.
+            """
+    }
+    claim intake-yes-analysis-no {
+        text """
+            Video intake (locating, indexing, gap-finding, aligning) is in scope; video analysis that produces a new evidentiary claim (identity, speed, authenticity, enhancement, reconstruction) is out.
+            """
+    }
+    claim point-never-assert {
+        text """
+            Every record the video adapter emits is a suggested observation addressed to the original by container hash and a time range on the original timeline, with a derived still; none names a person, none enters a reviewed or verified state, and none is exported as a fact.
+            """
+    }
+    source {
+        kind external
+        role evidence
+        url "https://justicetext.com/digital-evidence/"
+        use """
+            Felony attorneys carry ~100 cases with four to six hours of BWC each; review is manual with a word processor. Vendor material, non-authoritative.
+            """
+    }
+    source {
+        kind external
+        role evidence
+        url "https://learninglab.nlada.org/products/ai-for-bodycam-review-how-public-defenders-are-challenging-police-narratives-with-video-evidence"
+        use """
+            NLADA trains defenders on AI-assisted bodycam review, i.e. review-and-locate, not forensic analysis.
+            """
+    }
+    source {
+        kind external
+        role evidence
+        url "https://www.cpr.org/2026/01/02/overwhelming-digital-evidence-body-cam-footage/"
+        use """
+            Police, prosecutors and defenders all report the volume of BWC footage as unmanageable.
+            """
+    }
+    source {
+        kind external
+        role evidence
+        url "https://www.gothamgazette.com/city/6879-thousands-of-low-profile-cases-could-turn-on-police-body-camera-footage/"
+        use """
+            93% of Virginia public defenders reported difficulty finding time to review all footage.
+            """
+    }
+    source {
+        kind external
+        role evidence
+        url "https://www.ojp.gov/library/publications/evidentiary-value-body-worn-camera-footage-survey-prosecutors-and-public"
+        use """
+            Survey: BWC review exceeds ten hours a month for over two-thirds of defenders; 63% say most cases carry audiovisual evidence.
+            """
+    }
+    source {
+        kind external
+        role example
+        url "https://www.reddit.com/r/publicdefenders/"
+        use """
+            Threads "Public Defender Workflows and Software" and "How do *you* use DefenderData?": Axon links kept in the CMS as routine; the hand-written discovery review memo (charges, exposure, facts, witnesses, issues) is the artifact defenders produce from a packet.
+            """
+    }
+    source {
+        kind internal
+        role origin
+        path "PLAN.md"
+        start_byte 7756
+        end_byte 8066
+        start_line 129
+        end_line 132
+        use """
+            The visual-channel thesis: object detection plus per-scene narration analyses what is shown, and bodycam audio is often useless exactly when the visual channel matters.
+            """
+    }
+    source {
+        kind internal
+        role origin
+        path "collation-first-plan.md"
+        start_byte 14462
+        end_byte 14825
+        start_line 369
+        end_line 369
+        use """
+            Phase E: OCR, ASR, diarization, object detection and scene descriptions are adapters that do not solve legal collation.
             """
     }
 }

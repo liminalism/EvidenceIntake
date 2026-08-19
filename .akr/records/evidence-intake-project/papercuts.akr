@@ -34,6 +34,17 @@ record evidence-intake-project.papercut.adding-the-evidence-gui-binary-made-the-
     created_at 2026-08-09
 }
 
+record evidence-intake-project.papercut.akr-mcp-timed-out-after-65s-on-the-first/1 : papercut {
+    title "AKR MCP timed out after 65s on the first knowledge call; the CLI is kr…"
+    state verified
+    statement """
+        AKR MCP timed out after 65s on the first knowledge call; the CLI is kr start / kr propose, not kr knowledge start. Used the CLI for the rest of the session.
+        """
+    observed_at git:aa07b628e8b4d3c7153ced96e0d9f1e08f5aa53c
+    author "grok"
+    created_at 2026-08-14
+}
+
 record evidence-intake-project.papercut.akr-propose-from-help-says-a-file-holding-the/1 : papercut {
     title "'akr propose --from' help says a file holding the record body but does…"
     state verified
@@ -43,6 +54,17 @@ record evidence-intake-project.papercut.akr-propose-from-help-says-a-file-holdin
     observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
     author "codex"
     created_at 2026-08-09
+}
+
+record evidence-intake-project.papercut.codegraph-explore-hung-16-minutes-on-a-12-file/1 : papercut {
+    title "codegraph_explore hung ~16 minutes on a 12-file query…"
+    state verified
+    statement """
+        codegraph_explore hung ~16 minutes on a 12-file query (Command/Cases/Workspace/require_case). Prefer node/search/read over explore on this workspace.
+        """
+    observed_at git:aa07b628e8b4d3c7153ced96e0d9f1e08f5aa53c
+    author "grok"
+    created_at 2026-08-14
 }
 
 record evidence-intake-project.papercut.i-passed-scope-terms-as-path-src-gui-winsafe-rs/1 : papercut {
@@ -81,6 +103,18 @@ record evidence-intake-project.papercut.knowledge-propose-returns-lock-stale-tru
     created_at 2026-08-10
 }
 
+record evidence-intake-project.papercut.knowledge-revise-on-a-proposed-decision-in/1 : papercut {
+    title "knowledge.revise on a proposed decision (in-place, rev stays 1)…"
+    state verified
+    statement """
+        knowledge.revise on a proposed decision (in-place, rev stays 1) silently dropped the record's source attributions when `sources` was omitted, and passing `sources` explicitly on a later revise did not write them back (content hash unchanged, no `source` block in the file); knowledge.propose with the same payload had persisted them. Also, propose rejects a source with start_line/end_line alone (needs start_byte/end_byte too) which forces callers to compute byte offsets by hand.
+        """
+    observed_at git:ca09910b8adc43f55720ac1a9ba05a9064de0734
+    about "akr"
+    author "claude"
+    created_at 2026-08-19
+}
+
 record evidence-intake-project.papercut.ran-knowledge-context-goal-on-a-project-whose/1 : papercut {
     title "Ran knowledge.context --goal on a project whose ledger held only the…"
     state verified
@@ -113,4 +147,15 @@ record evidence-intake-project.papercut.the-first-gui-smoke-screenshot-used/1 : 
     observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
     author "codex"
     created_at 2026-08-09
+}
+
+record evidence-intake-project.papercut.video-transcriber-mcp-looks-like-a-reusable/1 : papercut {
+    title "video-transcriber-mcp looks like a reusable Whisper crate on lib.rs but…"
+    state verified
+    statement """
+        video-transcriber-mcp looks like a reusable Whisper crate on lib.rs but it is an MCP/YouTube downloader (yt-dlp, axum, REMOTE_WHISPER_URL). The reusable engine is whisper-rs. Putting whisper-rs behind a Cargo feature still gets compiled by the repo's cargo clippy --all-features.
+        """
+    observed_at git:aa07b628e8b4d3c7153ced96e0d9f1e08f5aa53c
+    author "grok"
+    created_at 2026-08-14
 }

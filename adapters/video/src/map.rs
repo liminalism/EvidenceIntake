@@ -2,8 +2,9 @@
 
 use evidence_audio::{format_clock, format_locator};
 use evidence_intake::{
-    CaseId, ContentKind, ExtractionProvenance, NormalizedBatch, NormalizedContent,
-    NormalizedSegment, NormalizedSource, ReviewState, SourceKind, TemporalRelation,
+    CaseId, ContentKind, EdgeKind, ExtractionProvenance, NodeKind, NormalizedBatch,
+    NormalizedContent, NormalizedEdge, NormalizedSegment, NormalizedSource, ReviewState,
+    SourceKind, TemporalRelation,
 };
 
 use crate::caption::{EXTRACTOR_CAPTION, SceneCaption};
@@ -196,16 +197,39 @@ pub fn scenes_to_batch(
         segments: video_segments,
     }];
 
+    let mut edges = Vec::new();
     for scene in &analysis.scenes {
         if let Some(still) = &scene.keyframe {
-            sources.push(still_source(identity, scene, still));
+            let source = still_source(identity, scene, still);
+            edges.push(derived_from_edge(identity, scene, &source.id));
+            sources.push(source);
         }
     }
 
     Ok(NormalizedBatch {
         case_id: identity.case_id.clone(),
         sources,
+        edges,
     })
+}
+
+/// The still is a working copy cut from the video: say so structurally.
+fn derived_from_edge(identity: &VideoIdentity, scene: &Scene, still_id: &str) -> NormalizedEdge {
+    NormalizedEdge {
+        id: format!("{}-stilledge-{:04}", identity.source_id, scene.index),
+        from_kind: NodeKind::Source,
+        from_id: still_id.to_owned(),
+        relation: EdgeKind::DerivedFrom,
+        to_kind: NodeKind::Source,
+        to_id: identity.source_id.clone(),
+        rationale: format!(
+            "Keyframe extracted by ffmpeg from `{}` at {} (scene {}); a derived working copy,              not the original.",
+            identity.logical_name,
+            format_clock(scene.start_ms),
+            scene.index
+        ),
+        extraction: machine(EXTRACTOR_KEYFRAME, None),
+    }
 }
 
 fn scene_locator(scene: &Scene) -> String {

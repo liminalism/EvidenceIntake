@@ -127,6 +127,7 @@ fn imported_content_is_findable_immediately() {
     store
         .import_normalized(&NormalizedBatch {
             case_id: case.clone(),
+            edges: Vec::new(),
             sources: vec![NormalizedSource {
                 id: "search-source".to_owned(),
                 production_id: "hr-prod-initial".to_owned(),

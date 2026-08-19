@@ -55,9 +55,12 @@ The checked-in toolchain file selects current Rust nightly.
 
 ```sh
 cargo run -- init
+cargo run -- new-case --name "State v. Hall" --reference PD-2026-0900
+cargo run -- new-production case-id-from-new-case --label "Brady disk 1" --from Prosecution
 cargo run -- seed vehicle-stop
 cargo run -- seed hit-and-run
 cargo run -- cases
+cargo run -- productions case-hit-run-001
 cargo run -- view case-vehicle-stop-001 overview
 cargo run -- view case-vehicle-stop-001 standing
 cargo run -- view case-vehicle-stop-001 discovery

@@ -1,6 +1,16 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.ingest.append-to-identical-source-question/1 : question {
+    title "May a later pass append new segments to an already-imported source when the hash and length match exactly?"
+    state open
+    scope [ path "src/ingest.rs", path "src/store.rs" ]
+    question """
+        import_normalized refuses an existing source id or hash so evidence is never silently replaced. That also means every extraction of a video (scenes, detections, captions, clock readings, soundtrack) must arrive in the one batch that first imports it; running the VLM or OCR a week later against a video already in the case has nowhere to land, which contradicts the overnight-job story. Appending segments (never touching the source row) when id, production, sha256 and byte_length all match and every segment id is new does not replace anything -- but it changes a stated invariant and needs a decision, a test that a differing hash or a reused segment id is still refused, and a look at what the case-isolation checks assume. Edges between existing sources are already possible without it (@evidence-intake-project.decision.adapters-may-propose-structural-edges).
+        """
+    depends_on [ @evidence-intake-project.decision.adapters-may-propose-structural-edges ]
+}
+
 record evidence-intake-project.review.reassessment-trail-audience/1 : question {
     title "Who is the element re-assessment trail for?"
     state open
@@ -18,4 +28,24 @@ record evidence-intake-project.review.reassessment-trail-audience/1 : question {
             The two audiences imply different schemas, not just different views, so building either one before the question is answered means building the wrong one. This was deliberately left out of the element-mapping slice rather than decided as a side effect of it.
             """
     }
+}
+
+record evidence-intake-project.video.anonymous-tracking-question/1 : question {
+    title "Does anonymous within-clip tracking (track_n, no identity) belong in scope, or is it identity by another name?"
+    state open
+    scope [ path "adapters/video/**" ]
+    question """
+        A tracker (ByteTrack/DeepSORT class) can say "the same figure appears at 0:12, 3:40 and 7:02" as track_3 without naming anyone, and a person could then author a possibly_same_person edge from track_3 to an entity with a rationale -- indexing, not identification, and structurally like SPEAKER_nn diarization. It is deferred, not excluded, because the payoff over text-to-frame retrieval ("find frames with a person") is modest and the temptation to let a track become an identity is real. Decide once retrieval and the deterministic slices exist: does a track add enough over retrieval to justify a machine-asserted "same figure" claim, and if so what keeps it from becoming an identity assertion (no re-identification across clips, no appearance embedding stored, track ids never exported)?
+        """
+    depends_on [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+}
+
+record evidence-intake-project.video.soundtrack-pts-offset-question/1 : question {
+    title "Does the soundtrack ffmpeg extracts share the video stream's zero, or can a container's audio start_time shift every statement by a fixed delta?"
+    state open
+    scope [ path "adapters/audio/src/media.rs", path "adapters/video/src/soundtrack.rs" ]
+    question """
+        merge_soundtrack proves both adapters hashed the same container, but not that the audio timeline the ASR saw is the video timeline the scene cutter saw. If a container carries a non-zero audio start_time (or the streams' PTS bases differ), evidence_audio::open_media's ffmpeg wav extraction may drop or shift the lead-in and every statement sits a fixed delta off the scenes while nothing notices. Resolve with an ffmpeg-guarded integration test: mux a clip with a known video-frame event and a beep at a known second, with a deliberate audio start_time offset, and assert the statement/scene locators agree; if they do not, `extract_wav` needs `-copyts`/`-start_at_zero` handling or an explicit offset carried into the merge.
+        """
+    depends_on [ @evidence-intake-project.video.audio-track-through-audio-adapter ]
 }

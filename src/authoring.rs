@@ -273,6 +273,83 @@ pub struct WorkProductVersion {
     pub created_at: String,
 }
 
+/// A new case a person is opening in this database.
+///
+/// Opening a case is not authoring evidence. It creates the empty docket row
+/// and a first production so intake has a ledger to attach originals to.
+/// Nothing in the case is reviewed or verified.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProposedCase {
+    /// Stable identifier. A generated one is used when this is absent.
+    #[serde(default)]
+    pub id: Option<String>,
+    /// The name as it should appear on the docket.
+    pub name: String,
+    /// Docket, incident, or file number.
+    #[serde(default)]
+    pub reference: Option<String>,
+    /// Court or charging jurisdiction.
+    #[serde(default)]
+    pub jurisdiction: Option<String>,
+    /// Label for the first production. Defaults to `Initial production`.
+    #[serde(default)]
+    pub production: Option<String>,
+}
+
+/// A case as it was opened.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OpenedCase {
+    /// Stable identifier.
+    pub id: String,
+    /// The name as stored.
+    pub name: String,
+    /// Docket, incident, or file number, if given.
+    pub reference: Option<String>,
+    /// Court or charging jurisdiction, if given.
+    pub jurisdiction: Option<String>,
+    /// The first production, opened with the case.
+    pub production: OpenedProduction,
+}
+
+/// A new production on an existing case.
+///
+/// A production is the intake hook: every original must belong to one. It is
+/// not evidence and carries no review state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProposedProduction {
+    /// Stable identifier. A generated one is used when this is absent.
+    #[serde(default)]
+    pub id: Option<String>,
+    /// How this delivery is labelled on the ledger.
+    pub label: String,
+    /// When the production was received, if recorded.
+    #[serde(default)]
+    pub received_at: Option<String>,
+    /// Who produced it.
+    #[serde(default)]
+    pub producing_party: Option<String>,
+    /// Anything worth recording about the delivery itself.
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+/// A production as it was opened.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OpenedProduction {
+    /// Stable identifier.
+    pub id: String,
+    /// Case that owns this production.
+    pub case_id: String,
+    /// Ledger label.
+    pub label: String,
+    /// When the production was received, if recorded.
+    pub received_at: Option<String>,
+    /// Who produced it.
+    pub producing_party: Option<String>,
+    /// Notes about the delivery, if given.
+    pub notes: Option<String>,
+}
+
 /// A relationship as it was written into the case.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AuthoredLink {
