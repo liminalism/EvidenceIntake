@@ -28,8 +28,8 @@ pub use export::{
 };
 pub use fixture::DemoFixture;
 pub use ingest::{
-    ExtractionProvenance, NormalizedBatch, NormalizedContent, NormalizedEdge, NormalizedSegment,
-    NormalizedSource,
+    ExtractionProvenance, IndexedKeyframe, KeyframeIndex, NormalizedBatch, NormalizedContent,
+    NormalizedEdge, NormalizedSegment, NormalizedSource,
 };
 pub use model::{
     AdvocacyKind, CaseId, ChargePosture, ContentKind, EdgeKind, ElementAssessment, EntityKind,
@@ -40,6 +40,7 @@ pub use store::Store;
 pub use suggest::{AnalyzerReport, Finding, SuggestionKind, SuggestionRun};
 pub use views::{
     CaseStanding, CaseSummary, ChargeStanding, DecisionBrief, DiscoveryItem, ElementCoverage,
-    ElementRow, ElementStanding, IssueWorkspace, LiveDispute, LoadBearingSource, OffenseComparison,
-    OpenGap, Overview, PropositionEvidence, SearchHit, TimelineEntry, WitnessStatement,
+    ElementRow, ElementStanding, IssueWorkspace, KEYFRAME_SIMILARITY_CUT, KeyframeHit, LiveDispute,
+    LoadBearingSource, OffenseComparison, OpenGap, Overview, PropositionEvidence, SearchHit,
+    TimelineEntry, WitnessStatement,
 };

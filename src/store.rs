@@ -11,11 +11,12 @@ use crate::{
     AuthoredLink, AuthoredProposition, CaseExport, CaseId, CaseStanding, CaseSummary,
     ChargeStanding, DecisionBrief, DiscoveryItem, EdgeKind, ElementAssessment, ElementCoverage,
     ElementRow, ElementStanding, Error, ExportAudience, ExportedProposition, ExportedWorkProduct,
-    IssueWorkspace, LiveDispute, LoadBearingSource, NodeKind, NodeRef, NormalizedBatch,
-    OffenseComparison, OpenGap, OpenedCase, OpenedProduction, Overview, ProposedAdvocacyItem,
-    ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge, ProposedElementMapping,
-    ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition, PropositionEvidence,
-    Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, SearchHit,
+    IndexedKeyframe, IssueWorkspace, KEYFRAME_SIMILARITY_CUT, KeyframeHit, KeyframeIndex,
+    LiveDispute, LoadBearingSource, NodeKind, NodeRef, NormalizedBatch, OffenseComparison, OpenGap,
+    OpenedCase, OpenedProduction, Overview, ProposedAdvocacyItem, ProposedAnnotation,
+    ProposedBrief, ProposedCase, ProposedCharge, ProposedElementMapping, ProposedEntity,
+    ProposedLink, ProposedProduction, ProposedProposition, PropositionEvidence, Result,
+    ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, SearchHit,
     SuggestionKind, SuggestionRun, TimelineEntry, UnsupportedProposition, WitnessStatement,
     WorkProductVersion, review::transition_allowed, suggest::Finding,
 };
@@ -27,7 +28,7 @@ use crate::{
 /// migrations stay additive and re-runnable regardless: a database at any
 /// earlier version — including one written before this stamp existed, which
 /// reads as zero — runs all of them again.
-const SCHEMA_VERSION: i64 = 8;
+const SCHEMA_VERSION: i64 = 9;
 
 /// Distinct prepared statements kept compiled per connection.
 ///
@@ -110,6 +111,7 @@ impl Store {
         connection.execute_batch(include_str!("../migrations/0006_read_paths.sql"))?;
         connection.execute_batch(include_str!("../migrations/0007_search.sql"))?;
         connection.execute_batch(include_str!("../migrations/0008_case_isolation.sql"))?;
+        connection.execute_batch(include_str!("../migrations/0009_keyframe_embeddings.sql"))?;
         Ok(())
     }
 
@@ -1082,6 +1084,273 @@ impl Store {
             .map(|mut hit| {
                 hit.bears_on = by_content.remove(&hit.id).unwrap_or_default();
                 hit
+            })
+            .collect())
+    }
+
+    /// Stores embeddings against derived stills the case already holds.
+    ///
+    /// This is a finder index, not evidence: the write inserts no content and
+    /// no edge. A still that is not `derived_from` another source in this case
+    /// is refused. Re-running the same `(source_id, model)` replaces the vector.
+    pub fn index_keyframes(&mut self, index: &KeyframeIndex) -> Result<()> {
+        self.require_case(&index.case_id)?;
+        if index.embeddings.is_empty() {
+            return Err(Error::InvalidIndex(
+                "an index needs at least one keyframe".to_owned(),
+            ));
+        }
+
+        let mut seen = HashSet::new();
+        let mut model_dim: HashMap<&str, usize> = HashMap::new();
+        for item in &index.embeddings {
+            validate_embedding_vector(item)?;
+            if !seen.insert((item.source_id.as_str(), item.model.as_str())) {
+                return Err(Error::InvalidIndex(format!(
+                    "still `{}` is embedded twice for model `{}` in this index",
+                    item.source_id, item.model
+                )));
+            }
+            match model_dim.entry(item.model.as_str()) {
+                std::collections::hash_map::Entry::Occupied(existing)
+                    if *existing.get() != item.vector.len() =>
+                {
+                    return Err(Error::InvalidIndex(format!(
+                        "model `{}` mixes {}- and {}-dimensional vectors",
+                        item.model,
+                        existing.get(),
+                        item.vector.len()
+                    )));
+                }
+                std::collections::hash_map::Entry::Vacant(slot) => {
+                    slot.insert(item.vector.len());
+                }
+                std::collections::hash_map::Entry::Occupied(_) => {}
+            }
+        }
+
+        let transaction = self.connection.transaction()?;
+        let mut source_case =
+            transaction.prepare_cached("SELECT case_id FROM sources WHERE id = ?1")?;
+        let mut is_derived = transaction.prepare_cached(
+            "SELECT 1 FROM edges
+             WHERE case_id = ?1 AND relation = 'derived_from'
+               AND source_kind = 'source' AND source_id = ?2
+               AND target_kind = 'source'",
+        )?;
+        let mut existing_dim = transaction.prepare_cached(
+            "SELECT dim FROM keyframe_embeddings WHERE case_id = ?1 AND model = ?2 LIMIT 1",
+        )?;
+        let mut upsert = transaction.prepare_cached(
+            "INSERT INTO keyframe_embeddings
+               (source_id, case_id, model, dim, vector, extractor, extractor_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(source_id, model) DO UPDATE SET
+               case_id = excluded.case_id,
+               dim = excluded.dim,
+               vector = excluded.vector,
+               extractor = excluded.extractor,
+               extractor_version = excluded.extractor_version",
+        )?;
+
+        let mut dim_written: HashMap<String, i64> = HashMap::new();
+        for item in &index.embeddings {
+            let owner: Option<String> = source_case
+                .query_row([&item.source_id], |row| row.get(0))
+                .optional()?;
+            match owner {
+                Some(owner) if owner == index.case_id.0 => {}
+                Some(_) => {
+                    return Err(Error::WrongCase {
+                        kind: "source",
+                        id: item.source_id.clone(),
+                    });
+                }
+                None => {
+                    return Err(Error::NotFound {
+                        kind: "source",
+                        id: item.source_id.clone(),
+                    });
+                }
+            }
+
+            let derived = is_derived
+                .query_row(params![index.case_id.0, item.source_id], |_| Ok(()))
+                .optional()?
+                .is_some();
+            if !derived {
+                return Err(Error::InvalidIndex(format!(
+                    "source `{}` is not a derived still",
+                    item.source_id
+                )));
+            }
+
+            let dim = i64::try_from(item.vector.len()).map_err(|_| {
+                Error::InvalidIndex(format!(
+                    "still `{}` vector is too long to store",
+                    item.source_id
+                ))
+            })?;
+            let stored: Option<i64> = match dim_written.get(&item.model) {
+                Some(value) => Some(*value),
+                None => existing_dim
+                    .query_row(params![index.case_id.0, item.model], |row| row.get(0))
+                    .optional()?,
+            };
+            if let Some(stored) = stored
+                && stored != dim
+            {
+                return Err(Error::InvalidIndex(format!(
+                    "model `{}` is {stored}-dimensional in this case, not {dim}",
+                    item.model
+                )));
+            }
+            dim_written.insert(item.model.clone(), dim);
+
+            upsert.execute(params![
+                item.source_id,
+                index.case_id.0,
+                item.model,
+                dim,
+                encode_vector(&item.vector),
+                item.extractor,
+                item.version
+            ])?;
+        }
+
+        drop(upsert);
+        drop(existing_dim);
+        drop(is_derived);
+        drop(source_case);
+        transaction.commit()?;
+        Ok(())
+    }
+
+    /// Finds stills whose embedding meets the cosine cut for `query`.
+    ///
+    /// Hits are ordered by still identifier, never by how close they scored.
+    /// The number is computed to apply the cut and then discarded. An unknown
+    /// model is an error so the operator can tell an unindexed case from a
+    /// query that matched nothing.
+    pub fn search_keyframes(
+        &self,
+        case_id: &CaseId,
+        model: &str,
+        query: &[f32],
+        limit: u32,
+    ) -> Result<Vec<KeyframeHit>> {
+        self.require_case(case_id)?;
+        let model = model.trim();
+        if model.is_empty() {
+            return Err(Error::InvalidSearch(
+                "a visual search needs a model".to_owned(),
+            ));
+        }
+        validate_query_vector(query)?;
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let mut statement = self.connection.prepare_cached(
+            "SELECT e.source_id, e.vector, e.dim, still.sha256,
+                    video.logical_name, video.sha256,
+                    seg.locator, c.review_state, c.machine_generated, c.id
+             FROM keyframe_embeddings e
+             JOIN sources still ON still.id = e.source_id AND still.case_id = e.case_id
+             JOIN edges der ON der.case_id = e.case_id
+               AND der.source_kind = 'source' AND der.source_id = e.source_id
+               AND der.relation = 'derived_from' AND der.target_kind = 'source'
+               AND der.review_state <> 'rejected'
+             JOIN sources video ON video.id = der.target_id AND video.case_id = e.case_id
+             JOIN source_segments seg ON seg.source_id = still.id
+             JOIN content c ON c.segment_id = seg.id AND c.case_id = e.case_id
+             WHERE e.case_id = ?1 AND e.model = ?2
+             ORDER BY e.source_id, c.id",
+        )?;
+        let rows = statement
+            .query_map(params![case_id.0, model], |row| {
+                Ok(IndexedRow {
+                    source_id: row.get(0)?,
+                    vector: row.get(1)?,
+                    dim: row.get(2)?,
+                    still_sha256: row.get(3)?,
+                    source: row.get(4)?,
+                    sha256: row.get(5)?,
+                    locator: row.get(6)?,
+                    review_state: row.get(7)?,
+                    machine_generated: row.get(8)?,
+                    content_id: row.get(9)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        if rows.is_empty() {
+            let any: bool = self.exists(
+                "SELECT 1 FROM keyframe_embeddings WHERE case_id = ?1 AND model = ?2 LIMIT 1",
+                params![case_id.0, model],
+            )?;
+            if any {
+                return Ok(Vec::new());
+            }
+            return Err(Error::InvalidSearch(format!(
+                "case has no keyframe embeddings for model `{model}`"
+            )));
+        }
+
+        let mut first_by_still: HashMap<String, IndexedRow> = HashMap::new();
+        for row in rows {
+            first_by_still.entry(row.source_id.clone()).or_insert(row);
+        }
+
+        let query_dim = i64::try_from(query.len()).unwrap_or(i64::MAX);
+        let mut scored = Vec::new();
+        for (source_id, row) in first_by_still {
+            if row.dim != query_dim {
+                return Err(Error::InvalidSearch(format!(
+                    "model `{model}` is {}-dimensional in this case, not {}",
+                    row.dim,
+                    query.len()
+                )));
+            }
+            let coordinates = decode_vector(&row.vector, row.dim)?;
+            let Some(similarity) = cosine(query, &coordinates) else {
+                continue;
+            };
+            if similarity + f64::EPSILON < KEYFRAME_SIMILARITY_CUT {
+                continue;
+            }
+            scored.push((source_id, row, similarity));
+        }
+        scored.sort_by(|left, right| left.0.cmp(&right.0));
+        scored.truncate(limit as usize);
+
+        let mut links = self.connection.prepare_cached(
+            "SELECT e.source_id, e.relation || ': ' || p.text
+             FROM edges e
+             JOIN propositions p ON p.id = e.target_id AND p.case_id = e.case_id
+             WHERE e.case_id = ?1 AND e.source_kind = 'content'
+               AND e.target_kind = 'proposition' AND e.review_state <> 'rejected'
+             ORDER BY e.source_id, e.relation, p.text",
+        )?;
+        let mut by_content: HashMap<String, Vec<String>> = HashMap::new();
+        for row in links.query_map([&case_id.0], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })? {
+            let (content_id, description) = row?;
+            by_content.entry(content_id).or_default().push(description);
+        }
+
+        Ok(scored
+            .into_iter()
+            .map(|(_, row, _)| KeyframeHit {
+                source_id: row.source_id,
+                still_sha256: row.still_sha256,
+                source: row.source,
+                sha256: row.sha256,
+                locator: row.locator,
+                review_state: row.review_state,
+                machine_generated: row.machine_generated,
+                bears_on: by_content.remove(&row.content_id).unwrap_or_default(),
             })
             .collect())
     }
@@ -3276,6 +3545,109 @@ fn require_justification(
     }
 }
 
+/// One stored keyframe vector plus the still and original it points at.
+struct IndexedRow {
+    source_id: String,
+    vector: Vec<u8>,
+    dim: i64,
+    still_sha256: String,
+    source: String,
+    sha256: String,
+    locator: String,
+    review_state: String,
+    machine_generated: bool,
+    content_id: String,
+}
+
+fn validate_embedding_vector(item: &IndexedKeyframe) -> Result<()> {
+    if item.source_id.trim().is_empty() {
+        return Err(Error::InvalidIndex(
+            "an embedding needs a still source id".to_owned(),
+        ));
+    }
+    if item.model.trim().is_empty() {
+        return Err(Error::InvalidIndex(
+            "an embedding needs a model name".to_owned(),
+        ));
+    }
+    if item.extractor.trim().is_empty() || item.version.trim().is_empty() {
+        return Err(Error::InvalidIndex(format!(
+            "still `{}` is missing extractor provenance",
+            item.source_id
+        )));
+    }
+    vector_error(&item.vector).map_err(Error::InvalidIndex)
+}
+
+fn validate_query_vector(query: &[f32]) -> Result<()> {
+    vector_error(query).map_err(Error::InvalidSearch)
+}
+
+fn vector_error(values: &[f32]) -> std::result::Result<(), String> {
+    if values.is_empty() {
+        return Err("a vector needs at least one dimension".to_owned());
+    }
+    let mut norm = 0.0_f64;
+    for value in values {
+        if !value.is_finite() {
+            return Err("a vector cannot contain non-finite coordinates".to_owned());
+        }
+        norm += f64::from(*value) * f64::from(*value);
+    }
+    if norm == 0.0 {
+        return Err("a zero vector cannot be compared".to_owned());
+    }
+    Ok(())
+}
+
+fn encode_vector(values: &[f32]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(values.len().saturating_mul(4));
+    for value in values {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    bytes
+}
+
+fn decode_vector(bytes: &[u8], dim: i64) -> Result<Vec<f32>> {
+    let expected = usize::try_from(dim)
+        .ok()
+        .and_then(|count| count.checked_mul(4))
+        .ok_or_else(|| Error::InvalidSearch("stored vector dimension is unreadable".to_owned()))?;
+    if bytes.len() != expected {
+        return Err(Error::InvalidSearch(
+            "stored vector length does not match its dimension".to_owned(),
+        ));
+    }
+    Ok(bytes
+        .chunks_exact(4)
+        .map(|chunk| f32::from_le_bytes(chunk.try_into().expect("chunks_exact(4)")))
+        .collect())
+}
+
+fn cosine(left: &[f32], right: &[f32]) -> Option<f64> {
+    if left.len() != right.len() {
+        return None;
+    }
+    let mut dot = 0.0_f64;
+    let mut left_norm = 0.0_f64;
+    let mut right_norm = 0.0_f64;
+    for (a, b) in left.iter().zip(right) {
+        let a = f64::from(*a);
+        let b = f64::from(*b);
+        if !a.is_finite() || !b.is_finite() {
+            return None;
+        }
+        dot += a * b;
+        left_norm += a * a;
+        right_norm += b * b;
+    }
+    let denom = left_norm.sqrt() * right_norm.sqrt();
+    if denom == 0.0 {
+        return None;
+    }
+    Some(dot / denom)
+}
+
 fn validate_batch(batch: &NormalizedBatch) -> Result<()> {
     // A later pass may carry nothing but relationships between originals
     // imported on different days, so a batch without sources is empty only
@@ -3481,6 +3853,24 @@ mod schema {
                 "{table}: {error}"
             );
         }
+    }
+
+    /// A keyframe vector that names another case's still is refused by the
+    /// schema, not only by the store API.
+    #[test]
+    fn the_schema_refuses_a_cross_case_keyframe_embedding() {
+        let store = both_cases();
+        let error = store
+            .connection
+            .execute(
+                "INSERT INTO keyframe_embeddings
+                   (source_id, case_id, model, dim, vector, extractor, extractor_version)
+                 VALUES ('hr-src-camera', 'case-vehicle-stop-001', 'clip', 1, X'0000803f',
+                         'keyframe_embed', 'from-json')",
+                [],
+            )
+            .expect_err("a still from another case must be refused");
+        assert!(error.to_string().contains("same case"), "{error}");
     }
 
     /// A speaker, parent, or element mapping that names another case is

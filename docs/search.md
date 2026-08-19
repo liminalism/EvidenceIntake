@@ -63,3 +63,24 @@ A separate search engine beside the database would be a second store of an
 evidentiary record, able to drift from the append-only trail — holding a passage
 that was rolled back, or missing one that committed. For a tool where the file
 *is* the artifact a defender relies on, that is the wrong trade at any speed.
+
+## Finding a frame
+
+```sh
+cargo run -- index-frames case-id embeddings.json
+cargo run -- find-frames case-id --model test-clip '[1.0, 0.0]'
+cargo run -p evidence-video -- find --database evidence.sqlite --case case-id --from-json embed.json "handcuffs"
+```
+
+Text search cannot see a still. Keyframe retrieval embeds each derived still
+once and compares a query vector to those stored vectors. Hits that meet a
+recall-oriented cosine cut are returned as locators — original hash, time range
+on that original, derived still — ordered by still identifier. The similarity
+number is computed to apply the cut and then discarded, for the same reason
+BM25 is withheld: a number printed next to a frame is read as a measurement of
+the frame.
+
+The vectors are a finder index, not evidence. Indexing writes no observation
+and no edge. They live in the same SQLite file as a BLOB compared in process,
+are never shared across cases, and are excluded from every export the same way
+privileged tables are: `export_case` never reads them.

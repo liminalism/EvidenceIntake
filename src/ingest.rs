@@ -127,6 +127,37 @@ pub struct NormalizedEdge {
     pub extraction: ExtractionProvenance,
 }
 
+/// One derived still's embedding, addressed to a source the case already holds.
+///
+/// This is finder index data, not evidence: it is not a [`NormalizedBatch`]
+/// field, it is not content, and storing it writes no observation and no edge.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IndexedKeyframe {
+    /// Identifier of the derived still source already in the case.
+    pub source_id: String,
+    /// Embedding space this vector belongs to (`clip-vit-b32`, a test name).
+    pub model: String,
+    /// Adapter or encoder name stored with the vector.
+    pub extractor: String,
+    /// Encoder version stored with the vector.
+    pub version: String,
+    /// Coordinates in that model's space; little-endian `f32` on disk.
+    pub vector: Vec<f32>,
+}
+
+/// An atomic delivery of keyframe embeddings for one case.
+///
+/// A later overnight pass may index stills imported on a previous day. The
+/// stills must already exist and must be derived from another source in the
+/// same case.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct KeyframeIndex {
+    /// Case that owns every still named in [`Self::embeddings`].
+    pub case_id: CaseId,
+    /// Vectors to store or replace, one per derived still.
+    pub embeddings: Vec<IndexedKeyframe>,
+}
+
 /// An atomic delivery from one or more extraction adapters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NormalizedBatch {

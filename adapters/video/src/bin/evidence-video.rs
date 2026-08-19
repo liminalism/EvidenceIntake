@@ -7,12 +7,13 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence_audio::NativeWhisperBackend;
 use evidence_intake::NormalizedBatch;
-use evidence_intake::{CaseId, TemporalRelation};
+use evidence_intake::{CaseId, Store, TemporalRelation};
 use evidence_video::{
-    CaptionInput, ClockInput, DEFAULT_GAP_MS, DEFAULT_PROMPT, DEFAULT_THRESHOLD, DetectionInput,
-    SceneRequest, SoundtrackInput, SyncOptions, SyncPair, SyncSide, TesseractCliBackend,
-    VlmCliBackend, YoloCliBackend, analyze, cut_scenes, describe_from_json, describe_scenes,
-    detect_from_json, detect_objects, sync_pair,
+    CaptionInput, CliEmbeddingBackend, ClockInput, DEFAULT_GAP_MS, DEFAULT_PROMPT,
+    DEFAULT_THRESHOLD, DetectionInput, EmbeddingBackend, JsonEmbeddingBackend, SceneRequest,
+    SoundtrackInput, SyncOptions, SyncPair, SyncSide, TesseractCliBackend, VlmCliBackend,
+    YoloCliBackend, analyze, cut_scenes, describe_from_json, describe_scenes, detect_from_json,
+    detect_objects, embed_from_json, embed_scenes, sync_pair,
 };
 use serde::Serialize;
 
@@ -29,7 +30,7 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 #[allow(
     clippy::large_enum_variant,
-    reason = "parsed once at startup; `Analyze` carries every optional backend flag"
+    reason = "parsed once at startup; `Analyze` and `Embed` carry optional backend flags"
 )]
 enum Command {
     /// Detect scene cuts, extract keyframe stills, and write a NormalizedBatch.
@@ -259,6 +260,68 @@ enum Command {
         /// Least normalized correlation coefficient that counts as a match.
         #[arg(long, default_value_t = SyncOptions::default().min_peak)]
         min_peak: f64,
+    },
+    /// Embed each scene keyframe and write a KeyframeIndex.
+    Embed {
+        /// Existing case identifier.
+        #[arg(long)]
+        case: String,
+        /// Existing production that will own the sources.
+        #[arg(long)]
+        production: String,
+        /// Adapter-assigned source identifier of the original video.
+        #[arg(long)]
+        source_id: String,
+        /// Path to the untouched original recording.
+        #[arg(long)]
+        file: PathBuf,
+        /// Where to write the index. `-` writes stdout.
+        #[arg(long)]
+        out: PathBuf,
+        /// How the recording relates to the event. Defaults to unknown.
+        #[arg(long, value_enum, default_value_t = TemporalArg::Unknown)]
+        temporal: TemporalArg,
+        /// ffmpeg scene score that counts as a cut.
+        #[arg(long, default_value_t = DEFAULT_THRESHOLD)]
+        threshold: f64,
+        /// Minimum missing tail, in milliseconds, that becomes a recording_gap.
+        #[arg(long, default_value_t = DEFAULT_GAP_MS)]
+        gap_ms: u64,
+        /// Directory to keep derived jpeg stills. Temp when omitted.
+        #[arg(long)]
+        stills_dir: Option<PathBuf>,
+        /// Already-produced embedding JSON. Skips the embedding CLI.
+        #[arg(long)]
+        from_json: Option<PathBuf>,
+        /// Embedding CLI binary, used when `--from-json` is omitted.
+        #[arg(long, default_value = "embed-cli")]
+        embed_bin: PathBuf,
+        /// Embedding space name stored with each vector.
+        #[arg(long, default_value = "clip")]
+        model: String,
+    },
+    /// Find stills matching a text query. Prints KeyframeHit JSON.
+    Find {
+        /// `SQLite` case database that already holds the stills and vectors.
+        #[arg(long, default_value = "evidence.sqlite")]
+        database: PathBuf,
+        /// Existing case identifier.
+        #[arg(long)]
+        case: String,
+        /// Text to embed and compare against stored stills.
+        query: String,
+        /// Embedding space the stills were indexed under.
+        #[arg(long, default_value = "clip")]
+        model: String,
+        /// Most hits to return.
+        #[arg(long, default_value_t = 25)]
+        limit: u32,
+        /// Already-produced embedding JSON with a matching `queries` entry.
+        #[arg(long)]
+        from_json: Option<PathBuf>,
+        /// Embedding CLI binary, used when `--from-json` is omitted.
+        #[arg(long, default_value = "embed-cli")]
+        embed_bin: PathBuf,
     },
 }
 
@@ -517,6 +580,64 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 println!("{}", serde_json::to_string(&report)?);
             }
         }
+        Command::Embed {
+            case,
+            production,
+            source_id,
+            file,
+            out,
+            temporal,
+            threshold,
+            gap_ms,
+            stills_dir,
+            from_json,
+            embed_bin,
+            model,
+        } => {
+            let request = SceneRequest {
+                case_id: CaseId(case),
+                production_id: production,
+                source_id,
+                path: file,
+                logical_name: None,
+                temporal_relation: TemporalRelation::from(temporal),
+                threshold,
+                gap_ms,
+                stills_dir,
+            };
+            let index = if let Some(json) = from_json {
+                embed_from_json(&request, &json)?
+            } else {
+                let backend = CliEmbeddingBackend {
+                    bin: embed_bin,
+                    model,
+                };
+                embed_scenes(&request, &backend)?
+            };
+            write_json(&out, &index)?;
+        }
+        Command::Find {
+            database,
+            case,
+            query,
+            model,
+            limit,
+            from_json,
+            embed_bin,
+        } => {
+            let store = Store::open(database)?;
+            let vector = if let Some(json) = from_json {
+                JsonEmbeddingBackend { path: json }.embed_query(&query)?
+            } else {
+                let backend = CliEmbeddingBackend {
+                    bin: embed_bin,
+                    model: model.clone(),
+                };
+                backend.embed_query(&query)?
+            };
+            let hits = store.search_keyframes(&CaseId(case), &model, &vector, limit)?;
+            println!("{}", serde_json::to_string_pretty(&hits)?);
+        }
     }
     Ok(())
 }
@@ -546,7 +667,11 @@ fn sync_side(source_id: String, logical_name: Option<String>, path: PathBuf) -> 
 }
 
 fn write_batch(path: &PathBuf, batch: &NormalizedBatch) -> Result<(), Box<dyn std::error::Error>> {
-    let json = serde_json::to_string_pretty(batch)?;
+    write_json(path, batch)
+}
+
+fn write_json(path: &PathBuf, value: &impl Serialize) -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::to_string_pretty(value)?;
     if path.as_os_str() == "-" {
         let stdout = io::stdout();
         let mut lock = stdout.lock();

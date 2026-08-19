@@ -29,6 +29,9 @@ pub enum Error {
     /// A search query was empty or could not be parsed as full-text syntax.
     #[error("invalid search: {0}")]
     InvalidSearch(String),
+    /// A keyframe embedding could not be stored against a derived still.
+    #[error("invalid keyframe index: {0}")]
+    InvalidIndex(String),
     /// A proposition was mapped again to an element it is already filed under.
     #[error(
         "proposition `{proposition}` is already assessed `{assessment}` on element `{element}`"

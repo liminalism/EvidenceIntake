@@ -56,6 +56,17 @@ record evidence-intake-project.papercut.akr-propose-from-help-says-a-file-holdin
     created_at 2026-08-09
 }
 
+record evidence-intake-project.papercut.akr-propose-from-rejected-a-decision-s-multi/1 : papercut {
+    title "akr propose --from rejected a decision's multi-path scope: scope { path…"
+    state verified
+    statement """
+        akr propose --from rejected a decision's multi-path scope: scope { path ... } is not a block, repeating path is a duplicate slot, and only scope all parsed. The keyframe-finder decision is therefore scoped all rather than the adapter/store/views/ingest/migrations/search globs.
+        """
+    observed_at git:d8d36305c5ca25e9839d6551538a1f39b24c0193
+    author "grok"
+    created_at 2026-08-19
+}
+
 record evidence-intake-project.papercut.codegraph-explore-hung-16-minutes-on-a-12-file/1 : papercut {
     title "codegraph_explore hung ~16 minutes on a 12-file query…"
     state verified

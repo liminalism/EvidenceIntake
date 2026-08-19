@@ -7,10 +7,10 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence_intake::{
     AdvocacyKind, CaseId, ChargePosture, DemoFixture, EdgeKind, ElementAssessment, EntityKind,
-    ExportAudience, NodeKind, NodeRef, NormalizedBatch, ProposedAdvocacyItem, ProposedAnnotation,
-    ProposedBrief, ProposedCase, ProposedCharge, ProposedElement, ProposedElementMapping,
-    ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition, Result, ReviewDecision,
-    ReviewState, ReviewTarget, Store, SuggestionKind,
+    ExportAudience, KeyframeIndex, NodeKind, NodeRef, NormalizedBatch, ProposedAdvocacyItem,
+    ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge, ProposedElement,
+    ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition,
+    Result, ReviewDecision, ReviewState, ReviewTarget, Store, SuggestionKind,
 };
 use serde::Serialize;
 
@@ -131,6 +131,26 @@ enum Command {
         case_id: String,
         /// Path to a `NormalizedBatch` JSON document. `-` reads stdin.
         path: PathBuf,
+    },
+    /// Store keyframe embeddings against derived stills the case already holds.
+    IndexFrames {
+        /// Existing case. Must match `case_id` inside the index.
+        case_id: String,
+        /// Path to a `KeyframeIndex` JSON document. `-` reads stdin.
+        path: PathBuf,
+    },
+    /// Find stills by a precomputed query vector. Does not rank by similarity.
+    FindFrames {
+        /// Existing case identifier.
+        case_id: String,
+        /// Embedding space the stills were indexed under.
+        #[arg(long)]
+        model: String,
+        /// Query vector as a JSON array of numbers, or `@path` / `-` for stdin.
+        vector: String,
+        /// Most hits to return.
+        #[arg(long, default_value_t = 25)]
+        limit: u32,
     },
 }
 
@@ -947,6 +967,34 @@ fn run() -> Result<()> {
             }
             store.import_normalized(&batch)?;
             print_json(&store.overview(&batch.case_id)?)?;
+        }
+        Command::IndexFrames { case_id, path } => {
+            let json = read_batch_json(&path)?;
+            let index: KeyframeIndex = serde_json::from_str(&json)?;
+            if index.case_id.0 != case_id {
+                return Err(evidence_intake::Error::InvalidFixture(format!(
+                    "index is for case `{}`, not `{case_id}`",
+                    index.case_id
+                )));
+            }
+            store.index_keyframes(&index)?;
+            print_json(&store.overview(&index.case_id)?)?;
+        }
+        Command::FindFrames {
+            case_id,
+            model,
+            vector,
+            limit,
+        } => {
+            let json = if vector == "-" {
+                read_batch_json(std::path::Path::new("-"))?
+            } else if let Some(path) = vector.strip_prefix('@') {
+                read_batch_json(std::path::Path::new(path))?
+            } else {
+                vector
+            };
+            let query: Vec<f32> = serde_json::from_str(&json)?;
+            print_json(&store.search_keyframes(&CaseId(case_id), &model, &query, limit)?)?;
         }
     }
     Ok(())

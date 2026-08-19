@@ -270,6 +270,123 @@ record evidence-intake-project.evidence.ingest-refuses-cross-case/1 : evidence {
     author "GitHub Uploader"
 }
 
+record evidence-intake-project.evidence.keyframe-case-local/1 : evidence {
+    title "1 passed: beta search returns only cam-b stills."
+    state verified
+    result pass
+    method command
+    observed_at git:d8d36305c5ca25e9839d6551538a1f39b24c0193
+    command "cargo test --test keyframes keyframe_search_is_scoped_to_its_case"
+    summary """
+        1 passed: beta search returns only cam-b stills.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.keyframe-derived-only/1 : evidence {
+    title "1 passed: indexing the original video is refused as not a derived still."
+    state verified
+    result pass
+    method command
+    observed_at git:d8d36305c5ca25e9839d6551538a1f39b24c0193
+    command "cargo test --test keyframes a_source_that_is_not_a_derived_still_is_refused"
+    summary """
+        1 passed: indexing the original video is refused as not a derived still.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.keyframe-identifier-order/1 : evidence {
+    title "1 passed: still-0001 (cosine 0.6) precedes still-0002 (cosine 1.0); identifier order, not similarity."
+    state verified
+    result pass
+    method command
+    observed_at git:d8d36305c5ca25e9839d6551538a1f39b24c0193
+    command "cargo test --test keyframes hits_are_ordered_by_identifier_not_similarity"
+    summary """
+        1 passed: still-0001 (cosine 0.6) precedes still-0002 (cosine 1.0); identifier order, not similarity.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.keyframe-json-backend/1 : evidence {
+    title "1 passed: JSON embeddings address cam-still-0001 and cam-still-0002, matching scenes_to_batch ids."
+    state verified
+    result pass
+    method command
+    observed_at git:d8d36305c5ca25e9839d6551538a1f39b24c0193
+    command "cargo test -p evidence-video embed_keyframes_names_the_still_source_ids"
+    summary """
+        1 passed: JSON embeddings address cam-still-0001 and cam-still-0002, matching scenes_to_batch ids.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.keyframe-locator/1 : evidence {
+    title "1 passed: matching query returns original hash, video name, scene locator, still hash, suggested/machine."
+    state verified
+    result pass
+    method command
+    observed_at git:d8d36305c5ca25e9839d6551538a1f39b24c0193
+    command "cargo test --test keyframes a_matching_query_returns_the_original_hash_and_locator"
+    summary """
+        1 passed: matching query returns original hash, video name, scene locator, still hash, suggested/machine.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.keyframe-never-exported/1 : evidence {
+    title "1 passed: disclosable and work-file exports omit the canary model name and extractor."
+    state verified
+    result pass
+    method command
+    observed_at git:d8d36305c5ca25e9839d6551538a1f39b24c0193
+    command "cargo test --test keyframes export_never_carries_keyframe_vectors"
+    summary """
+        1 passed: disclosable and work-file exports omit the canary model name and extractor.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.keyframe-no-score/1 : evidence {
+    title "1 passed: serialized hits contain none of score, similarity, cosine, distance, rank, confidence, strength."
+    state verified
+    result pass
+    method command
+    observed_at git:d8d36305c5ca25e9839d6551538a1f39b24c0193
+    command "cargo test --test keyframes nothing_in_the_hit_reports_a_similarity_number"
+    summary """
+        1 passed: serialized hits contain none of score, similarity, cosine, distance, rank, confidence, strength.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.keyframe-silent-index/1 : evidence {
+    title "1 passed: pending_review and review_queue length unchanged after index_keyframes."
+    state verified
+    result pass
+    method command
+    observed_at git:d8d36305c5ca25e9839d6551538a1f39b24c0193
+    command "cargo test --test keyframes indexing_writes_no_observation_and_no_edge"
+    summary """
+        1 passed: pending_review and review_queue length unchanged after index_keyframes.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.keyframe-workspace-gate/1 : evidence {
+    title "fmt/clippy clean, 192 tests passed / 0 failed after keyframe retrieval landed."
+    state verified
+    result pass
+    method command
+    observed_at git:d8d36305c5ca25e9839d6551538a1f39b24c0193
+    command "cargo test --workspace --all-features"
+    summary """
+        fmt/clippy clean, 192 tests passed / 0 failed after keyframe retrieval landed.
+        """
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.evidence.optimization-pass-measured/1 : evidence {
     title "Optimization pass measured against a synthetic case, behavior unchanged"
     state verified

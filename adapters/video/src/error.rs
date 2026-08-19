@@ -22,7 +22,7 @@ pub enum Error {
     /// Mapping produced a batch the adapter itself refuses.
     #[error("invalid mapping: {0}")]
     Mapping(String),
-    /// The vision, caption, or OCR backend was missing or failed.
+    /// The vision, caption, OCR, or embedding backend was missing or failed.
     #[error("{0}")]
     Backend(String),
     /// The audio adapter refused the soundtrack.

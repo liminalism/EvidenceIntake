@@ -627,20 +627,96 @@ record evidence-intake-project.video.detector-observations/1 : work {
 
 record evidence-intake-project.video.keyframe-embedding-retrieval/1 : work {
     title "Text-to-frame retrieval over scene keyframes as the visual finder, instead of more detector classes"
-    state proposed
-    scope [ path "adapters/video/**", path "src/store.rs", path "src/views.rs" ]
+    state completed
     intent """
         Embed each scene keyframe once with a CLIP/SigLIP-class image encoder behind the VisionBackend-style trait (JSON backend for tests, local CLI or ONNX for overnight runs) and store the vector against the derived still, so a lawyer can later ask for frames matching "person on the ground", "handcuffs", "firearm", "vehicle interior at night" without the adapter having predicted the class. A query returns SearchHit-style locators (original hash, time range, still) ordered by identifier within a similarity cut, never a similarity number, and every hit is a suggestion a person looks at; recall is preferred over precision because a false positive costs one look and a false negative hides evidence. Retrieval never writes an observation or an edge; only what a reviewer confirms is authored. Vectors are stored per case in SQLite (a blob column or the sqlite-vec extension), never shared across cases, and excluded from every export.
         """
     note """
-        Optional overnight slice; preferred over widening the closed-set YOLO detector, whose COCO classes lack a gun and which must be fine-tuned per class.
+        Optional overnight slice; preferred over widening the closed-set YOLO detector, whose COCO classes lack a gun and which must be fine-tuned per class. Storage is a BLOB plus brute-force cosine, not sqlite-vec: N is one vector per scene, in-memory tests and the Windows GUI cannot depend on load_extension, and export exclusion is structural only if export_case never queries the table. The cosine cut (0.20) and the JSON/CLI backends were settled on synthetic unit vectors; no live CLIP/SigLIP encoder was run against discovery footage.
         """
+    acceptance {
+        check case-local {
+            statement """
+                One case's stills never surface in another's visual search.
+                """
+            method command
+            command "cargo test --test keyframes keyframe_search_is_scoped_to_its_case"
+            verified_by [ @evidence-intake-project.evidence.keyframe-case-local/1 ]
+        }
+        check derived-only {
+            statement """
+                A source that is not a derived still cannot be indexed.
+                """
+            method command
+            command "cargo test --test keyframes a_source_that_is_not_a_derived_still_is_refused"
+            verified_by [ @evidence-intake-project.evidence.keyframe-derived-only/1 ]
+        }
+        check identifier-order {
+            statement """
+                Hits that meet the cut are ordered by still identifier, not by similarity.
+                """
+            method command
+            command "cargo test --test keyframes hits_are_ordered_by_identifier_not_similarity"
+            verified_by [ @evidence-intake-project.evidence.keyframe-identifier-order/1 ]
+        }
+        check json-backend {
+            statement """
+                JSON embeddings address the same still source ids scenes_to_batch uses.
+                """
+            method command
+            command "cargo test -p evidence-video embed_keyframes_names_the_still_source_ids"
+            verified_by [ @evidence-intake-project.evidence.keyframe-json-backend/1 ]
+        }
+        check locator {
+            statement """
+                A matching query returns the original hash and the still's locator on that original.
+                """
+            method command
+            command "cargo test --test keyframes a_matching_query_returns_the_original_hash_and_locator"
+            verified_by [ @evidence-intake-project.evidence.keyframe-locator/1 ]
+        }
+        check never-exported {
+            statement """
+                Neither disclosable nor work-file export carries embedding metadata.
+                """
+            method command
+            command "cargo test --test keyframes export_never_carries_keyframe_vectors"
+            verified_by [ @evidence-intake-project.evidence.keyframe-never-exported/1 ]
+        }
+        check no-score {
+            statement """
+                A serialized keyframe hit contains no similarity, score, cosine, rank or confidence field.
+                """
+            method command
+            command "cargo test --test keyframes nothing_in_the_hit_reports_a_similarity_number"
+            verified_by [ @evidence-intake-project.evidence.keyframe-no-score/1 ]
+        }
+        check silent-index {
+            statement """
+                Indexing writes no observation and no edge.
+                """
+            method command
+            command "cargo test --test keyframes indexing_writes_no_observation_and_no_edge"
+            verified_by [ @evidence-intake-project.evidence.keyframe-silent-index/1 ]
+        }
+        check workspace-gate {
+            statement """
+                fmt, clippy and the workspace test suite are green after the slice.
+                """
+            method command
+            command "cargo test --workspace --all-features"
+            verified_by [ @evidence-intake-project.evidence.keyframe-workspace-gate/1 ]
+        }
+    }
     after [
         @evidence-intake-project.video.audio-track-through-audio-adapter,
         @evidence-intake-project.video.clock-overlay-ocr
     ]
     depends_on [ @evidence-intake-project.video.scene-core ]
-    implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
+    implements [
+        @evidence-intake-project.decision.keyframe-finder-is-an-index,
+        @evidence-intake-project.decision.video-intake-points-never-asserts
+    ]
 }
 
 record evidence-intake-project.video.scene-captions/1 : work {

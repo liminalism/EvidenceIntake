@@ -5,7 +5,7 @@ build {
     tool "akr 0.3.1"
     grammar "0.1"
     vocabulary "0.2"
-    source_graph "sha256:4d34aa06bd0669334da49a88a188228d6e6d75a12a9127b6cd156f1defdb3c69"
+    source_graph "sha256:493fadb0c0086799428c4c689d823468e3fc4e14263008b2aea805831b2074ae"
 }
 
 source ".akr/project.akr" {
@@ -19,18 +19,18 @@ source ".akr/records/evidence-intake-project/constraints.akr" {
 }
 
 source ".akr/records/evidence-intake-project/decisions.akr" {
-    hash "sha256:c3713a05d65f4cea0e78125bbd3c53b10cd23398327a41243ef2cd4c7c3c01b4"
-    records 6
+    hash "sha256:21e2145c765e443da0cd05ba3cc365ea6c081ed20f05102f0d62e0c32540096a"
+    records 7
 }
 
 source ".akr/records/evidence-intake-project/evidence.akr" {
-    hash "sha256:0eb9eebb347b39a220133b525944d1c02345140386f6aabf20fd2e6e834642ea"
-    records 46
+    hash "sha256:55343ce96a77ccc73476216f1c14c8b163686cd06906091150bb14e32cd9baf7"
+    records 55
 }
 
 source ".akr/records/evidence-intake-project/papercuts.akr" {
-    hash "sha256:6400bd69c93f473b541c166d49df02d4dfeaaa218fb841ec95ae15d309f9a0fc"
-    records 14
+    hash "sha256:71a45636272d8f32f75b6c3473f472d02a2f270e4192a8f6bfa7fbd8bd193995"
+    records 15
 }
 
 source ".akr/records/evidence-intake-project/questions.akr" {
@@ -39,7 +39,7 @@ source ".akr/records/evidence-intake-project/questions.akr" {
 }
 
 source ".akr/records/evidence-intake-project/work.akr" {
-    hash "sha256:510a1592559843b19fb1bd659d1b9f3b6bbc568e783a6c177ddcd1ef5af89ba5"
+    hash "sha256:a3ce4cc7fab8fd4fc166e966d72f944119b224978d92b6f052fef3195a5fc8c1"
     records 19
 }
 
@@ -191,6 +191,12 @@ resolution @evidence-intake-project.video.keyframe-embedding-retrieval/1 {
     slot depends_on
     to @evidence-intake-project.video.scene-core/1
     hash "sha256:356e4f1f80f876c1986c4180abc90993ef3de7d723328d07fbe7594244111627"
+}
+
+resolution @evidence-intake-project.video.keyframe-embedding-retrieval/1 {
+    slot implements
+    to @evidence-intake-project.decision.keyframe-finder-is-an-index/1
+    hash "sha256:b5e7742e80da231a5f8a8fed85e683f4220555ef2a0b9df8a2e52e32524311a9"
 }
 
 resolution @evidence-intake-project.video.keyframe-embedding-retrieval/1 {
@@ -363,6 +369,51 @@ seal @evidence-intake-project.evidence.gui-workspace-after-chrome-pass/1 {
 seal @evidence-intake-project.evidence.ingest-refuses-cross-case/1 {
     state verified
     hash "sha256:1abe5dc67ee418253ecda1e0d08e5d5546aa434c1210aa2c583a808217bf935a"
+}
+
+seal @evidence-intake-project.evidence.keyframe-case-local/1 {
+    state verified
+    hash "sha256:70964647eedc000d5aff916dc3a64ee837b185183e0aacb9f61661cbe40fe14e"
+}
+
+seal @evidence-intake-project.evidence.keyframe-derived-only/1 {
+    state verified
+    hash "sha256:ebd750443224ff83b8b6ba5d0178fcd7981c181c7928a87576c542801308f219"
+}
+
+seal @evidence-intake-project.evidence.keyframe-identifier-order/1 {
+    state verified
+    hash "sha256:fbf3d5dc64a578ddd6a7fe8a95acf125b0ec6ed8c5da36dbd4c7247707bdb544"
+}
+
+seal @evidence-intake-project.evidence.keyframe-json-backend/1 {
+    state verified
+    hash "sha256:84cfbab1f65438f25ba84c27990a48594a1543254942399f54f4a64fb1d8b95f"
+}
+
+seal @evidence-intake-project.evidence.keyframe-locator/1 {
+    state verified
+    hash "sha256:0664a5ba7e2bc32496e7c3f9aaef2f305aa6ee8c3a72d32ac0a15c8d832b1781"
+}
+
+seal @evidence-intake-project.evidence.keyframe-never-exported/1 {
+    state verified
+    hash "sha256:e7732dd7a4c9f430a520e94465f1df4858b32c802e166acc152a28daa6b34f48"
+}
+
+seal @evidence-intake-project.evidence.keyframe-no-score/1 {
+    state verified
+    hash "sha256:0e4d112b8afc0542db7450d8df89079ca8c3e08d29d68bd2d4d7f45469ffa1fd"
+}
+
+seal @evidence-intake-project.evidence.keyframe-silent-index/1 {
+    state verified
+    hash "sha256:b6f15b17bd4d6ddded76bdf508429bf6d1ee0a5a95e6256d64f7f356bca9b8af"
+}
+
+seal @evidence-intake-project.evidence.keyframe-workspace-gate/1 {
+    state verified
+    hash "sha256:15793206d36778488a077d8e27c3eeea665535583fa50557c55e0d116545f55b"
 }
 
 seal @evidence-intake-project.evidence.optimization-pass-measured/1 {
@@ -540,6 +591,11 @@ seal @evidence-intake-project.papercut.akr-propose-from-help-says-a-file-holding
     hash "sha256:e8a38b8a472e047803a500d881ca2b6baafd749bb5019c6c455461ac3440cf50"
 }
 
+seal @evidence-intake-project.papercut.akr-propose-from-rejected-a-decision-s-multi/1 {
+    state verified
+    hash "sha256:b18c0c9a4cc29dd62b382171a42c246aef6d22dbd1708e294aa8e667e82fcda2"
+}
+
 seal @evidence-intake-project.papercut.codegraph-explore-hung-16-minutes-on-a-12-file/1 {
     state verified
     hash "sha256:00912cfc205d5dfe7c606c3d0a5d98a69cbf5aec05c45b71205e356b7c2eb203"
@@ -623,6 +679,11 @@ seal @evidence-intake-project.video.clock-overlay-ocr/1 {
 seal @evidence-intake-project.video.detector-observations/1 {
     state completed
     hash "sha256:da5ba198372015ac1214ffd805f7a60bda12cc243a4870790badcc2f7ff5a15d"
+}
+
+seal @evidence-intake-project.video.keyframe-embedding-retrieval/1 {
+    state completed
+    hash "sha256:e87f5407d70ad764450b47cfc10ea2615c146d6eb21ba01c176dfe9a79808bb3"
 }
 
 seal @evidence-intake-project.video.scene-captions/1 {

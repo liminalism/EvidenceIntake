@@ -259,6 +259,40 @@ pub struct SearchHit {
     pub bears_on: Vec<String>,
 }
 
+/// Cosine similarity a query and a still must meet to be returned as a hit.
+///
+/// Recall is preferred over precision: a false positive costs a lawyer one
+/// look at a still. The value was chosen against synthetic unit vectors; it
+/// is not a measurement of any image–text encoder run on discovery footage.
+pub const KEYFRAME_SIMILARITY_CUT: f64 = 0.20;
+
+/// One still matching a visual query, with the original it was cut from.
+///
+/// A hit is a place to look, never a finding. It names the original by hash
+/// and the time range on that original, and the derived still so the working
+/// copy can be opened. Hits that cleared the similarity cut are ordered by
+/// still identifier. The number itself is not a field: a number printed next
+/// to a frame gets read as a measurement of the frame.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct KeyframeHit {
+    /// Derived still source identifier.
+    pub source_id: String,
+    /// SHA-256 of the working-copy jpeg.
+    pub still_sha256: String,
+    /// Logical name of the original video.
+    pub source: String,
+    /// SHA-256 of the original container.
+    pub sha256: String,
+    /// Exact locator on the original timeline.
+    pub locator: String,
+    /// Human review state of the still's observation.
+    pub review_state: String,
+    /// Whether the still observation remains machine-generated.
+    pub machine_generated: bool,
+    /// Propositions this still is already tied to, with the relationship.
+    pub bears_on: Vec<String>,
+}
+
 /// Where a case stands, element by element, without saying who wins it.
 ///
 /// Everything here is a count of what the case holds or a fact about how its

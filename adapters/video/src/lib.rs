@@ -7,6 +7,7 @@
 
 mod caption;
 mod clock;
+mod embed;
 mod error;
 mod map;
 mod scene;
@@ -22,6 +23,10 @@ pub use clock::{
     ClockBackend, ClockDocument, ClockReading, EXTRACTOR_CLOCK, JsonClockBackend, OverlayBand,
     RawClockText, TesseractCliBackend, attach_clock_readings, parse_clock_text,
     read_clock_overlays, read_clocks, read_clocks_from_json,
+};
+pub use embed::{
+    CliEmbeddingBackend, EXTRACTOR_EMBED, EmbeddingBackend, EmbeddingDocument,
+    JsonEmbeddingBackend, QueryEmbedding, StillEmbedding, embed_from_document, embed_keyframes,
 };
 pub use error::{Error, Result};
 pub use map::{
@@ -49,7 +54,7 @@ pub use vision::{
 use std::path::Path;
 
 use evidence_audio::{MediaClass, classify, media_type};
-use evidence_intake::{CaseId, NormalizedBatch, TemporalRelation};
+use evidence_intake::{CaseId, KeyframeIndex, NormalizedBatch, TemporalRelation};
 use sha2::{Digest, Sha256};
 
 /// Inputs for one video → one [`NormalizedBatch`].
@@ -227,6 +232,25 @@ pub fn analyze(
         merge_soundtrack(&mut batch, &identity, spoken)?;
     }
     Ok(batch)
+}
+
+/// Cut scenes and embed each keyframe with `backend`.
+pub fn embed_scenes(
+    request: &SceneRequest,
+    backend: &dyn EmbeddingBackend,
+) -> Result<KeyframeIndex> {
+    let (identity, analysis) = open_and_cut(request)?;
+    embed_keyframes(&identity, &analysis, backend)
+}
+
+/// Hash the original, cut scenes, and attach a JSON embedding document.
+pub fn embed_from_json(request: &SceneRequest, json_path: &Path) -> Result<KeyframeIndex> {
+    let (identity, analysis) = open_and_cut(request)?;
+    let document = JsonEmbeddingBackend {
+        path: json_path.to_path_buf(),
+    }
+    .load()?;
+    embed_from_document(&identity, &analysis, &document)
 }
 
 /// Cut scenes and transcribe the soundtrack into one batch, nothing else.

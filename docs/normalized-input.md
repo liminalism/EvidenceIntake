@@ -47,6 +47,11 @@ imported on different days. A proposal is written `suggested` and attributed
 how the review queue recognises a machine-proposed relationship. Confidence is
 not stored on an edge; the rationale is what a reviewer weighs.
 
+Keyframe embeddings are not part of this contract. They travel as a separate
+`KeyframeIndex` addressed to derived stills the case already holds, because
+they are a finder index rather than evidence: indexing them writes no
+observation and no edge.
+
 Examples:
 
 - OCR from a crash report is a `document_assertion` whose source is an

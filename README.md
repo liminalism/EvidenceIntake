@@ -35,6 +35,9 @@ This initial milestone provides:
   record touch a charge — structure a defender can act on, never a score;
 - full-text search over extracted content, with the exact original locator on
   every hit and privileged work product structurally out of reach;
+- text-to-frame retrieval over scene keyframes, returning locators ordered by
+  identifier within a similarity cut, never a similarity number, with vectors
+  stored per case and excluded from every export;
 - decision-oriented discovery, element, witness, timeline, issue, and brief
   read models;
 - an adapter-neutral contract for already-OCRed documents, timestamped audio
@@ -89,6 +92,8 @@ cargo run -- export case-hit-run-001
 cargo run -- export case-hit-run-001 --audience work-file
 cargo run -- search case-hit-run-001 'hatchback'
 cargo run -- search case-hit-run-001 '"paint transfer"' --limit 5
+cargo run -- index-frames case-hit-run-001 embeddings.json
+cargo run -- find-frames case-hit-run-001 --model test-clip '[1.0, 0.0]'
 cargo run -- suggest case-vehicle-stop-001
 cargo run -- author case-vehicle-stop-001 entity --kind person --name "Patel"
 ```
