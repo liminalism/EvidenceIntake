@@ -2,7 +2,8 @@
 
 use evidence_intake::{
     CaseId, ContentKind, DemoFixture, ExtractionProvenance, NormalizedBatch, NormalizedContent,
-    NormalizedSegment, NormalizedSource, ReviewState, SourceKind, Store, TemporalRelation,
+    NormalizedSegment, NormalizedSource, ReviewDecision, ReviewState, ReviewTarget, SourceKind,
+    Store, TemporalRelation,
 };
 
 fn fixture() -> (Store, CaseId) {
@@ -73,6 +74,217 @@ fn timeline_keeps_competing_lanes_and_raw_time() {
             .any(|event| event.lane == "attorney_hypothesis")
     );
     assert!(timeline.iter().all(|event| event.raw_time.is_some()));
+}
+
+#[test]
+fn collation_preserves_time_location_provenance_without_fuzzy_place_matching() {
+    let (store, case_id) = fixture();
+    let index = store.collation_index(&case_id).expect("collation index");
+
+    let day = index
+        .by_date
+        .iter()
+        .find(|group| group.normalized_date.as_deref() == Some("2026-01-08"))
+        .expect("normalized date group");
+    let bodycam = day
+        .entries
+        .iter()
+        .find(|entry| entry.content_id == "content-bodycam-question")
+        .expect("body-camera passage");
+    assert_eq!(bodycam.source_id, "src-bodycam");
+    assert_eq!(bodycam.source, "Chen BWC 0042.mp4");
+    assert_eq!(bodycam.source_kind, "video");
+    assert_eq!(bodycam.locator, "00:04:10–00:04:32");
+    assert_eq!(bodycam.raw_time.as_deref(), Some("BWC 22:18:10"));
+    assert!(bodycam.content_created_at.is_none());
+    assert_eq!(
+        bodycam.asserted_time.as_deref(),
+        Some("2026-01-08T22:18:10")
+    );
+    assert_eq!(
+        bodycam.normalized_start.as_deref(),
+        Some("2026-01-08T22:14:08Z")
+    );
+    assert!(
+        bodycam
+            .time_basis
+            .as_deref()
+            .is_some_and(|basis| basis.contains("clock correction"))
+    );
+    assert_eq!(bodycam.location.as_deref(), Some("400 block of Oak Street"));
+    assert!(!bodycam.machine_generated);
+    assert_eq!(bodycam.extractor.as_deref(), Some("human_fixture"));
+    assert_eq!(bodycam.review_state, "verified");
+    assert!(
+        day.entries.windows(2).all(|pair| {
+            pair[0].normalized_start.as_deref().unwrap_or("")
+                <= pair[1].normalized_start.as_deref().unwrap_or("")
+        }),
+        "date buckets must remain chronological"
+    );
+
+    let exact_place = index
+        .by_location
+        .iter()
+        .find(|group| group.location.as_deref() == Some("400 block of Oak Street"))
+        .expect("exact location group");
+    assert!(
+        !exact_place
+            .entries
+            .iter()
+            .any(|entry| entry.content_id == "content-dispatch"),
+        "`Oak St` is not silently expanded into `400 block of Oak Street`"
+    );
+
+    let bodycam_coverage = index
+        .source_coverage
+        .iter()
+        .find(|source| source.source_id == "src-bodycam")
+        .expect("body-camera coverage");
+    assert_eq!(bodycam_coverage.source_kind, "video");
+    assert_eq!(bodycam_coverage.passages, 3);
+    assert_eq!(bodycam_coverage.with_raw_time, 3);
+    assert_eq!(bodycam_coverage.with_content_created_at, 0);
+    assert_eq!(bodycam_coverage.with_asserted_time, 2);
+    assert_eq!(bodycam_coverage.with_normalized_date, 3);
+    assert_eq!(bodycam_coverage.with_location, 3);
+
+    assert_eq!(index.without_normalized_date, 4);
+    assert_eq!(index.without_location, 1);
+    assert_eq!(index.needs_placement.len(), 4);
+    let missing_reference = index
+        .needs_placement
+        .iter()
+        .find(|gap| gap.entry.content_id == "content-backup-ref")
+        .expect("unplaced evidence reference");
+    assert_eq!(
+        missing_reference.missing_anchors,
+        ["normalized_date", "location"]
+    );
+    assert_eq!(missing_reference.entry.locator, "page 4, paragraph 2");
+
+    let rendered = serde_json::to_string(&index).expect("serialize collation index");
+    for forbidden in ["score", "rank", "likelihood", "probability", "confidence"] {
+        assert!(
+            !rendered.to_lowercase().contains(forbidden),
+            "collation reported an evaluative field: {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn placement_gaps_exclude_content_a_reviewer_rejected() {
+    let (mut store, case_id) = fixture();
+    let batch = sample_machine_batch(case_id.clone(), ReviewState::Suggested);
+    store
+        .import_normalized(&batch)
+        .expect("import unplaced content");
+    assert!(
+        store
+            .collation_index(&case_id)
+            .expect("before rejection")
+            .needs_placement
+            .iter()
+            .any(|gap| gap.entry.content_id == "adapter-content")
+    );
+
+    store
+        .apply_review(
+            &case_id,
+            &ReviewDecision {
+                target: ReviewTarget::Content,
+                target_id: "adapter-content".to_owned(),
+                to_state: ReviewState::Rejected,
+                actor: "A. Reviewer".to_owned(),
+                basis: Some("Not useful to this review.".to_owned()),
+                verified_against_locator: None,
+            },
+        )
+        .expect("reject content");
+
+    let index = store.collation_index(&case_id).expect("after rejection");
+    assert!(
+        !index
+            .needs_placement
+            .iter()
+            .any(|gap| gap.entry.content_id == "adapter-content"),
+        "rejected material must not remain in placement work"
+    );
+    assert!(
+        index
+            .source_coverage
+            .iter()
+            .all(|source| source.source_id != "adapter-source"),
+        "coverage describes active content, not rejected content"
+    );
+}
+
+#[test]
+fn possibly_related_groups_need_shared_date_location_and_distinct_originals() {
+    let (mut store, case_id) = fixture();
+    let batch = NormalizedBatch {
+        case_id: case_id.clone(),
+        edges: Vec::new(),
+        sources: vec![
+            collation_source(
+                "collation-report",
+                '6',
+                "application/pdf",
+                SourceKind::Document,
+                "2026-01-08T22:14:20Z",
+                "400 block of Oak Street",
+            ),
+            collation_source(
+                "collation-audio",
+                '7',
+                "audio/wav",
+                SourceKind::Audio,
+                "2026-01-08T22:14:25Z",
+                "  400 BLOCK of Oak Street  ",
+            ),
+        ],
+    };
+    store
+        .import_normalized(&batch)
+        .expect("import collation sample");
+    let queue_before = store.review_queue(&case_id).expect("queue before");
+
+    let index = store.collation_index(&case_id).expect("collation index");
+    let group = index
+        .possibly_related
+        .iter()
+        .find(|group| {
+            let ids: Vec<_> = group
+                .entries
+                .iter()
+                .map(|entry| entry.source_id.as_str())
+                .collect();
+            ids.contains(&"collation-report") && ids.contains(&"collation-audio")
+        })
+        .expect("multi-source date and location group");
+    assert_eq!(group.normalized_date.as_deref(), Some("2026-01-08"));
+    assert_eq!(group.location.as_deref(), Some("400 block of Oak Street"));
+    assert!(group.distinct_sources >= 2);
+    assert!(group.rationale.contains("Shared collation keys only"));
+    assert!(group.rationale.contains("does not assert a common event"));
+    for forbidden in ["score", "confidence", "likely", "probably", "same event"] {
+        assert!(
+            !group.rationale.to_lowercase().contains(forbidden),
+            "rationale crossed the structural boundary: {}",
+            group.rationale
+        );
+    }
+
+    assert_eq!(
+        store.review_queue(&case_id).expect("queue after"),
+        queue_before,
+        "opening a read model must write no relationship or review item"
+    );
+    let other = CaseId("not-this-case".to_owned());
+    let error = store
+        .collation_index(&other)
+        .expect_err("unknown case must be refused");
+    assert!(error.to_string().contains("not-this-case"));
 }
 
 #[test]
@@ -241,6 +453,56 @@ fn sample_machine_batch(case_id: CaseId, review_state: ReviewState) -> Normalize
                         review_state,
                     },
                 }],
+            }],
+        }],
+    }
+}
+
+fn collation_source(
+    id: &str,
+    hash_digit: char,
+    media_type: &str,
+    source_kind: SourceKind,
+    normalized_start: &str,
+    location: &str,
+) -> NormalizedSource {
+    NormalizedSource {
+        id: id.to_owned(),
+        production_id: "prod-01".to_owned(),
+        logical_name: format!("{id}.{media_type}"),
+        media_type: media_type.to_owned(),
+        source_kind,
+        temporal_relation: TemporalRelation::Contemporaneous,
+        sha256: hash_digit.to_string().repeat(64),
+        byte_length: 128,
+        segments: vec![NormalizedSegment {
+            id: format!("{id}-segment"),
+            locator: "source locator".to_owned(),
+            page: None,
+            start_ms: None,
+            end_ms: None,
+            bounding_box: None,
+            content: vec![NormalizedContent {
+                id: format!("{id}-content"),
+                kind: ContentKind::Observation,
+                text: format!("Bounded observation from {id}."),
+                speaker_entity_id: None,
+                attributed_to_entity_id: None,
+                parent_content_id: None,
+                raw_time: Some("device 22:14".to_owned()),
+                content_created_at: None,
+                asserted_time: Some("2026-01-08T22:14:00".to_owned()),
+                normalized_start: Some(normalized_start.to_owned()),
+                normalized_end: None,
+                time_basis: Some("reviewer-entered synchronization".to_owned()),
+                location_text: Some(location.to_owned()),
+                extraction: ExtractionProvenance {
+                    extractor: "collation_fixture".to_owned(),
+                    version: "1".to_owned(),
+                    machine_generated: true,
+                    confidence: None,
+                    review_state: ReviewState::Suggested,
+                },
             }],
         }],
     }

@@ -36,10 +36,13 @@ const PANE_X: i32 = 216;
 const PANE_RIGHT: i32 = WIDTH - 20;
 const PANE_WIDTH: i32 = PANE_RIGHT - PANE_X;
 
-/// Every push button in the window is this tall, so rows align across groups.
+/// Action buttons use the roomier standard height.
 const BUTTON_HEIGHT: i32 = 28;
-/// Row-to-row pitch inside the rail's workspace group.
-const RAIL_PITCH: i32 = 30;
+/// Read-view controls are slightly denser so ten views fit above the action rail.
+const VIEW_BUTTON_HEIGHT: i32 = 25;
+const VIEW_RAIL_TOP: i32 = 162;
+const VIEW_RAIL_PITCH: i32 = 28;
+const ACTION_RAIL_TOP: i32 = 454;
 
 /// Rail rules. The rules are the only thing that groups the rail's commands —
 /// a heading over each group was tried and read as clutter.
@@ -75,12 +78,13 @@ const SAVE_AUTHORED: &str = "Save Ne&w Record";
 const IMPORT_BATCH: &str = "Import Normali&zed Batch";
 
 /// Workspace navigation, in the order a case is usually read.
-const VIEW_BUTTONS: [(&str, WorkspaceView); 9] = [
+const VIEW_BUTTONS: [(&str, WorkspaceView); 10] = [
     ("&Overview", WorkspaceView::Overview),
     ("Case &Standing", WorkspaceView::Standing),
     ("&Discovery Ledger", WorkspaceView::Discovery),
     ("Element &Matrix", WorkspaceView::Elements),
     ("Contested &Timeline", WorkspaceView::Timeline),
+    ("Collation &Groups", WorkspaceView::Collation),
     ("&Issue Workspaces", WorkspaceView::Issues),
     ("Offense &Comparison", WorkspaceView::Offenses),
     ("Review &Queue", WorkspaceView::ReviewQueue),
@@ -201,14 +205,14 @@ impl MainWindow {
             .iter()
             .enumerate()
             .map(|(index, (caption, view))| {
-                let row = i32::try_from(index).expect("navigation has only nine rows");
+                let row = i32::try_from(index).expect("navigation has only ten rows");
                 (
                     *view,
-                    button(
+                    view_button(
                         &wnd,
                         caption,
                         RAIL_X,
-                        162 + row * RAIL_PITCH,
+                        VIEW_RAIL_TOP + row * VIEW_RAIL_PITCH,
                         RAIL_WIDTH,
                         ANCHOR,
                     ),
@@ -217,10 +221,38 @@ impl MainWindow {
             .collect::<Vec<_>>();
 
         // --- Rail group 3: act on the case -----------------------------------
-        let suggest_button = button(&wnd, RUN_COLLATION, RAIL_X, 454, RAIL_WIDTH, ANCHOR);
-        let safe_export_button = button(&wnd, DISCLOSABLE_EXPORT, RAIL_X, 486, RAIL_WIDTH, ANCHOR);
-        let work_export_button = button(&wnd, WORK_FILE_EXPORT, RAIL_X, 518, RAIL_WIDTH, ANCHOR);
-        let persist_export_button = button(&wnd, SAVE_EXPORT, RAIL_X, 550, RAIL_WIDTH, ANCHOR);
+        let suggest_button = button(
+            &wnd,
+            RUN_COLLATION,
+            RAIL_X,
+            ACTION_RAIL_TOP,
+            RAIL_WIDTH,
+            ANCHOR,
+        );
+        let safe_export_button = button(
+            &wnd,
+            DISCLOSABLE_EXPORT,
+            RAIL_X,
+            ACTION_RAIL_TOP + 32,
+            RAIL_WIDTH,
+            ANCHOR,
+        );
+        let work_export_button = button(
+            &wnd,
+            WORK_FILE_EXPORT,
+            RAIL_X,
+            ACTION_RAIL_TOP + 64,
+            RAIL_WIDTH,
+            ANCHOR,
+        );
+        let persist_export_button = button(
+            &wnd,
+            SAVE_EXPORT,
+            RAIL_X,
+            ACTION_RAIL_TOP + 96,
+            RAIL_WIDTH,
+            ANCHOR,
+        );
 
         // --- Pane: search over originals -------------------------------------
         let search_edit = gui::Edit::new(
@@ -922,6 +954,27 @@ fn button(
     )
 }
 
+fn view_button(
+    parent: &(impl GuiParent + 'static),
+    text: &str,
+    x: i32,
+    y: i32,
+    width: i32,
+    resize_behavior: (gui::Horz, gui::Vert),
+) -> gui::Button {
+    gui::Button::new(
+        parent,
+        gui::ButtonOpts {
+            text,
+            position: gui::dpi(x, y),
+            width: gui::dpi_x(width),
+            height: gui::dpi_y(VIEW_BUTTON_HEIGHT),
+            resize_behavior,
+            ..Default::default()
+        },
+    )
+}
+
 fn edit(
     parent: &(impl GuiParent + 'static),
     x: i32,
@@ -1024,5 +1077,20 @@ mod tests {
             }
             claimed.push((letter, caption));
         }
+    }
+
+    #[test]
+    fn ten_view_controls_stay_above_the_action_rail() {
+        let last_row = i32::try_from(VIEW_BUTTONS.len() - 1).expect("small navigation rail");
+        let last_bottom = VIEW_RAIL_TOP + last_row * VIEW_RAIL_PITCH + VIEW_BUTTON_HEIGHT;
+        assert!(
+            last_bottom < RAIL_RULES[1],
+            "view controls end at {last_bottom}, colliding with the rule at {}",
+            RAIL_RULES[1]
+        );
+        assert!(
+            RAIL_RULES[1] < ACTION_RAIL_TOP,
+            "the group rule must remain above the first action"
+        );
     }
 }

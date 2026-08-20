@@ -9,11 +9,12 @@ use evidence_audio::NativeWhisperBackend;
 use evidence_intake::NormalizedBatch;
 use evidence_intake::{CaseId, Store, TemporalRelation};
 use evidence_video::{
-    CaptionInput, CliEmbeddingBackend, ClockInput, DEFAULT_GAP_MS, DEFAULT_PROMPT,
-    DEFAULT_THRESHOLD, DetectionInput, EmbeddingBackend, JsonEmbeddingBackend, SceneRequest,
-    SoundtrackInput, SyncOptions, SyncPair, SyncSide, TesseractCliBackend, VlmCliBackend,
-    YoloCliBackend, analyze, cut_scenes, describe_from_json, describe_scenes, detect_from_json,
-    detect_objects, embed_from_json, embed_scenes, sync_pair,
+    BatchCaptionCliBackend, CaptionInput, CliEmbeddingBackend, ClockInput, DEFAULT_GAP_MS,
+    DEFAULT_PROMPT, DEFAULT_SAMPLE_DEDUP_MS, DEFAULT_SAMPLE_GAP_MS, DEFAULT_THRESHOLD,
+    DetectionInput, EmbeddingBackend, JsonEmbeddingBackend, SceneRequest, SoundtrackInput,
+    SyncOptions, SyncPair, SyncSide, TesseractCliBackend, VlmCliBackend, YoloCliBackend, analyze,
+    cut_scenes, describe_from_json, describe_scenes, detect_from_json, detect_objects,
+    embed_from_json, embed_scenes, sync_pair,
 };
 use serde::Serialize;
 
@@ -59,6 +60,12 @@ enum Command {
         /// Minimum missing tail, in milliseconds, that becomes a recording_gap.
         #[arg(long, default_value_t = DEFAULT_GAP_MS)]
         gap_ms: u64,
+        /// Longest intended interval between retained visual-index frames.
+        #[arg(long, default_value_t = DEFAULT_SAMPLE_GAP_MS)]
+        sample_gap_ms: u64,
+        /// Suppress a scene-triggered frame this close to the previous sample.
+        #[arg(long, default_value_t = DEFAULT_SAMPLE_DEDUP_MS)]
+        sample_dedup_ms: u64,
         /// Directory to keep derived jpeg stills. Temp when omitted.
         #[arg(long)]
         stills_dir: Option<PathBuf>,
@@ -89,6 +96,12 @@ enum Command {
         /// Minimum missing tail, in milliseconds, that becomes a recording_gap.
         #[arg(long, default_value_t = DEFAULT_GAP_MS)]
         gap_ms: u64,
+        /// Longest intended interval between retained visual-index frames.
+        #[arg(long, default_value_t = DEFAULT_SAMPLE_GAP_MS)]
+        sample_gap_ms: u64,
+        /// Suppress a scene-triggered frame this close to the previous sample.
+        #[arg(long, default_value_t = DEFAULT_SAMPLE_DEDUP_MS)]
+        sample_dedup_ms: u64,
         /// Directory to keep derived jpeg stills. Temp when omitted.
         #[arg(long)]
         stills_dir: Option<PathBuf>,
@@ -131,6 +144,12 @@ enum Command {
         /// Minimum missing tail, in milliseconds, that becomes a recording_gap.
         #[arg(long, default_value_t = DEFAULT_GAP_MS)]
         gap_ms: u64,
+        /// Longest intended interval between retained visual-index frames.
+        #[arg(long, default_value_t = DEFAULT_SAMPLE_GAP_MS)]
+        sample_gap_ms: u64,
+        /// Suppress a scene-triggered frame this close to the previous sample.
+        #[arg(long, default_value_t = DEFAULT_SAMPLE_DEDUP_MS)]
+        sample_dedup_ms: u64,
         /// Directory to keep derived jpeg stills. Temp when omitted.
         #[arg(long)]
         stills_dir: Option<PathBuf>,
@@ -140,9 +159,24 @@ enum Command {
         /// VLM binary, used when `--from-json` is omitted. Default `ollama`.
         #[arg(long, default_value = "ollama")]
         vlm: PathBuf,
+        /// Python interpreter when `--vlm` names a Python script.
+        #[arg(long)]
+        vlm_python: Option<PathBuf>,
+        /// Fully local model directory. Enables the load-once batch CLI contract.
+        #[arg(long)]
+        model_dir: Option<PathBuf>,
         /// VLM model name (`llava`, `qwen2.5vl`, …).
         #[arg(long, default_value = "llava")]
         model: String,
+        /// Torch device for the load-once caption CLI.
+        #[arg(long, default_value = "cuda")]
+        vlm_device: String,
+        /// Torch dtype for the load-once caption CLI.
+        #[arg(long, default_value = "float16")]
+        vlm_dtype: String,
+        /// Maximum tokens generated per still by the load-once caption CLI.
+        #[arg(long, default_value_t = 64)]
+        vlm_max_new_tokens: u32,
         /// Instruction given with each still.
         #[arg(long, default_value = DEFAULT_PROMPT)]
         prompt: String,
@@ -173,6 +207,12 @@ enum Command {
         /// Minimum missing tail, in milliseconds, that becomes a recording_gap.
         #[arg(long, default_value_t = DEFAULT_GAP_MS)]
         gap_ms: u64,
+        /// Longest intended interval between retained visual-index frames.
+        #[arg(long, default_value_t = DEFAULT_SAMPLE_GAP_MS)]
+        sample_gap_ms: u64,
+        /// Suppress a scene-triggered frame this close to the previous sample.
+        #[arg(long, default_value_t = DEFAULT_SAMPLE_DEDUP_MS)]
+        sample_dedup_ms: u64,
         /// Directory to keep derived jpeg stills. Temp when omitted.
         #[arg(long)]
         stills_dir: Option<PathBuf>,
@@ -200,9 +240,24 @@ enum Command {
         /// VLM binary.
         #[arg(long, default_value = "ollama")]
         vlm: PathBuf,
+        /// Python interpreter when `--vlm` names a Python script.
+        #[arg(long)]
+        vlm_python: Option<PathBuf>,
+        /// Fully local VLM directory. Enables the load-once batch CLI contract.
+        #[arg(long)]
+        vlm_model_dir: Option<PathBuf>,
         /// VLM model name.
         #[arg(long, default_value = "llava")]
         vlm_model: String,
+        /// Torch device for the load-once caption CLI.
+        #[arg(long, default_value = "cuda")]
+        vlm_device: String,
+        /// Torch dtype for the load-once caption CLI.
+        #[arg(long, default_value = "float16")]
+        vlm_dtype: String,
+        /// Maximum tokens generated per still by the load-once caption CLI.
+        #[arg(long, default_value_t = 64)]
+        vlm_max_new_tokens: u32,
         /// Instruction given with each still.
         #[arg(long, default_value = DEFAULT_PROMPT)]
         prompt: String,
@@ -287,6 +342,12 @@ enum Command {
         /// Minimum missing tail, in milliseconds, that becomes a recording_gap.
         #[arg(long, default_value_t = DEFAULT_GAP_MS)]
         gap_ms: u64,
+        /// Longest intended interval between retained visual-index frames.
+        #[arg(long, default_value_t = DEFAULT_SAMPLE_GAP_MS)]
+        sample_gap_ms: u64,
+        /// Suppress a scene-triggered frame this close to the previous sample.
+        #[arg(long, default_value_t = DEFAULT_SAMPLE_DEDUP_MS)]
+        sample_dedup_ms: u64,
         /// Directory to keep derived jpeg stills. Temp when omitted.
         #[arg(long)]
         stills_dir: Option<PathBuf>,
@@ -296,6 +357,12 @@ enum Command {
         /// Embedding CLI binary, used when `--from-json` is omitted.
         #[arg(long, default_value = "embed-cli")]
         embed_bin: PathBuf,
+        /// Python interpreter when `--embed-bin` names a Python script.
+        #[arg(long)]
+        embed_python: Option<PathBuf>,
+        /// Local model directory passed to the embedding CLI.
+        #[arg(long)]
+        model_dir: Option<PathBuf>,
         /// Embedding space name stored with each vector.
         #[arg(long, default_value = "clip")]
         model: String,
@@ -322,6 +389,12 @@ enum Command {
         /// Embedding CLI binary, used when `--from-json` is omitted.
         #[arg(long, default_value = "embed-cli")]
         embed_bin: PathBuf,
+        /// Python interpreter when `--embed-bin` names a Python script.
+        #[arg(long)]
+        embed_python: Option<PathBuf>,
+        /// Local model directory passed to the embedding CLI.
+        #[arg(long)]
+        model_dir: Option<PathBuf>,
     },
 }
 
@@ -345,9 +418,24 @@ impl From<TemporalArg> for TemporalRelation {
 }
 
 fn main() {
-    if let Err(error) = run() {
-        eprintln!("error: {error}");
-        std::process::exit(1);
+    // A normalized video batch can contain many nested source/segment records.
+    // Windows executables otherwise start `main` with a small stack that can
+    // overflow while serde constructs or drops an ordinary two-minute batch.
+    let worker = std::thread::Builder::new()
+        .name("evidence-video".to_owned())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| run().map_err(|error| error.to_string()))
+        .unwrap_or_else(|error| {
+            eprintln!("error: could not start evidence-video worker: {error}");
+            std::process::exit(1);
+        });
+    match worker.join() {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            eprintln!("error: {error}");
+            std::process::exit(1);
+        }
+        Err(payload) => std::panic::resume_unwind(payload),
     }
 }
 
@@ -363,6 +451,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             temporal,
             threshold,
             gap_ms,
+            sample_gap_ms,
+            sample_dedup_ms,
             stills_dir,
         } => {
             let request = SceneRequest {
@@ -374,6 +464,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 temporal_relation: TemporalRelation::from(temporal),
                 threshold,
                 gap_ms,
+                max_sample_gap_ms: sample_gap_ms,
+                sample_dedup_ms,
                 stills_dir,
             };
             let batch = cut_scenes(&request)?;
@@ -388,6 +480,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             temporal,
             threshold,
             gap_ms,
+            sample_gap_ms,
+            sample_dedup_ms,
             stills_dir,
             from_json,
             yolo,
@@ -403,6 +497,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 temporal_relation: TemporalRelation::from(temporal),
                 threshold,
                 gap_ms,
+                max_sample_gap_ms: sample_gap_ms,
+                sample_dedup_ms,
                 stills_dir,
             };
             let batch = if let Some(json) = from_json {
@@ -426,10 +522,17 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             temporal,
             threshold,
             gap_ms,
+            sample_gap_ms,
+            sample_dedup_ms,
             stills_dir,
             from_json,
             vlm,
+            vlm_python,
+            model_dir,
             model,
+            vlm_device,
+            vlm_dtype,
+            vlm_max_new_tokens,
             prompt,
         } => {
             let request = SceneRequest {
@@ -441,10 +544,24 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 temporal_relation: TemporalRelation::from(temporal),
                 threshold,
                 gap_ms,
+                max_sample_gap_ms: sample_gap_ms,
+                sample_dedup_ms,
                 stills_dir,
             };
             let batch = if let Some(json) = from_json {
                 describe_from_json(&request, &json)?
+            } else if let Some(model_dir) = model_dir {
+                let backend = BatchCaptionCliBackend {
+                    bin: vlm,
+                    python: vlm_python,
+                    model_dir,
+                    model,
+                    prompt,
+                    device: vlm_device,
+                    torch_dtype: vlm_dtype,
+                    max_new_tokens: vlm_max_new_tokens,
+                };
+                describe_scenes(&request, &backend)?
             } else {
                 let backend = VlmCliBackend {
                     bin: vlm,
@@ -464,6 +581,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             temporal,
             threshold,
             gap_ms,
+            sample_gap_ms,
+            sample_dedup_ms,
             stills_dir,
             detect,
             detect_json,
@@ -473,7 +592,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             describe,
             caption_json,
             vlm,
+            vlm_python,
+            vlm_model_dir,
             vlm_model,
+            vlm_device,
+            vlm_dtype,
+            vlm_max_new_tokens,
             prompt,
             clock_json,
             tesseract,
@@ -490,6 +614,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 temporal_relation: TemporalRelation::from(temporal),
                 threshold,
                 gap_ms,
+                max_sample_gap_ms: sample_gap_ms,
+                sample_dedup_ms,
                 stills_dir,
             };
             let yolo_backend = YoloCliBackend {
@@ -498,10 +624,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 confidence,
             };
             let vlm_backend = VlmCliBackend {
+                bin: vlm.clone(),
+                model: vlm_model.clone(),
+                prompt: prompt.clone(),
+            };
+            let batch_vlm_backend = vlm_model_dir.map(|model_dir| BatchCaptionCliBackend {
                 bin: vlm,
+                python: vlm_python,
+                model_dir,
                 model: vlm_model,
                 prompt,
-            };
+                device: vlm_device,
+                torch_dtype: vlm_dtype,
+                max_new_tokens: vlm_max_new_tokens,
+            });
             let detections = if let Some(path) = detect_json.as_deref() {
                 DetectionInput::Json(path)
             } else if detect {
@@ -512,7 +648,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             let captions = if let Some(path) = caption_json.as_deref() {
                 CaptionInput::Json(path)
             } else if describe {
-                CaptionInput::Live(&vlm_backend)
+                batch_vlm_backend.as_ref().map_or_else(
+                    || CaptionInput::Live(&vlm_backend),
+                    |backend| CaptionInput::Live(backend),
+                )
             } else {
                 CaptionInput::None
             };
@@ -589,9 +728,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             temporal,
             threshold,
             gap_ms,
+            sample_gap_ms,
+            sample_dedup_ms,
             stills_dir,
             from_json,
             embed_bin,
+            embed_python,
+            model_dir,
             model,
         } => {
             let request = SceneRequest {
@@ -603,6 +746,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 temporal_relation: TemporalRelation::from(temporal),
                 threshold,
                 gap_ms,
+                max_sample_gap_ms: sample_gap_ms,
+                sample_dedup_ms,
                 stills_dir,
             };
             let index = if let Some(json) = from_json {
@@ -610,6 +755,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 let backend = CliEmbeddingBackend {
                     bin: embed_bin,
+                    python: embed_python,
+                    model_dir,
                     model,
                 };
                 embed_scenes(&request, &backend)?
@@ -624,6 +771,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             limit,
             from_json,
             embed_bin,
+            embed_python,
+            model_dir,
         } => {
             let store = Store::open(database)?;
             let vector = if let Some(json) = from_json {
@@ -631,6 +780,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 let backend = CliEmbeddingBackend {
                     bin: embed_bin,
+                    python: embed_python,
+                    model_dir,
                     model: model.clone(),
                 };
                 backend.embed_query(&query)?

@@ -137,6 +137,113 @@ pub struct TimelineEntry {
     pub proposition: Option<String>,
 }
 
+/// One source-grounded passage in the case collation index.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CollationEntry {
+    /// Stable content identifier.
+    pub content_id: String,
+    /// Stable immutable-source identifier.
+    pub source_id: String,
+    /// Source name shown to the reviewer.
+    pub source: String,
+    /// Broad original-source category.
+    pub source_kind: String,
+    /// Exact locator in the original source.
+    pub locator: String,
+    /// Exact extracted or human-authored text.
+    pub text: String,
+    /// Unmodified time expression from the source.
+    pub raw_time: Option<String>,
+    /// When the passage or source record says the content was created.
+    pub content_created_at: Option<String>,
+    /// Time the passage asserts, distinct from its creation time.
+    pub asserted_time: Option<String>,
+    /// Proposed normalized interval start; never replaces raw time.
+    pub normalized_start: Option<String>,
+    /// Proposed normalized interval end.
+    pub normalized_end: Option<String>,
+    /// Written basis for the proposed normalization.
+    pub time_basis: Option<String>,
+    /// Location text exactly as stored with the passage.
+    pub location: Option<String>,
+    /// Whether an extractor, rather than a person, created the passage.
+    pub machine_generated: bool,
+    /// Extractor name for machine material.
+    pub extractor: Option<String>,
+    /// Current human review state.
+    pub review_state: String,
+}
+
+/// Evidence sharing one transparent date and/or location collation key.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CollationGroup {
+    /// Date cut directly from an ISO-like normalized start, when applicable.
+    pub normalized_date: Option<String>,
+    /// Conservatively matched location text, when applicable.
+    pub location: Option<String>,
+    /// Number of distinct immutable sources represented in this group.
+    pub distinct_sources: u32,
+    /// Exact structural reason the entries appear together.
+    pub rationale: String,
+    /// Chronologically ordered source-grounded entries.
+    pub entries: Vec<CollationEntry>,
+}
+
+/// Structural anchor counts for one immutable source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SourceAnchorCoverage {
+    /// Stable immutable-source identifier.
+    pub source_id: String,
+    /// Source name shown to the reviewer.
+    pub source: String,
+    /// Broad original-source category.
+    pub source_kind: String,
+    /// Active source-grounded passages in this source.
+    pub passages: u32,
+    /// Passages carrying an unmodified source time expression.
+    pub with_raw_time: u32,
+    /// Passages carrying a content-creation time.
+    pub with_content_created_at: u32,
+    /// Passages carrying a distinct asserted time.
+    pub with_asserted_time: u32,
+    /// Passages carrying a usable normalized date.
+    pub with_normalized_date: u32,
+    /// Passages carrying non-empty location text.
+    pub with_location: u32,
+}
+
+/// One active passage and the anchors it still lacks for collation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PlacementGap {
+    /// Stable missing-anchor names, currently `normalized_date` and `location`.
+    pub missing_anchors: Vec<String>,
+    /// Source-grounded passage that needs placement work.
+    pub entry: CollationEntry,
+}
+
+/// Case-level time and location index that does not declare common events.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CollationIndex {
+    /// Case whose evidence is indexed.
+    pub case_id: String,
+    /// Active content arranged by normalized calendar date.
+    pub by_date: Vec<CollationGroup>,
+    /// Active content arranged by conservative exact location text.
+    pub by_location: Vec<CollationGroup>,
+    /// Multi-source groups sharing both a normalized date and location key.
+    ///
+    /// These are navigation groups, not stored relationships or event claims.
+    pub possibly_related: Vec<CollationGroup>,
+    /// Per-original inventory of which placement anchors intake supplied.
+    pub source_coverage: Vec<SourceAnchorCoverage>,
+    /// Active passages missing a normalized date, location, or both.
+    pub needs_placement: Vec<PlacementGap>,
+    /// Active passages without a usable normalized date.
+    pub without_normalized_date: u32,
+    /// Active passages without location text.
+    pub without_location: u32,
+}
+
 /// A legal or procedural issue and the factual work surrounding it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct IssueWorkspace {
@@ -259,20 +366,13 @@ pub struct SearchHit {
     pub bears_on: Vec<String>,
 }
 
-/// Cosine similarity a query and a still must meet to be returned as a hit.
-///
-/// Recall is preferred over precision: a false positive costs a lawyer one
-/// look at a still. The value was chosen against synthetic unit vectors; it
-/// is not a measurement of any image–text encoder run on discovery footage.
-pub const KEYFRAME_SIMILARITY_CUT: f64 = 0.20;
-
 /// One still matching a visual query, with the original it was cut from.
 ///
 /// A hit is a place to look, never a finding. It names the original by hash
 /// and the time range on that original, and the derived still so the working
-/// copy can be opened. Hits that cleared the similarity cut are ordered by
-/// still identifier. The number itself is not a field: a number printed next
-/// to a frame gets read as a measurement of the frame.
+/// copy can be opened. Internal similarity selects the bounded candidate pool;
+/// the pool is then ordered by still identifier. The number itself is not a
+/// field: a number printed next to a frame gets read as a measurement.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct KeyframeHit {
     /// Derived still source identifier.

@@ -68,39 +68,15 @@ record evidence-intake-project.decision.audio-adapter-native-whisper-engine/1 : 
 }
 
 record evidence-intake-project.decision.keyframe-finder-is-an-index/1 : decision {
-    title "Keyframe embeddings are a case-local finder index: blob plus brute force, never a score, never evidence"
+    title "Keyframe embeddings are a case-local finder index: hidden candidate selection, chronological display, never a score or evidence"
     state proposed
     scope [ all ]
     decision """
-        Keyframe retrieval is a finder index, not evidence. Each derived still is
-        embedded once by an EmbeddingBackend (JSON for tests, a local CLI for
-        overnight CLIP/SigLIP-class runs) and stored against that still's source
-        id. A later query is embedded by the same backend; the kernel compares
-        the query vector to the case's stored vectors in process, keeps those at
-        or above a recall-oriented cosine cut, and returns SearchHit-style
-        locators — original hash, time range on that original, derived still —
-        ordered by still identifier. The similarity number is never stored on a
-        hit, never printed, never exported.
+        Keyframe retrieval is a finder index, not evidence. Each coverage- or scene-selected derived still is embedded once by an EmbeddingBackend (JSON for tests, a load-once local CLI for overnight SigLIP-class runs) and stored against that still's source id. A later query is embedded by the same pinned model and preprocessing. The kernel compares the query to every vector in the case, selects at most the reviewer's requested limit by descending internal cosine similarity with source id as the deterministic tie-breaker, discards the similarity numbers, and reorders the selected locators by still identifier for chronological presentation. A hit names the original hash, time range on that original, and derived still. Similarity is never stored on a hit, printed, or exported. There is no model-independent fixed cosine cut: the synthetic 0.20 cut returned zero candidates in the first live SigLIP 2 run. A future stopping rule requires human-labeled, pinned-model evidence and still may not expose a number or bias selection toward the start of a recording.
 
-        Vectors live as a little-endian f32 BLOB on a STRICT keyframe_embeddings
-        table keyed (source_id, model), with case_id and a same-case trigger.
-        Comparison is brute-force cosine. sqlite-vec is not loaded: a case holds
-        one vector per scene, which is hundreds to low thousands, not millions;
-        an extension would make in-memory tests and the Windows GUI depend on
-        load_extension; and export exclusion is structural only if export_case
-        never queries the table. Replacing the scan with sqlite-vec later is an
-        implementation change behind the same read model, not a new contract.
+        Vectors live as a little-endian f32 BLOB on a STRICT keyframe_embeddings table keyed (source_id, model), with case_id and a same-case trigger. Comparison is brute-force cosine. sqlite-vec is not loaded: a case holds hundreds to low tens of thousands of sampled vectors, not millions; an extension would make in-memory tests and the Windows GUI depend on load_extension; and export exclusion is structural only if export_case never queries the table. Replacing the scan with sqlite-vec later is an implementation change behind the same read model, not a new contract.
 
-        Embeddings are not a NormalizedBatch field and not content. Indexing
-        writes no observation and no edge; a reviewer who wants a claim about a
-        frame authors it. A later overnight pass indexes stills the case already
-        holds, which is how this slice avoids the open question of appending
-        segments to an identical source. Import refuses a vector that is empty,
-        non-finite, zero-norm, or whose dimension disagrees with others of the
-        same model in the case, and refuses a source that is not a derived still
-        (derived_from another source in the same case). Re-running the same
-        (source_id, model) replaces the vector. Cases never share vectors.
-        Every export audience skips the table.
+        Embeddings are not a NormalizedBatch field and not content. Indexing writes no observation and no edge; a reviewer who wants a claim about a frame authors it. A later overnight pass indexes stills the case already holds, which avoids the open question of appending segments to an identical source. Import refuses a vector that is empty, non-finite, zero-norm, or whose dimension disagrees with others of the same model in the case, and refuses a source that is not a derived still (derived_from another source in the same case). Re-running the same (source_id, model) replaces the vector. Cases never share vectors. Every export audience skips the table.
         """
     context """
         The work record asked for CLIP/SigLIP-class embeddings behind a
@@ -123,7 +99,31 @@ record evidence-intake-project.decision.keyframe-finder-is-an-index/1 : decision
         discovery footage were not measured. A live encoder is optional
         overnight; tests never call one.
         """
-    author "GitHub Uploader"
+    claim blob-not-extension {
+        text """
+            Vectors are a BLOB compared in process. sqlite-vec is not a dependency of this slice.
+            """
+    }
+    claim candidate-then-chronological {
+        text """
+            The requested candidate pool is selected by hidden cosine similarity, then presented by still identifier. Similarity is absent from the read model and there is no uncalibrated global cut.
+            """
+    }
+    claim case-local-never-exported {
+        text """
+            Embeddings are keyed by case, never joined across cases, and export_case never reads keyframe_embeddings.
+            """
+    }
+    claim index-not-evidence {
+        text """
+            Indexing a still writes no content row and no edge. Retrieval never proposes what the frame shows.
+            """
+    }
+    retired_claims [ cut-then-identifier ]
+    derived_from [
+        @evidence-intake-project.video.keyframe-candidate-selection-question/2,
+        @evidence-intake-project.video.siglip2-cut-distribution/3
+    ]
 }
 
 record evidence-intake-project.decision.not-a-case-management-system/1 : decision {
@@ -214,6 +214,39 @@ record evidence-intake-project.decision.structure-not-verdict/1 : decision {
             "One supporting proposition, one source behind it, nobody has opened it" is a description of the record whose every part can be verified and argued with; "this element is weak" is an argument belonging to the person who signs the motion.
             """
     }
+}
+
+record evidence-intake-project.decision.three-intake-modalities-locked/1 : decision {
+    title "Keep document, audio and video as the complete intake modality set"
+    state active
+    scope [ all ]
+    topic intake-modality-scope
+    decision """
+        The product's intake modalities are document, audio and video. Further work improves their adapters, shared provenance, review, search and collation rather than adding another evidence modality. A future map may only be a presentation of location anchors already supplied or reviewed; 3D scene mapping, photogrammetry, trajectory reconstruction and other forensic reconstruction are outside this product scope.
+        """
+    context """
+        The three pipelines now cover the intended discovery media. The owner explicitly locked the feature set after reviewing speculative 3D mapping and ordinary digital-map ideas.
+        """
+    consequences """
+        Integration and reviewer workflow take priority over new modality experiments. Mapping is eligible only as a provenance-preserving collation view that returns the reviewer to the underlying source and does not infer a scene, route, measurement or common event.
+        """
+    claim map-view-only {
+        text """
+            A map may present sourced or reviewer-confirmed location anchors but is not a fourth modality.
+            """
+    }
+    claim no-reconstruction {
+        text """
+            3D mapping, photogrammetry, trajectory reconstruction and inferred geolocation remain out of scope.
+            """
+    }
+    claim three-modalities {
+        text """
+            Document, audio and video are the complete intake modality set.
+            """
+    }
+    supported_by [ @evidence-intake-project.scope.owner-feature-lock/1 ]
+    author "GitHub Uploader"
 }
 
 record evidence-intake-project.decision.video-intake-points-never-asserts/1 : decision {

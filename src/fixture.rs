@@ -75,17 +75,19 @@ fn seed_vehicle_stop(transaction: &rusqlite::Transaction<'_>) -> Result<()> {
           ('prod-02', 'case-vehicle-stop-001', 'Supplemental production', '2026-01-19T15:30:00Z', 'Prosecution', 'Late supplemental narrative');
 
         INSERT INTO sources
-          (id, case_id, production_id, logical_name, media_type, sha256, byte_length, review_state, integrity_status, supersedes_source_id)
+          (id, case_id, production_id, logical_name, media_type, source_kind,
+           temporal_relation, sha256, byte_length, review_state, integrity_status,
+           supersedes_source_id)
         VALUES
-          ('src-report-v1', 'case-vehicle-stop-001', 'prod-01', 'Officer Chen report.pdf', 'application/pdf',
+          ('src-report-v1', 'case-vehicle-stop-001', 'prod-01', 'Officer Chen report.pdf', 'application/pdf', 'document', 'after_event',
            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 281044, 'verified', 'available', NULL),
-          ('src-bodycam', 'case-vehicle-stop-001', 'prod-01', 'Chen BWC 0042.mp4', 'video/mp4',
+          ('src-bodycam', 'case-vehicle-stop-001', 'prod-01', 'Chen BWC 0042.mp4', 'video/mp4', 'video', 'contemporaneous',
            'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 18441440, 'reviewed', 'truncated', NULL),
-          ('src-dispatch', 'case-vehicle-stop-001', 'prod-01', 'CAD event 26-110.txt', 'text/plain',
+          ('src-dispatch', 'case-vehicle-stop-001', 'prod-01', 'CAD event 26-110.txt', 'text/plain', 'structured_data', 'contemporaneous',
            'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 4096, 'verified', 'available', NULL),
-          ('src-report-v2', 'case-vehicle-stop-001', 'prod-02', 'Officer Chen supplemental.pdf', 'application/pdf',
+          ('src-report-v2', 'case-vehicle-stop-001', 'prod-02', 'Officer Chen supplemental.pdf', 'application/pdf', 'document', 'after_event',
            'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd', 91341, 'unreviewed', 'available', 'src-report-v1'),
-          ('src-backup-missing', 'case-vehicle-stop-001', 'prod-01', 'Officer Chen backup BWC', 'video/unknown',
+          ('src-backup-missing', 'case-vehicle-stop-001', 'prod-01', 'Officer Chen backup BWC', 'video/unknown', 'video', 'contemporaneous',
            'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 0, 'unreviewed', 'missing', NULL);
 
         INSERT INTO source_segments (id, source_id, locator, page, start_ms, end_ms) VALUES

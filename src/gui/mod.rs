@@ -5,17 +5,17 @@
 //! is available behind `gui-winsafe`; a future Linux frontend can call the same
 //! [`Workspace`] methods without depending on Win32.
 
-use std::fmt;
+use std::fmt::{self, Write as _};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
 use crate::{
-    CaseId, DemoFixture, ExportAudience, NormalizedBatch, ProposedAdvocacyItem, ProposedAnnotation,
-    ProposedBrief, ProposedCase, ProposedCharge, ProposedElementMapping, ProposedEntity,
-    ProposedLink, ProposedProposition, ReviewDecision, ReviewState, ReviewTarget, Store,
-    SuggestionKind,
+    CaseId, CollationEntry, CollationIndex, DemoFixture, ExportAudience, NormalizedBatch,
+    ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge,
+    ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProposition, ReviewDecision,
+    ReviewState, ReviewTarget, Store, SuggestionKind,
 };
 
 #[cfg(all(feature = "gui-winsafe", target_os = "windows"))]
@@ -77,6 +77,8 @@ pub enum WorkspaceView {
     Elements,
     /// Lane-preserving contested timeline.
     Timeline,
+    /// Source-grounded time and location collation index.
+    Collation,
     /// Privileged issue workspaces.
     Issues,
     /// Charged and alternative offense comparison.
@@ -96,6 +98,7 @@ impl WorkspaceView {
             Self::Discovery => "Discovery ledger",
             Self::Elements => "Element matrix",
             Self::Timeline => "Contested timeline",
+            Self::Collation => "Evidence collation",
             Self::Issues => "Issue workspaces",
             Self::Offenses => "Offense comparison",
             Self::ReviewQueue => "Review queue",
@@ -362,6 +365,7 @@ impl Workspace {
             WorkspaceView::Discovery => json(&self.store.discovery_ledger(case_id)?),
             WorkspaceView::Elements => json(&self.store.element_matrix(case_id)?),
             WorkspaceView::Timeline => json(&self.store.contested_timeline(case_id)?),
+            WorkspaceView::Collation => Ok(collation_text(&self.store.collation_index(case_id)?)),
             WorkspaceView::Issues => json(&self.store.issue_workspaces(case_id)?),
             WorkspaceView::Offenses => json(&self.store.offense_comparison(case_id)?),
             WorkspaceView::ReviewQueue => json(&self.store.review_queue(case_id)?),
@@ -487,6 +491,112 @@ fn json(value: &impl Serialize) -> GuiResult<String> {
     Ok(serde_json::to_string_pretty(value)?)
 }
 
+fn collation_text(index: &CollationIndex) -> String {
+    let mut output = String::new();
+    let _ = writeln!(output, "TIME AND LOCATION COLLATION");
+    let _ = writeln!(output, "Case: {}", index.case_id);
+    let _ = writeln!(
+        output,
+        "{} date groups | {} exact-location groups | {} multi-source key groups",
+        index.by_date.len(),
+        index.by_location.len(),
+        index.possibly_related.len()
+    );
+    let _ = writeln!(
+        output,
+        "{} passages lack a normalized date | {} lack location\n",
+        index.without_normalized_date, index.without_location
+    );
+
+    let _ = writeln!(output, "SOURCE ANCHOR COVERAGE");
+    for source in &index.source_coverage {
+        let _ = writeln!(
+            output,
+            "- {} [{}] — {} passages; raw {}, created {}, asserted {}, normalized-date {}, location {}",
+            source.source,
+            source.source_kind,
+            source.passages,
+            source.with_raw_time,
+            source.with_content_created_at,
+            source.with_asserted_time,
+            source.with_normalized_date,
+            source.with_location
+        );
+    }
+
+    let _ = writeln!(output, "\nPOSSIBLY RELATED BY SHARED KEYS");
+    if index.possibly_related.is_empty() {
+        let _ = writeln!(output, "- None. No common event was inferred.");
+    }
+    for group in &index.possibly_related {
+        let _ = writeln!(output, "- {}", group.rationale);
+        for entry in &group.entries {
+            write_collation_entry(&mut output, entry, "  ");
+        }
+    }
+
+    let _ = writeln!(output, "\nNEEDS PLACEMENT");
+    if index.needs_placement.is_empty() {
+        let _ = writeln!(output, "- None.");
+    }
+    for gap in &index.needs_placement {
+        let _ = writeln!(
+            output,
+            "- Missing {}",
+            gap.missing_anchors.join(" and ").replace('_', " ")
+        );
+        write_collation_entry(&mut output, &gap.entry, "  ");
+    }
+
+    let _ = writeln!(output, "\nBY NORMALIZED DATE");
+    for group in &index.by_date {
+        let _ = writeln!(
+            output,
+            "{} — {} passages across {} sources",
+            group.normalized_date.as_deref().unwrap_or("unplaced"),
+            group.entries.len(),
+            group.distinct_sources
+        );
+        for entry in &group.entries {
+            write_collation_entry(&mut output, entry, "  ");
+        }
+    }
+
+    let _ = writeln!(output, "\nEXACT LOCATION GROUPS");
+    for group in &index.by_location {
+        let _ = writeln!(
+            output,
+            "- {} — {} passages across {} sources",
+            group.location.as_deref().unwrap_or("unplaced"),
+            group.entries.len(),
+            group.distinct_sources
+        );
+    }
+    output
+}
+
+fn write_collation_entry(output: &mut String, entry: &CollationEntry, indent: &str) {
+    let time = entry
+        .normalized_start
+        .as_deref()
+        .or(entry.asserted_time.as_deref())
+        .or(entry.content_created_at.as_deref())
+        .or(entry.raw_time.as_deref())
+        .unwrap_or("time unplaced");
+    let machine = if entry.machine_generated {
+        "machine suggestion"
+    } else {
+        "human material"
+    };
+    let text = entry.text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let _ = writeln!(
+        output,
+        "{indent}{} | {} @ {} | {} | {}",
+        time, entry.source, entry.locator, entry.review_state, machine
+    );
+    let _ = writeln!(output, "{indent}{text}");
+}
+
 /// Parses the stable review target label used by native controls.
 pub fn review_target(label: &str) -> Option<ReviewTarget> {
     match label {
@@ -526,6 +636,13 @@ mod tests {
         let overview = workspace.render(WorkspaceView::Overview).expect("overview");
         assert!(overview.contains("case-vehicle-stop-001"));
         assert!(workspace.render(WorkspaceView::ReviewQueue).is_ok());
+        let collation = workspace
+            .render(WorkspaceView::Collation)
+            .expect("collation");
+        assert!(collation.starts_with("TIME AND LOCATION COLLATION"));
+        assert!(collation.contains("SOURCE ANCHOR COVERAGE"));
+        assert!(collation.contains("NEEDS PLACEMENT"));
+        assert!(collation.contains("Chen BWC 0042.mp4"));
     }
 
     #[test]

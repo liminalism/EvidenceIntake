@@ -138,6 +138,29 @@ record evidence-intake-project.papercut.ran-knowledge-context-goal-on-a-project-
     created_at 2026-08-09
 }
 
+record evidence-intake-project.papercut.rerunning-the-two-minute-video-describe-command/1 : papercut {
+    title "Rerunning the two-minute video describe command exposed two non-obvious…"
+    state verified
+    statement """
+        Rerunning the two-minute video describe command exposed two non-obvious Windows failures: the CLI main thread overflowed its default stack while constructing/dropping a 27-source normalized batch, and ffmpeg could not resolve relative input/stills paths after the sampler changed its child working directory for metadata output. The CLI now runs on an explicit 8 MiB worker stack and resolves those paths before launching ffmpeg.
+        """
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    author "codex"
+    created_at 2026-08-20
+}
+
+record evidence-intake-project.papercut.resolving-a-question-from-a-new-observation/1 : papercut {
+    title "Resolving a question from a new observation required revising the…"
+    state verified
+    statement """
+        Resolving a question from a new observation required revising the observation's `resolves` relation to an unpinned head before revising the question; pinning `/1` made the question's new `/2` head invalidate the resolver during the same transition. The error help did not explain this circular head-update sequence.
+        """
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    about "akr"
+    author "gpt-5"
+    created_at 2026-08-20
+}
+
 record evidence-intake-project.papercut.the-agents-protocol-names-commands-as-knowledge/1 : papercut {
     title "The AGENTS protocol names commands as knowledge.context, but this…"
     state verified
@@ -147,6 +170,17 @@ record evidence-intake-project.papercut.the-agents-protocol-names-commands-as-kn
     observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
     author "codex"
     created_at 2026-08-09
+}
+
+record evidence-intake-project.papercut.the-curated-vehicle-stop-fixture-s-body-camera/1 : papercut {
+    title "The curated vehicle-stop fixture's body-camera, reports and CAD source…"
+    state verified
+    statement """
+        The curated vehicle-stop fixture's body-camera, reports and CAD source rows still relied on the schema defaults `source_kind=other` and `temporal_relation=unknown`, so the new collation view faithfully surfaced a body-camera as `other`. The fixture now supplies the same source classification fields real adapters already provide.
+        """
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    author "codex"
+    created_at 2026-08-20
 }
 
 record evidence-intake-project.papercut.the-first-gui-smoke-screenshot-used/1 : papercut {
@@ -160,6 +194,17 @@ record evidence-intake-project.papercut.the-first-gui-smoke-screenshot-used/1 : 
     created_at 2026-08-09
 }
 
+record evidence-intake-project.papercut.the-readme-s-demo-view-commands-fail-against/1 : papercut {
+    title "The README's demo `view` commands fail against the default empty…"
+    state verified
+    statement """
+        The README's demo `view` commands fail against the default empty database unless the preceding seed step and database choice are carried forward, which made a collation smoke test initially look broken. The GUI acceptance command also needed `--features gui-winsafe`; default library tests do not exercise the feature-gated rail geometry or mnemonic checks.
+        """
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    author "gpt-5.6-codex"
+    created_at 2026-08-20
+}
+
 record evidence-intake-project.papercut.video-transcriber-mcp-looks-like-a-reusable/1 : papercut {
     title "video-transcriber-mcp looks like a reusable Whisper crate on lib.rs but…"
     state verified
@@ -169,4 +214,64 @@ record evidence-intake-project.papercut.video-transcriber-mcp-looks-like-a-reusa
     observed_at git:aa07b628e8b4d3c7153ced96e0d9f1e08f5aa53c
     author "grok"
     created_at 2026-08-14
+}
+
+record evidence-intake-project.papercut.while-checking-regenerated-akr-views-passing/1 : papercut {
+    title "While checking regenerated AKR views, passing `docs/generated/*.md` as…"
+    state verified
+    statement """
+        While checking regenerated AKR views, passing `docs/generated/*.md` as a ripgrep path produced Windows error 123 instead of expanding the glob. Using `docs/generated -g '*.md'` is the portable form.
+        """
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    about "ripgrep on Windows"
+    author "gpt-5"
+    created_at 2026-08-20
+}
+
+record evidence-intake-project.papercut.while-generating-a-diagnostic-contact-sheet-on/1 : papercut {
+    title "While generating a diagnostic contact sheet on Windows, ffmpeg's…"
+    state verified
+    statement """
+        While generating a diagnostic contact sheet on Windows, ffmpeg's drawtext filter failed because its Fontconfig build could not load a default configuration, even though Windows fonts exist. A portable helper should accept an explicit fontfile or omit drawtext instead of relying on Fontconfig defaults.
+        """
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    about "ffmpeg"
+    author "codex"
+    created_at 2026-08-20
+}
+
+record evidence-intake-project.papercut.while-inspecting-a-sibling-crate-i-tried-cargo/1 : papercut {
+    title "While inspecting a sibling crate I tried `cargo metadata --no-deps…"
+    state verified
+    statement """
+        While inspecting a sibling crate I tried `cargo metadata --no-deps --format-version 1 -p lege-gpu`, but cargo metadata does not support package selection even though many cargo subcommands do. The command had to be retried without `-p` or replaced with manifest inspection.
+        """
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    about "cargo"
+    author "codex"
+    created_at 2026-08-20
+}
+
+record evidence-intake-project.papercut.while-recording-a-measured-contradiction-to-the/1 : papercut {
+    title "While recording a measured contradiction to the proposed keyframe…"
+    state verified
+    statement """
+        While recording a measured contradiction to the proposed keyframe decision, knowledge.propose rejected the live contradicts relation because V-023 requires an `acknowledged true` marker, but the observation schema/tool contract does not expose where that marker belongs. I omitted the relation and revised the proposed decision directly.
+        """
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    about "akr"
+    author "gpt-5"
+    created_at 2026-08-20
+}
+
+record evidence-intake-project.papercut.while-running-the-three-new-scene-acceptance/1 : papercut {
+    title "While running the three new scene acceptance tests, I passed three…"
+    state verified
+    statement """
+        While running the three new scene acceptance tests, I passed three positional test filters to `cargo test`; Cargo accepts only one filter and rejected the extra arguments. Running the `scenes` integration-test target is the correct single command.
+        """
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    about "cargo"
+    author "gpt-5"
+    created_at 2026-08-20
 }

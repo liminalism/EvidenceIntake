@@ -1,4 +1,6 @@
 /target/
+__pycache__/
+*.py[cod]
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
@@ -21,3 +23,8 @@
 /lingbot-map/
 /2503.06317v1.md
 /original-pdf-do-not-read-if-there-is-a-markdown-version/
+
+# Local discovery samples and downloaded model weights are working data, not
+# repository artifacts. They may be large, sensitive, or both.
+/evidence-examples/
+/siglip/

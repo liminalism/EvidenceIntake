@@ -39,8 +39,9 @@ pub use review::{ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewTarget};
 pub use store::Store;
 pub use suggest::{AnalyzerReport, Finding, SuggestionKind, SuggestionRun};
 pub use views::{
-    CaseStanding, CaseSummary, ChargeStanding, DecisionBrief, DiscoveryItem, ElementCoverage,
-    ElementRow, ElementStanding, IssueWorkspace, KEYFRAME_SIMILARITY_CUT, KeyframeHit, LiveDispute,
-    LoadBearingSource, OffenseComparison, OpenGap, Overview, PropositionEvidence, SearchHit,
-    TimelineEntry, WitnessStatement,
+    CaseStanding, CaseSummary, ChargeStanding, CollationEntry, CollationGroup, CollationIndex,
+    DecisionBrief, DiscoveryItem, ElementCoverage, ElementRow, ElementStanding, IssueWorkspace,
+    KeyframeHit, LiveDispute, LoadBearingSource, OffenseComparison, OpenGap, Overview,
+    PlacementGap, PropositionEvidence, SearchHit, SourceAnchorCoverage, TimelineEntry,
+    WitnessStatement,
 };

@@ -166,6 +166,243 @@ record evidence-intake-project.case.isolation-and-lifecycle/1 : work {
     }
 }
 
+record evidence-intake-project.collation.gui-anchor-coverage/1 : work {
+    title "Make collation usable in the native workspace and expose placement gaps by source"
+    state superseded
+    scope [
+        path "README.md",
+        path "docs/collation.md",
+        path "src/gui/**",
+        path "src/lib.rs",
+        path "src/main.rs",
+        path "src/store.rs",
+        path "src/views.rs",
+        path "tests/collation.rs"
+    ]
+    intent """
+        Add the completed time/location collation index as a first-class native workspace view without breaking the constrained WinSafe navigation rail. Deepen the same read model with per-source anchor coverage and explicit passages needing date and/or location placement, preserving all original locators and avoiding percentages, scores, fuzzy matching, automatic relationships or common-event conclusions.
+        """
+    acceptance {
+        check native-view {
+            statement """
+                The platform-neutral workspace and WinSafe navigation expose the collation index with a unique mnemonic and a rail layout that remains above the action controls.
+                """
+            method command
+            command "cargo test --lib"
+        }
+        check placement-gaps {
+            statement """
+                Every active passage missing normalized date or location is listed with the exact missing anchors and original locator, while rejected content stays excluded.
+                """
+            method command
+            command "cargo test --test collation"
+        }
+        check quality {
+            statement """
+                Workspace tests, strict clippy, formatting and diff checks pass.
+                """
+            method command
+            command "cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings && cargo fmt --all -- --check && git diff --check"
+        }
+        check source-coverage {
+            statement """
+                The collation index reports per-source counts for raw, creation, asserted and normalized time anchors and locations without percentages or evaluative labels.
+                """
+            method command
+            command "cargo test --test collation"
+        }
+    }
+    depends_on [ @evidence-intake-project.collation.time-location-index/2 ]
+    implements [
+        @evidence-intake-project.decision.not-a-case-management-system/1,
+        @evidence-intake-project.decision.structure-not-verdict/1
+    ]
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.collation.gui-anchor-coverage/2 : work {
+    title "Make collation usable in the native workspace and expose placement gaps by source"
+    state completed
+    scope [
+        path "README.md",
+        path "docs/collation.md",
+        path "src/gui/**",
+        path "src/lib.rs",
+        path "src/main.rs",
+        path "src/store.rs",
+        path "src/views.rs",
+        path "tests/collation.rs"
+    ]
+    intent """
+        Add the completed time/location collation index as a first-class native workspace view without breaking the constrained WinSafe navigation rail. Deepen the same read model with per-source anchor coverage and explicit passages needing date and/or location placement, preserving all original locators and avoiding percentages, scores, fuzzy matching, automatic relationships or common-event conclusions.
+        """
+    acceptance {
+        check native-view {
+            statement """
+                The platform-neutral workspace and WinSafe navigation expose the collation index with a unique mnemonic and a rail layout that remains above the action controls.
+                """
+            method command
+            command "cargo test --lib --features gui-winsafe"
+            verified_by [ @evidence-intake-project.collation.gui-native-view/1 ]
+        }
+        check placement-gaps {
+            statement """
+                Every active passage missing normalized date or location is listed with the exact missing anchors and original locator, while rejected content stays excluded.
+                """
+            method command
+            command "cargo test --test collation"
+            verified_by [ @evidence-intake-project.collation.anchor-coverage/1 ]
+        }
+        check quality {
+            statement """
+                Workspace tests with optional features, strict clippy, formatting and diff checks pass.
+                """
+            method command
+            command "cargo test --workspace --all-features && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo fmt --all -- --check && git diff --check"
+            verified_by [ @evidence-intake-project.collation.all-feature-quality/1 ]
+        }
+        check source-coverage {
+            statement """
+                The collation index reports per-source counts for raw, creation, asserted and normalized time anchors and locations without percentages or evaluative labels.
+                """
+            method command
+            command "cargo test --test collation"
+            verified_by [ @evidence-intake-project.collation.anchor-coverage/1 ]
+        }
+    }
+    depends_on [ @evidence-intake-project.collation.time-location-index/2 ]
+    implements [
+        @evidence-intake-project.decision.not-a-case-management-system/1,
+        @evidence-intake-project.decision.structure-not-verdict/1
+    ]
+    supersedes [ @evidence-intake-project.collation.gui-anchor-coverage/1 ]
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.collation.time-location-index/1 : work {
+    title "Collate evidence by normalized date and exact location without inferring a common event"
+    state superseded
+    scope [
+        path "docs/**",
+        path "src/lib.rs",
+        path "src/main.rs",
+        path "src/store.rs",
+        path "src/views.rs",
+        path "tests/collation.rs"
+    ]
+    intent """
+        Add a case-level read model that preserves each original locator, raw and normalized time basis, and location text; groups active evidence chronologically by normalized date and by conservative exact location text; and identifies only multi-source date-plus-location groups as possibly related, with a written structural rationale, no score, no merge, no stored relationship and no event conclusion.
+        """
+    acceptance {
+        check case-isolation {
+            statement """
+                The view returns only records from the requested case and refuses an unknown case.
+                """
+            method command
+            command "cargo test --test collation"
+        }
+        check explainable-groups {
+            statement """
+                A possible group requires at least two distinct sources sharing an exact normalized date and conservative exact location key, states that reason, and neither scores nor asserts a common event.
+                """
+            method command
+            command "cargo test --test collation"
+        }
+        check operator-surface {
+            statement """
+                The CLI exposes the collation read model as a case view and documentation explains its conservative boundary.
+                """
+            method command
+            command "cargo test --all-targets"
+        }
+        check preserves-anchors {
+            statement """
+                The collation view preserves source identity, locator, raw/asserted/normalized times, time basis, location text, review state and machine provenance for each entry.
+                """
+            method command
+            command "cargo test --test collation"
+        }
+        check quality {
+            statement """
+                Workspace tests, strict clippy and formatting pass.
+                """
+            method command
+            command "cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings && cargo fmt --all -- --check"
+        }
+    }
+    implements [
+        @evidence-intake-project.decision.not-a-case-management-system/1,
+        @evidence-intake-project.decision.structure-not-verdict/1
+    ]
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.collation.time-location-index/2 : work {
+    title "Collate evidence by normalized date and exact location without inferring a common event"
+    state completed
+    scope [
+        path "README.md",
+        path "docs/collation.md",
+        path "src/fixture.rs",
+        path "src/lib.rs",
+        path "src/main.rs",
+        path "src/store.rs",
+        path "src/views.rs",
+        path "tests/collation.rs"
+    ]
+    intent """
+        Add a case-level read model that preserves each original locator, raw, content-creation, asserted and normalized time fields, written time basis, and location text; groups active evidence chronologically by normalized date and by conservative exact location text; and identifies only multi-source date-plus-location groups as possibly related, with a written structural rationale, no score, no merge, no stored relationship and no event conclusion.
+        """
+    acceptance {
+        check case-isolation {
+            statement """
+                The view returns only records from the requested case and refuses an unknown case.
+                """
+            method command
+            command "cargo test --test collation"
+            verified_by [ @evidence-intake-project.collation.time-location-contract/1 ]
+        }
+        check explainable-groups {
+            statement """
+                A possible group requires at least two distinct sources sharing an exact normalized date and conservative exact location key, states that reason, and neither scores nor asserts a common event.
+                """
+            method command
+            command "cargo test --test collation"
+            verified_by [ @evidence-intake-project.collation.time-location-contract/1 ]
+        }
+        check operator-surface {
+            statement """
+                The CLI exposes the collation read model as a case view and documentation explains its conservative boundary.
+                """
+            method command
+            command "cargo test --all-targets"
+            verified_by [ @evidence-intake-project.collation.cli-smoke/1 ]
+        }
+        check preserves-anchors {
+            statement """
+                The collation view preserves source identity, locator, raw/creation/asserted/normalized times, time basis, location text, review state and machine provenance for each entry.
+                """
+            method command
+            command "cargo test --test collation"
+            verified_by [ @evidence-intake-project.collation.time-location-contract/1 ]
+        }
+        check quality {
+            statement """
+                Workspace tests, strict clippy and formatting pass.
+                """
+            method command
+            command "cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings && cargo fmt --all -- --check"
+            verified_by [ @evidence-intake-project.collation.workspace-verification/1 ]
+        }
+    }
+    implements [
+        @evidence-intake-project.decision.not-a-case-management-system/1,
+        @evidence-intake-project.decision.structure-not-verdict/1
+    ]
+    supersedes [ @evidence-intake-project.collation.time-location-index/1 ]
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.gui.winsafe-shell/1 : work {
     title "Feature-gated WinSafe evidence workspace"
     state completed
@@ -541,6 +778,66 @@ record evidence-intake-project.video.audio-track-through-audio-adapter/1 : work 
     implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
 }
 
+record evidence-intake-project.video.bounded-coverage-keyframes/1 : work {
+    title "Bound visual-index coverage independently of scene cuts"
+    state completed
+    scope [ path "adapters/video/**" ]
+    intent """
+        Replace scene-cut-only keyframe selection with a deterministic, configurable hybrid sampler: periodic coverage frames bound the longest unsampled span, while scene-change frames add useful transitions and near-duplicates are suppressed. Extract the selected frames in a bounded number of ffmpeg passes and preserve exact original-timeline locators and derived-still lineage. This is a finder index over sampled pixels, not a claim that unsampled moments contain nothing.
+        """
+    note """
+        The current local sample demonstrates a 76.94-second maximum gap at the default scene threshold. Model evaluation must not begin until sampling recall and model retrieval recall can be measured separately.
+        """
+    acceptance {
+        check bounded-ffmpeg-work {
+            statement """
+                Extracting many samples does not start one accurate-from-zero ffmpeg decode per still; an integration test or command trace demonstrates bounded-pass extraction.
+                """
+            method observation
+            verified_by [
+                @evidence-intake-project.video.evidence.bounded-single-ffmpeg-decode-20260820/1
+            ]
+        }
+        check bounded-gap {
+            statement """
+                On a continuous synthetic clip with no hard cuts, the time between retained coverage frames never exceeds the configured maximum, including the head and tail.
+                """
+            method command
+            command "cargo test -p evidence-video continuous_footage_has_a_configurable_maximum_sampling_gap"
+            verified_by [
+                @evidence-intake-project.video.evidence.configurable-sampling-gap-20260820/1
+            ]
+        }
+        check hybrid-dedup {
+            statement """
+                Scene-triggered frames are retained in addition to periodic coverage, while frames falling within the configured deduplication window do not create duplicate stills.
+                """
+            method command
+            command "cargo test -p evidence-video scene_and_periodic_samples_merge_without_duplicate_stills"
+            verified_by [
+                @evidence-intake-project.video.evidence.hybrid-sample-dedup-20260820/1
+            ]
+        }
+        check original-locators {
+            statement """
+                Every sampled still remains a derived source whose locator addresses its actual instant on the untouched original video timeline.
+                """
+            method command
+            command "cargo test -p evidence-video hybrid_samples_keep_exact_original_timeline_locators"
+            verified_by [
+                @evidence-intake-project.video.evidence.hybrid-original-locators-20260820/1
+            ]
+        }
+    }
+    depends_on [ @evidence-intake-project.video.scene-core/1 ]
+    derived_from [ @evidence-intake-project.video.sample-scene-coverage-gap/1 ]
+    implements [
+        @evidence-intake-project.decision.keyframe-finder-is-an-index/1,
+        @evidence-intake-project.decision.video-intake-points-never-asserts/1
+    ]
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.video.clock-overlay-ocr/1 : work {
     title "OCR the burned-in clock overlay of BWC and dashcam footage as raw_time per scene"
     state completed
@@ -716,6 +1013,68 @@ record evidence-intake-project.video.keyframe-embedding-retrieval/1 : work {
     implements [
         @evidence-intake-project.decision.keyframe-finder-is-an-index,
         @evidence-intake-project.decision.video-intake-points-never-asserts
+    ]
+}
+
+record evidence-intake-project.video.real-embedding-benchmark/1 : work {
+    title "Choose the visual finder model by local body-camera retrieval recall"
+    state proposed
+    scope [ path "adapters/video/**" ]
+    intent """
+        Implement the existing embed-cli contract with a fully local text-image encoder and compare real models on human-labeled original-timeline intervals from representative body-camera footage. Measure the sampler's opportunity to see each interval separately from the encoder's ability to retrieve it. Select and pin one exact model revision, preprocessing contract, embedding dimension and local runtime only after measuring interval recall, later-timeline coverage, indexing throughput, query latency and GPU memory on this workstation. Product hits remain unscored suggestions pointing to the original.
+        """
+    note """
+        Start with Apache-2.0 Google SigLIP 2 base checkpoints that fit the RTX 4060 Laptop GPU: FixRes 384 as the primary candidate and NaFlex base as the aspect-ratio challenger. Do not download a detector or caption-generating VLM for this benchmark; closed-set boxes and generated prose answer different questions.
+        """
+    acceptance {
+        check human-ground-truth {
+            statement """
+                A human-authored benchmark names original-timeline intervals for visible-state, setting, small-or-occluded-object, low-light, negative, and deliberately temporal/action queries without using any candidate model to label relevance.
+                """
+            method observation
+        }
+        check load-once-batch {
+            statement """
+                An indexing job loads the model once and embeds stills in batches or over a persistent stream; it does not start a model-loading process once per still.
+                """
+            method observation
+            verified_by [
+                @evidence-intake-project.video.evidence.siglip-load-once-batch-20260820/1
+            ]
+        }
+        check local-cli {
+            statement """
+                A local executable satisfies the embedding backend contract, returns finite same-dimension vectors, records an immutable model identifier, and can run after model files are cached with network access disabled.
+                """
+            method command
+            command "cargo test -p evidence-video live_embedding_cli_contract"
+        }
+        check operational-profile {
+            statement """
+                Each candidate records pinned model revision and license, disk download size, vector dimension, indexing frames per second, peak GPU memory, CPU fallback behavior, query latency and 100-hour vector/still storage projection on this workstation.
+                """
+            method observation
+        }
+        check selection {
+            statement """
+                The selected model and preprocessing are justified by interval recall and operational fit; the synthetic 0.20 cosine cut is either recalibrated from the benchmark or explicitly replaced, without exposing similarity values in product output.
+                """
+            method observation
+        }
+        check separate-recall {
+            statement """
+                The benchmark reports sampling opportunity/ceiling separately from retrieval recall at the reviewer's result budget, so a missed frame is not misattributed to the encoder.
+                """
+            method observation
+        }
+    }
+    depends_on [
+        @evidence-intake-project.video.bounded-coverage-keyframes/1,
+        @evidence-intake-project.video.keyframe-embedding-retrieval/1
+    ]
+    implements [
+        @evidence-intake-project.decision.keyframe-finder-is-an-index/1,
+        @evidence-intake-project.decision.video-intake-points-never-asserts/1
     ]
 }
 

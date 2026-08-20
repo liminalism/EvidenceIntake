@@ -1,6 +1,6 @@
 //! `SQLite` persistence and decision-oriented queries.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -9,16 +9,17 @@ use uuid::Uuid;
 use crate::{
     AnalyzerReport, AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredEntity,
     AuthoredLink, AuthoredProposition, CaseExport, CaseId, CaseStanding, CaseSummary,
-    ChargeStanding, DecisionBrief, DiscoveryItem, EdgeKind, ElementAssessment, ElementCoverage,
-    ElementRow, ElementStanding, Error, ExportAudience, ExportedProposition, ExportedWorkProduct,
-    IndexedKeyframe, IssueWorkspace, KEYFRAME_SIMILARITY_CUT, KeyframeHit, KeyframeIndex,
-    LiveDispute, LoadBearingSource, NodeKind, NodeRef, NormalizedBatch, OffenseComparison, OpenGap,
-    OpenedCase, OpenedProduction, Overview, ProposedAdvocacyItem, ProposedAnnotation,
-    ProposedBrief, ProposedCase, ProposedCharge, ProposedElementMapping, ProposedEntity,
-    ProposedLink, ProposedProduction, ProposedProposition, PropositionEvidence, Result,
-    ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, SearchHit,
-    SuggestionKind, SuggestionRun, TimelineEntry, UnsupportedProposition, WitnessStatement,
-    WorkProductVersion, review::transition_allowed, suggest::Finding,
+    ChargeStanding, CollationEntry, CollationGroup, CollationIndex, DecisionBrief, DiscoveryItem,
+    EdgeKind, ElementAssessment, ElementCoverage, ElementRow, ElementStanding, Error,
+    ExportAudience, ExportedProposition, ExportedWorkProduct, IndexedKeyframe, IssueWorkspace,
+    KeyframeHit, KeyframeIndex, LiveDispute, LoadBearingSource, NodeKind, NodeRef, NormalizedBatch,
+    OffenseComparison, OpenGap, OpenedCase, OpenedProduction, Overview, PlacementGap,
+    ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge,
+    ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition,
+    PropositionEvidence, Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState,
+    ReviewTarget, SearchHit, SourceAnchorCoverage, SuggestionKind, SuggestionRun, TimelineEntry,
+    UnsupportedProposition, WitnessStatement, WorkProductVersion, review::transition_allowed,
+    suggest::Finding,
 };
 
 /// Number of migrations applied by [`Store::migrate`].
@@ -748,6 +749,195 @@ impl Store {
             .map_err(Into::into)
     }
 
+    /// Collates active source-grounded passages by transparent time and location keys.
+    ///
+    /// This is a read model, not an analyzer: it writes no edge and makes no
+    /// common-event claim. Date keys come only from `normalized_start`.
+    /// Location matching folds case and repeated whitespace but performs no
+    /// abbreviation, address, geospatial, or semantic inference.
+    pub fn collation_index(&self, case_id: &CaseId) -> Result<CollationIndex> {
+        self.require_case(case_id)?;
+        let mut statement = self.connection.prepare_cached(
+            "SELECT c.id, src.id, src.logical_name, src.source_kind, seg.locator, c.text,
+                    c.raw_time, c.content_created_at, c.asserted_time, c.normalized_start,
+                    c.normalized_end, c.time_basis, c.location_text, c.machine_generated,
+                    c.extractor, c.review_state
+             FROM content c
+             JOIN source_segments seg ON seg.id = c.segment_id
+             JOIN sources src ON src.id = seg.source_id
+             WHERE c.case_id = ?1 AND c.review_state <> 'rejected'
+             ORDER BY COALESCE(c.normalized_start, c.asserted_time, c.raw_time, ''),
+                      src.logical_name, seg.locator, c.id",
+        )?;
+        let entries = statement
+            .query_map([&case_id.0], |row| {
+                Ok(CollationEntry {
+                    content_id: row.get(0)?,
+                    source_id: row.get(1)?,
+                    source: row.get(2)?,
+                    source_kind: row.get(3)?,
+                    locator: row.get(4)?,
+                    text: row.get(5)?,
+                    raw_time: row.get(6)?,
+                    content_created_at: row.get(7)?,
+                    asserted_time: row.get(8)?,
+                    normalized_start: row.get(9)?,
+                    normalized_end: row.get(10)?,
+                    time_basis: row.get(11)?,
+                    location: row.get(12)?,
+                    machine_generated: row.get::<_, i64>(13)? != 0,
+                    extractor: row.get(14)?,
+                    review_state: row.get(15)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        let mut by_date: BTreeMap<String, Vec<CollationEntry>> = BTreeMap::new();
+        let mut by_location: BTreeMap<String, (String, Vec<CollationEntry>)> = BTreeMap::new();
+        let mut possible: BTreeMap<(String, String), (String, Vec<CollationEntry>)> =
+            BTreeMap::new();
+        let mut source_coverage: BTreeMap<String, SourceAnchorCoverage> = BTreeMap::new();
+        let mut needs_placement = Vec::new();
+        let mut without_normalized_date = 0_u32;
+        let mut without_location = 0_u32;
+
+        for entry in entries {
+            let date = entry
+                .normalized_start
+                .as_deref()
+                .and_then(normalized_date)
+                .map(str::to_owned);
+            let location = entry.location.as_deref().and_then(|value| {
+                let display = value.split_whitespace().collect::<Vec<_>>().join(" ");
+                (!display.is_empty()).then(|| (conservative_location_key(&display), display))
+            });
+
+            let coverage = source_coverage
+                .entry(entry.source_id.clone())
+                .or_insert_with(|| SourceAnchorCoverage {
+                    source_id: entry.source_id.clone(),
+                    source: entry.source.clone(),
+                    source_kind: entry.source_kind.clone(),
+                    passages: 0,
+                    with_raw_time: 0,
+                    with_content_created_at: 0,
+                    with_asserted_time: 0,
+                    with_normalized_date: 0,
+                    with_location: 0,
+                });
+            coverage.passages = coverage.passages.saturating_add(1);
+            if has_text(entry.raw_time.as_deref()) {
+                coverage.with_raw_time = coverage.with_raw_time.saturating_add(1);
+            }
+            if has_text(entry.content_created_at.as_deref()) {
+                coverage.with_content_created_at =
+                    coverage.with_content_created_at.saturating_add(1);
+            }
+            if has_text(entry.asserted_time.as_deref()) {
+                coverage.with_asserted_time = coverage.with_asserted_time.saturating_add(1);
+            }
+            if date.is_some() {
+                coverage.with_normalized_date = coverage.with_normalized_date.saturating_add(1);
+            }
+            if location.is_some() {
+                coverage.with_location = coverage.with_location.saturating_add(1);
+            }
+
+            let mut missing_anchors = Vec::new();
+            if date.is_none() {
+                missing_anchors.push("normalized_date".to_owned());
+            }
+            if location.is_none() {
+                missing_anchors.push("location".to_owned());
+            }
+            if !missing_anchors.is_empty() {
+                needs_placement.push(PlacementGap {
+                    missing_anchors,
+                    entry: entry.clone(),
+                });
+            }
+
+            if let Some(date) = &date {
+                by_date.entry(date.clone()).or_default().push(entry.clone());
+            } else {
+                without_normalized_date = without_normalized_date.saturating_add(1);
+            }
+            if let Some((key, display)) = &location {
+                by_location
+                    .entry(key.clone())
+                    .or_insert_with(|| (display.clone(), Vec::new()))
+                    .1
+                    .push(entry.clone());
+            } else {
+                without_location = without_location.saturating_add(1);
+            }
+            if let (Some(date), Some((key, display))) = (date, location) {
+                possible
+                    .entry((date, key))
+                    .or_insert_with(|| (display, Vec::new()))
+                    .1
+                    .push(entry);
+            }
+        }
+
+        let by_date = by_date
+            .into_iter()
+            .map(|(date, entries)| CollationGroup {
+                distinct_sources: distinct_sources(&entries),
+                rationale: format!(
+                    "Grouped by normalized date `{date}` only; entries remain separate records."
+                ),
+                normalized_date: Some(date),
+                location: None,
+                entries,
+            })
+            .collect();
+        let by_location = by_location
+            .into_values()
+            .map(|(location, entries)| CollationGroup {
+                distinct_sources: distinct_sources(&entries),
+                rationale: format!(
+                    "Grouped by exact case-insensitive location text `{location}` only; no address or geospatial inference was performed."
+                ),
+                normalized_date: None,
+                location: Some(location),
+                entries,
+            })
+            .collect();
+        let possibly_related = possible
+            .into_iter()
+            .filter_map(|((date, _), (location, entries))| {
+                let distinct_sources = distinct_sources(&entries);
+                (distinct_sources >= 2).then(|| CollationGroup {
+                    normalized_date: Some(date.clone()),
+                    location: Some(location.clone()),
+                    distinct_sources,
+                    rationale: format!(
+                        "Shared collation keys only: normalized date `{date}` and exact case-insensitive location text `{location}` across {distinct_sources} immutable sources. The records remain separate; this does not assert a common event."
+                    ),
+                    entries,
+                })
+            })
+            .collect();
+        let mut source_coverage: Vec<_> = source_coverage.into_values().collect();
+        source_coverage.sort_by(|left, right| {
+            left.source
+                .cmp(&right.source)
+                .then_with(|| left.source_id.cmp(&right.source_id))
+        });
+
+        Ok(CollationIndex {
+            case_id: case_id.0.clone(),
+            by_date,
+            by_location,
+            possibly_related,
+            source_coverage,
+            needs_placement,
+            without_normalized_date,
+            without_location,
+        })
+    }
+
     /// Returns all issue workspaces and their linked factual material.
     ///
     /// Only the current version of each issue appears. A superseded reading is
@@ -1226,12 +1416,12 @@ impl Store {
         Ok(())
     }
 
-    /// Finds stills whose embedding meets the cosine cut for `query`.
+    /// Selects the closest stills for `query`, then presents them by identifier.
     ///
-    /// Hits are ordered by still identifier, never by how close they scored.
-    /// The number is computed to apply the cut and then discarded. An unknown
-    /// model is an error so the operator can tell an unindexed case from a
-    /// query that matched nothing.
+    /// Similarity selects a bounded candidate pool but is then discarded; hits
+    /// are presented by still identifier and contain no rank or score. An
+    /// unknown model is an error so the operator can tell an unindexed case
+    /// from an empty index.
     pub fn search_keyframes(
         &self,
         case_id: &CaseId,
@@ -1316,13 +1506,16 @@ impl Store {
             let Some(similarity) = cosine(query, &coordinates) else {
                 continue;
             };
-            if similarity + f64::EPSILON < KEYFRAME_SIMILARITY_CUT {
-                continue;
-            }
             scored.push((source_id, row, similarity));
         }
-        scored.sort_by(|left, right| left.0.cmp(&right.0));
+        scored.sort_by(|left, right| {
+            right
+                .2
+                .total_cmp(&left.2)
+                .then_with(|| left.0.cmp(&right.0))
+        });
         scored.truncate(limit as usize);
+        scored.sort_by(|left, right| left.0.cmp(&right.0));
 
         let mut links = self.connection.prepare_cached(
             "SELECT e.source_id, e.relation || ': ' || p.text
@@ -3454,6 +3647,43 @@ fn unreadable_query(query: &str, error: rusqlite::Error) -> Error {
 /// warn about, treating something unreadable as unchecked is the safe reading.
 fn is_intake_state(value: &str) -> bool {
     ReviewState::from_db(value).is_none_or(ReviewState::is_intake_state)
+}
+
+/// Reads a calendar key only from an ISO-like normalized timestamp.
+fn normalized_date(value: &str) -> Option<&str> {
+    let date = value.get(..10)?;
+    let bytes = date.as_bytes();
+    (bytes.len() == 10
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| matches!(index, 4 | 7) || byte.is_ascii_digit()))
+    .then_some(date)
+}
+
+/// Conservative location equality: case and repeated whitespace only.
+fn conservative_location_key(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+fn has_text(value: Option<&str>) -> bool {
+    value.is_some_and(|text| !text.trim().is_empty())
+}
+
+fn distinct_sources(entries: &[CollationEntry]) -> u32 {
+    entries
+        .iter()
+        .map(|entry| entry.source_id.as_str())
+        .collect::<HashSet<_>>()
+        .len()
+        .try_into()
+        .unwrap_or(u32::MAX)
 }
 
 /// Requires a field that was actually filled in.

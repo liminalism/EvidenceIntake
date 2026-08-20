@@ -2,14 +2,15 @@
 
 #![allow(missing_docs)]
 
-use std::path::PathBuf;
+use std::cell::Cell;
+use std::path::{Path, PathBuf};
 
 use evidence_intake::{
     CaseId, ContentKind, DemoFixture, ReviewState, SourceKind, Store, TemporalRelation,
 };
 use evidence_video::{
-    EXTRACTOR_CAPTION, Keyframe, Scene, SceneAnalysis, SceneCaption, VideoIdentity,
-    attach_captions, caption_scene, scenes_and_captions_to_batch, scenes_to_batch,
+    CaptionBackend, EXTRACTOR_CAPTION, Keyframe, Scene, SceneAnalysis, SceneCaption, VideoIdentity,
+    attach_captions, caption_scene, caption_scenes, scenes_and_captions_to_batch, scenes_to_batch,
 };
 
 fn identity(case_id: CaseId) -> VideoIdentity {
@@ -97,6 +98,7 @@ fn a_scene_description_is_an_observation_not_a_finding() {
     assert!(content.speaker_entity_id.is_none());
     assert!(content.text.starts_with("Scene description (machine):"));
     assert!(content.text.contains("Suggested"));
+    assert!(!content.text.contains(".. Suggested"));
     assert!(!content.text.to_lowercase().contains("the sedan struck"));
     assert!(!content.text.to_lowercase().contains("this proves"));
 
@@ -159,4 +161,59 @@ fn an_empty_description_is_refused() {
     let scene = &fixture_analysis().scenes[0];
     let error = caption_scene(scene, "   ", None).expect_err("empty");
     assert!(error.to_string().contains("empty"), "{error}");
+}
+
+struct AbstainingBatchBackend {
+    calls: Cell<u32>,
+}
+
+impl CaptionBackend for AbstainingBatchBackend {
+    fn describe_still(&self, _still: &Path) -> evidence_video::Result<Option<String>> {
+        panic!("caption_scenes should use the batch method")
+    }
+
+    fn describe_stills(&self, stills: &[PathBuf]) -> evidence_video::Result<Vec<Option<String>>> {
+        self.calls.set(self.calls.get() + 1);
+        assert_eq!(stills.len(), 2);
+        Ok(vec![
+            Some("A person stands beside a vehicle.".to_owned()),
+            None,
+        ])
+    }
+
+    fn extractor(&self) -> &str {
+        EXTRACTOR_CAPTION
+    }
+
+    fn version(&self) -> String {
+        "test@pinned".to_owned()
+    }
+}
+
+#[test]
+fn scene_captions_load_once_and_preserve_abstention() {
+    let mut analysis = fixture_analysis();
+    analysis.scenes.push(Scene {
+        index: 3,
+        start_ms: 15_400,
+        end_ms: 20_000,
+        cut_score_millis: None,
+        keyframe: Some(Keyframe {
+            path: PathBuf::from("scene-0003.jpg"),
+            sha256: "53".repeat(32),
+            byte_length: 2_048,
+            width: Some(1920),
+            height: Some(1080),
+        }),
+    });
+    let backend = AbstainingBatchBackend {
+        calls: Cell::new(0),
+    };
+
+    let captions = caption_scenes(&analysis, &backend).expect("caption batch");
+
+    assert_eq!(backend.calls.get(), 1);
+    assert_eq!(captions.len(), 1);
+    assert_eq!(captions[0].scene_index, Some(2));
+    assert_eq!(captions[0].text, "A person stands beside a vehicle.");
 }

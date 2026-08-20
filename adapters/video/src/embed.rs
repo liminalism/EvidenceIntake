@@ -1,7 +1,8 @@
 //! Keyframe embeddings. A visual finder, not a finding.
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use evidence_intake::{IndexedKeyframe, KeyframeIndex};
 use serde::{Deserialize, Serialize};
@@ -17,6 +18,11 @@ pub const EXTRACTOR_EMBED: &str = "keyframe_embed";
 pub trait EmbeddingBackend {
     /// Embed one working-copy still.
     fn embed_still(&self, still: &Path) -> Result<Vec<f32>>;
+
+    /// Embed working-copy stills while allowing a backend to load once.
+    fn embed_stills(&self, stills: &[PathBuf]) -> Result<Vec<Vec<f32>>> {
+        stills.iter().map(|still| self.embed_still(still)).collect()
+    }
 
     /// Embed a text query into the same space as [`Self::embed_still`].
     fn embed_query(&self, text: &str) -> Result<Vec<f32>>;
@@ -166,6 +172,10 @@ impl EmbeddingBackend for JsonEmbeddingBackend {
 pub struct CliEmbeddingBackend {
     /// Binary name or path. Default `embed-cli`.
     pub bin: PathBuf,
+    /// Python interpreter when `bin` is a Python script.
+    pub python: Option<PathBuf>,
+    /// Local model directory passed to backends that accept `--model`.
+    pub model_dir: Option<PathBuf>,
     /// Embedding space name stored with each vector.
     pub model: String,
 }
@@ -175,6 +185,8 @@ impl CliEmbeddingBackend {
     pub fn default_local() -> Self {
         Self {
             bin: PathBuf::from("embed-cli"),
+            python: None,
+            model_dir: None,
             model: "clip".to_owned(),
         }
     }
@@ -185,9 +197,63 @@ struct CliVector {
     vector: Vec<f32>,
 }
 
+#[derive(Serialize)]
+struct CliBatchRequest<'a> {
+    paths: &'a [PathBuf],
+}
+
+#[derive(Deserialize)]
+struct CliVectors {
+    vectors: Vec<Vec<f32>>,
+}
+
 impl EmbeddingBackend for CliEmbeddingBackend {
     fn embed_still(&self, still: &Path) -> Result<Vec<f32>> {
         self.run(["still", still.to_str().unwrap_or_default()])
+    }
+
+    fn embed_stills(&self, stills: &[PathBuf]) -> Result<Vec<Vec<f32>>> {
+        if stills.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut command = self.command();
+        command
+            .arg("batch")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = command.spawn().map_err(|error| self.spawn_error(&error))?;
+        let request = serde_json::to_vec(&CliBatchRequest { paths: stills })?;
+        child
+            .stdin
+            .take()
+            .ok_or_else(|| Error::Backend("embedding CLI stdin was not piped".to_owned()))?
+            .write_all(&request)?;
+        let output = child.wait_with_output()?;
+        if !output.status.success() {
+            return Err(self.exit_error(output.status, &output.stderr));
+        }
+        let parsed: CliVectors = serde_json::from_slice(&output.stdout).map_err(|error| {
+            Error::Backend(format!(
+                "`{}` did not print {{\"vectors\":[[...]]}}: {error}",
+                self.bin.display()
+            ))
+        })?;
+        if parsed.vectors.len() != stills.len() {
+            return Err(Error::Backend(format!(
+                "`{}` returned {} vectors for {} stills",
+                self.bin.display(),
+                parsed.vectors.len(),
+                stills.len()
+            )));
+        }
+        if parsed.vectors.iter().any(Vec::is_empty) {
+            return Err(Error::Backend(format!(
+                "`{}` printed an empty vector",
+                self.bin.display()
+            )));
+        }
+        Ok(parsed.vectors)
     }
 
     fn embed_query(&self, text: &str) -> Result<Vec<f32>> {
@@ -208,20 +274,28 @@ impl EmbeddingBackend for CliEmbeddingBackend {
 }
 
 impl CliEmbeddingBackend {
+    fn command(&self) -> Command {
+        let mut command = if let Some(python) = &self.python {
+            let mut command = Command::new(python);
+            command.arg(&self.bin);
+            command
+        } else {
+            Command::new(&self.bin)
+        };
+        if let Some(model_dir) = &self.model_dir {
+            command.arg("--model").arg(model_dir);
+        }
+        command
+    }
+
     fn run<const N: usize>(&self, args: [&str; N]) -> Result<Vec<f32>> {
-        let output = Command::new(&self.bin).args(args).output().map_err(|error| {
-            Error::Backend(format!(
-                "could not run `{}`: {error}. Install a local CLIP/SigLIP CLI or pass --from-json.",
-                self.bin.display()
-            ))
-        })?;
+        let output = self
+            .command()
+            .args(args)
+            .output()
+            .map_err(|error| self.spawn_error(&error))?;
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::Backend(format!(
-                "`{}` exited with {}: {stderr}",
-                self.bin.display(),
-                output.status
-            )));
+            return Err(self.exit_error(output.status, &output.stderr));
         }
         let parsed: CliVector = serde_json::from_slice(&output.stdout).map_err(|error| {
             Error::Backend(format!(
@@ -237,6 +311,22 @@ impl CliEmbeddingBackend {
         }
         Ok(parsed.vector)
     }
+
+    fn spawn_error(&self, error: &std::io::Error) -> Error {
+        Error::Backend(format!(
+            "could not run `{}`: {error}. Install a local CLIP/SigLIP CLI or pass --from-json.",
+            self.bin.display()
+        ))
+    }
+
+    fn exit_error(&self, status: std::process::ExitStatus, stderr: &[u8]) -> Error {
+        Error::Backend(format!(
+            "`{}` exited with {}: {}",
+            self.bin.display(),
+            status,
+            String::from_utf8_lossy(stderr)
+        ))
+    }
 }
 
 /// Embed each scene keyframe and address the vectors to the derived still ids
@@ -246,12 +336,22 @@ pub fn embed_keyframes(
     analysis: &SceneAnalysis,
     backend: &dyn EmbeddingBackend,
 ) -> Result<KeyframeIndex> {
-    let mut embeddings = Vec::new();
-    for scene in &analysis.scenes {
-        let Some(still) = &scene.keyframe else {
-            continue;
-        };
-        let vector = backend.embed_still(&still.path)?;
+    let keyed: Vec<_> = analysis
+        .scenes
+        .iter()
+        .filter_map(|scene| scene.keyframe.as_ref().map(|still| (scene, still)))
+        .collect();
+    let paths: Vec<_> = keyed.iter().map(|(_, still)| still.path.clone()).collect();
+    let vectors = backend.embed_stills(&paths)?;
+    if vectors.len() != keyed.len() {
+        return Err(Error::Backend(format!(
+            "embedding backend returned {} vectors for {} keyframes",
+            vectors.len(),
+            keyed.len()
+        )));
+    }
+    let mut embeddings = Vec::with_capacity(keyed.len());
+    for ((scene, _), vector) in keyed.into_iter().zip(vectors) {
         embeddings.push(IndexedKeyframe {
             source_id: format!("{}-still-{:04}", identity.source_id, scene.index),
             model: backend.model(),

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "source": {
+    "source_id": "replace-with-video-source-id",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "result_budgets": [5, 10, 25],
+  "queries": [
+    {
+      "id": "setting-night-road",
+      "text": "roadway at night",
+      "category": "setting",
+      "mode": "still",
+      "relevant_intervals": [
+        {
+          "start_ms": 10000,
+          "end_ms": 20000,
+          "note": "Replace with an interval labelled by a person before viewing model results."
+        }
+      ]
+    },
+    {
+      "id": "small-occluded-hands",
+      "text": "a person's hands",
+      "category": "small-or-occluded-object",
+      "mode": "still",
+      "relevant_intervals": [
+        {
+          "start_ms": 30000,
+          "end_ms": 35000,
+          "note": "Include difficult and partly occluded examples, not only clear frames."
+        }
+      ]
+    },
+    {
+      "id": "temporal-running",
+      "text": "a person begins running",
+      "category": "temporal-action",
+      "mode": "temporal",
+      "relevant_intervals": [
+        {
+          "start_ms": 40000,
+          "end_ms": 45000,
+          "note": "Reported separately because a single-frame encoder cannot establish motion."
+        }
+      ]
+    },
+    {
+      "id": "negative-helicopter",
+      "text": "a helicopter",
+      "category": "negative",
+      "mode": "negative",
+      "relevant_intervals": []
+    }
+  ]
+}

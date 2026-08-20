@@ -35,9 +35,10 @@ This initial milestone provides:
   record touch a charge — structure a defender can act on, never a score;
 - full-text search over extracted content, with the exact original locator on
   every hit and privileged work product structurally out of reach;
-- text-to-frame retrieval over scene keyframes, returning locators ordered by
-  identifier within a similarity cut, never a similarity number, with vectors
-  stored per case and excluded from every export;
+- text-to-frame retrieval over coverage- and scene-sampled keyframes, selecting
+  a bounded candidate pool internally and presenting it chronologically,
+  never reporting a similarity number, with vectors stored per case and
+  excluded from every export;
 - decision-oriented discovery, element, witness, timeline, issue, and brief
   read models;
 - an adapter-neutral contract for already-OCRed documents, timestamped audio
@@ -70,6 +71,7 @@ cargo run -- view case-vehicle-stop-001 discovery
 cargo run -- view case-vehicle-stop-001 elements
 cargo run -- view case-vehicle-stop-001 witness person-patel
 cargo run -- view case-vehicle-stop-001 timeline
+cargo run -- view case-vehicle-stop-001 collation
 cargo run -- view case-vehicle-stop-001 issues
 cargo run -- view case-vehicle-stop-001 brief motions
 cargo run -- view case-hit-run-001 offenses
@@ -135,6 +137,8 @@ then use the lower action panel for named review decisions, normalized-batch
 intake, and typed authoring JSON. Buttons use Win32 mnemonic markers, so
 `Alt` plus the underlined letter activates the corresponding command. The safe
 export is `disclosable`; the privileged work-file export is a separate action.
+**Collation Groups** presents time/location anchors and placement gaps as a
+readable review sheet rather than raw JSON; `Alt+G` opens it directly.
 
 ## Current boundary
 

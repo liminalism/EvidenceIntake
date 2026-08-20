@@ -73,12 +73,18 @@ cargo run -p evidence-video -- find --database evidence.sqlite --case case-id --
 ```
 
 Text search cannot see a still. Keyframe retrieval embeds each derived still
-once and compares a query vector to those stored vectors. Hits that meet a
-recall-oriented cosine cut are returned as locators — original hash, time range
-on that original, derived still — ordered by still identifier. The similarity
-number is computed to apply the cut and then discarded, for the same reason
-BM25 is withheld: a number printed next to a frame is read as a measurement of
-the frame.
+once and compares a query vector to those stored vectors. Internal similarity
+selects at most the reviewer's requested number of candidates; that candidate
+pool is then returned chronologically as locators — original hash, time range
+on that original, derived still. The similarity number is discarded, for the
+same reason BM25 is withheld: a number printed next to a frame is read as a
+measurement of the frame. There is no model-independent fixed cosine cut: the
+first live SigLIP 2 run showed that the former synthetic cut returned nothing.
+
+The Python backend is the model-evaluation oracle, not a deployment commitment.
+If the selected encoder proves useful, [the native-runtime note](video-native-runtime.md)
+describes how `lege-gpu` can inform a purpose-built Rust implementation without
+being treated as a drop-in SigLIP backend.
 
 The vectors are a finder index, not evidence. Indexing writes no observation
 and no edge. They live in the same SQLite file as a BLOB compared in process,

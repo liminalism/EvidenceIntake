@@ -403,7 +403,7 @@ fn caption_segment(
             kind: ContentKind::Observation,
             text: format!(
                 "Scene description (machine): {}. Suggested; open the original at this locator.",
-                caption.text.trim()
+                caption.text.trim().trim_end_matches(['.', '!', '?'])
             ),
             speaker_entity_id: None,
             attributed_to_entity_id: None,

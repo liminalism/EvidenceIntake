@@ -197,7 +197,7 @@ fn a_matching_query_returns_the_original_hash_and_locator() {
     let hits = store
         .search_keyframes(&case_id, "test-clip", &[1.0, 0.0], 25)
         .expect("search");
-    assert_eq!(hits.len(), 2, "the orthogonal still stays below the cut");
+    assert_eq!(hits.len(), 3, "the review budget admits all three stills");
     let first = hits.iter().find(|hit| hit.source_id == "cam-still-0002");
     let first = first.expect("the aligned still is a hit");
     assert_eq!(first.sha256, "a".repeat(64));
@@ -208,8 +208,7 @@ fn a_matching_query_returns_the_original_hash_and_locator() {
     assert!(first.machine_generated);
 }
 
-/// Within the cut, identifier order is the order. A closer match with a later
-/// id does not jump the queue.
+/// Similarity selects the candidate pool, then identifier order presents it.
 #[test]
 fn hits_are_ordered_by_identifier_not_similarity() {
     let mut store = empty_store();
@@ -221,24 +220,28 @@ fn hits_are_ordered_by_identifier_not_similarity() {
         .search_keyframes(&case_id, "test-clip", &[1.0, 0.0], 25)
         .expect("search");
     let ids: Vec<_> = hits.iter().map(|hit| hit.source_id.as_str()).collect();
-    assert_eq!(ids, ["cam-still-0001", "cam-still-0002"]);
+    assert_eq!(ids, ["cam-still-0001", "cam-still-0002", "cam-still-0003"]);
+
+    let closest = store
+        .search_keyframes(&case_id, "test-clip", &[1.0, 0.0], 1)
+        .expect("search");
+    assert_eq!(closest[0].source_id, "cam-still-0002");
 }
 
-/// A neighbour below the cut is omitted rather than ranked last.
+/// A small review budget keeps the nearest candidates even when they occur
+/// later in the recording.
 #[test]
-fn below_the_cut_is_omitted() {
+fn candidate_limit_is_applied_before_chronological_presentation() {
     let mut store = empty_store();
     let (case_id, production_id) = open_case(&mut store, "kf-cut");
     import_clip(&mut store, &case_id, &production_id, "cam");
     index_unit_vectors(&mut store, &case_id, "cam");
 
     let hits = store
-        .search_keyframes(&case_id, "test-clip", &[1.0, 0.0], 25)
+        .search_keyframes(&case_id, "test-clip", &[1.0, 0.0], 2)
         .expect("search");
-    assert!(
-        hits.iter().all(|hit| hit.source_id != "cam-still-0003"),
-        "orthogonal still must not appear: {hits:?}"
-    );
+    let ids: Vec<_> = hits.iter().map(|hit| hit.source_id.as_str()).collect();
+    assert_eq!(ids, ["cam-still-0001", "cam-still-0002"]);
 }
 
 /// A number printed next to a frame is read as a measurement of the frame.
@@ -382,7 +385,10 @@ fn reindexing_the_same_still_replaces_the_vector() {
     store
         .index_keyframes(&KeyframeIndex {
             case_id: case_id.clone(),
-            embeddings: vec![embedding("cam-still-0001", vec![1.0, 0.0])],
+            embeddings: vec![
+                embedding("cam-still-0001", vec![1.0, 0.0]),
+                embedding("cam-still-0002", vec![0.5, 0.5]),
+            ],
         })
         .expect("first");
     store
@@ -393,14 +399,11 @@ fn reindexing_the_same_still_replaces_the_vector() {
         .expect("replace");
 
     let along_x = store
-        .search_keyframes(&case_id, "test-clip", &[1.0, 0.0], 25)
+        .search_keyframes(&case_id, "test-clip", &[1.0, 0.0], 1)
         .expect("x");
-    assert!(
-        along_x.is_empty(),
-        "the replaced vector is orthogonal to x: {along_x:?}"
-    );
+    assert_eq!(along_x[0].source_id, "cam-still-0002");
     let along_y = store
-        .search_keyframes(&case_id, "test-clip", &[0.0, 1.0], 25)
+        .search_keyframes(&case_id, "test-clip", &[0.0, 1.0], 1)
         .expect("y");
     assert_eq!(along_y.len(), 1);
     assert_eq!(along_y[0].source_id, "cam-still-0001");

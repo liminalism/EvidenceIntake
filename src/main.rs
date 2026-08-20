@@ -618,6 +618,8 @@ enum View {
     },
     /// Lane-preserving timeline.
     Timeline,
+    /// Source-grounded evidence grouped by normalized date and exact location.
+    Collation,
     /// Suppression, identification, discovery, and other issue workspaces.
     Issues,
     /// Latest posture-specific client decision brief.
@@ -735,6 +737,7 @@ fn run() -> Result<()> {
                     print_json(&store.witness_dossier(&case_id, &entity_id)?)?;
                 }
                 View::Timeline => print_json(&store.contested_timeline(&case_id)?)?,
+                View::Collation => print_json(&store.collation_index(&case_id)?)?,
                 View::Issues => print_json(&store.issue_workspaces(&case_id)?)?,
                 View::Brief { posture } => {
                     print_json(&store.decision_brief(&case_id, &posture)?)?;

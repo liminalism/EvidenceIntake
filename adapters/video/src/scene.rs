@@ -11,6 +11,10 @@ use crate::{Error, Result};
 pub const DEFAULT_THRESHOLD: f64 = 0.30;
 /// Tail shorter than claimed duration by this much becomes a `recording_gap`.
 pub const DEFAULT_GAP_MS: u64 = 2_000;
+/// Longest intended interval between visual-index samples.
+pub const DEFAULT_SAMPLE_GAP_MS: u64 = 5_000;
+/// Scene-triggered samples this close to the previous sample are suppressed.
+pub const DEFAULT_SAMPLE_DEDUP_MS: u64 = 250;
 
 /// One scene on the original timeline, optionally with a derived still.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +66,30 @@ pub fn detect_scenes(
     gap_ms: u64,
     stills_dir: Option<&Path>,
 ) -> Result<SceneAnalysis> {
+    detect_scenes_with_sampling(
+        path,
+        threshold,
+        gap_ms,
+        stills_dir,
+        DEFAULT_SAMPLE_GAP_MS,
+        DEFAULT_SAMPLE_DEDUP_MS,
+    )
+}
+
+/// Detect scene changes while also bounding the interval between samples.
+///
+/// One ffmpeg decode selects the first frame, periodic coverage frames, and
+/// scene-change frames. A scene-triggered frame inside `sample_dedup_ms` of
+/// the previous retained frame is suppressed. Set `max_sample_gap_ms` to zero
+/// for scene-change-only sampling.
+pub fn detect_scenes_with_sampling(
+    path: &Path,
+    threshold: f64,
+    gap_ms: u64,
+    stills_dir: Option<&Path>,
+    max_sample_gap_ms: u64,
+    sample_dedup_ms: u64,
+) -> Result<SceneAnalysis> {
     if !path.is_file() {
         return Err(Error::Open {
             path: path.to_path_buf(),
@@ -84,16 +112,12 @@ pub fn detect_scenes(
     }
     let last_video_pts_ms = probe_last_video_pts_ms(path)?;
     let decodable_end = last_video_pts_ms.unwrap_or(duration_ms).min(duration_ms);
+    let frame_interval_ms = probe_frame_interval_ms(path).unwrap_or(0);
 
-    let cuts = probe_cut_times(path, threshold)?;
-    let mut boundaries = vec![0_u64];
-    for cut in cuts {
-        if cut > 0 && cut < decodable_end && boundaries.last() != Some(&cut) {
-            boundaries.push(cut);
-        }
-    }
-    if *boundaries.last().unwrap_or(&0) < decodable_end {
-        boundaries.push(decodable_end);
+    if !threshold.is_finite() || !(0.0..=1.0).contains(&threshold) {
+        return Err(Error::Probe(
+            "scene threshold must be a finite value in 0..=1".to_owned(),
+        ));
     }
 
     let keep_dir = match stills_dir {
@@ -117,31 +141,28 @@ pub fn detect_scenes(
         ));
     };
 
-    let mut scenes = Vec::new();
-    for (index, window) in boundaries.windows(2).enumerate() {
-        let start_ms = window[0];
-        let end_ms = window[1];
-        if end_ms <= start_ms {
+    let samples = extract_samples(
+        path,
+        threshold,
+        max_sample_gap_ms,
+        sample_dedup_ms,
+        frame_interval_ms,
+        stills_root,
+    )?;
+    let mut scenes = Vec::with_capacity(samples.len());
+    for (index, (start_ms, keyframe)) in samples.iter().enumerate() {
+        let end_ms = samples
+            .get(index + 1)
+            .map_or(decodable_end, |(next_ms, _)| *next_ms);
+        if end_ms <= *start_ms {
             continue;
         }
-        let number = u32::try_from(index + 1).unwrap_or(u32::MAX);
-        let keyframe = extract_keyframe(path, start_ms, stills_root, number).ok();
         scenes.push(Scene {
-            index: number,
-            start_ms,
+            index: u32::try_from(index + 1).unwrap_or(u32::MAX),
+            start_ms: *start_ms,
             end_ms,
             cut_score_millis: None,
-            keyframe,
-        });
-    }
-    if scenes.is_empty() {
-        let keyframe = extract_keyframe(path, 0, stills_root, 1).ok();
-        scenes.push(Scene {
-            index: 1,
-            start_ms: 0,
-            end_ms: decodable_end.max(1),
-            cut_score_millis: None,
-            keyframe,
+            keyframe: Some(keyframe.clone()),
         });
     }
 
@@ -234,26 +255,89 @@ fn probe_last_video_pts_ms(path: &Path) -> Result<Option<u64>> {
     ))
 }
 
-fn probe_cut_times(path: &Path, threshold: f64) -> Result<Vec<u64>> {
-    let dir = tempfile::tempdir()?;
-    let report = dir.path().join("cuts.txt");
-    let status = Command::new("ffmpeg")
-        .current_dir(dir.path())
-        .args(["-hide_banner", "-loglevel", "error", "-i"])
-        .arg(path)
+fn probe_frame_interval_ms(path: &Path) -> Result<u64> {
+    let output = Command::new("ffprobe")
         .args([
-            "-filter:v",
-            &format!("select='gte(scene,{threshold})',metadata=print:file=cuts.txt"),
-            "-an",
-            "-f",
-            "null",
-            "-",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=avg_frame_rate",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
         ])
+        .arg(path)
+        .output()
+        .map_err(|error| Error::Probe(format!("could not probe video frame rate: {error}")))?;
+    if !output.status.success() {
+        return Ok(0);
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let Some((numerator, denominator)) = text.trim().split_once('/') else {
+        return Ok(0);
+    };
+    let numerator: f64 = numerator.parse().unwrap_or(0.0);
+    let denominator: f64 = denominator.parse().unwrap_or(0.0);
+    if numerator <= 0.0 || denominator <= 0.0 {
+        return Ok(0);
+    }
+    Ok((1_000.0 * denominator / numerator).ceil() as u64)
+}
+
+fn extract_samples(
+    path: &Path,
+    threshold: f64,
+    max_sample_gap_ms: u64,
+    sample_dedup_ms: u64,
+    frame_interval_ms: u64,
+    stills_root: &Path,
+) -> Result<Vec<(u64, Keyframe)>> {
+    let report_dir = tempfile::tempdir()?;
+    let report = report_dir.path().join("selected.txt");
+    // ffmpeg runs in `report_dir` so its metadata sidecar has a short, safely
+    // quoted name. Resolve caller paths before changing the child's working
+    // directory; otherwise valid relative input/output paths point into the
+    // temporary report directory.
+    let invocation_dir = std::env::current_dir()?;
+    let input = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        invocation_dir.join(path)
+    };
+    let stills_root = if stills_root.is_absolute() {
+        stills_root.to_path_buf()
+    } else {
+        invocation_dir.join(stills_root)
+    };
+    let pattern = stills_root.join("scene-%04d.jpg");
+    // `select` can only retain an actual frame. Start looking one nominal
+    // frame early so a constant-frame-rate stream's next frame stays inside
+    // the caller's requested maximum rather than exceeding it by one tick.
+    let trigger_gap_ms = max_sample_gap_ms.saturating_sub(frame_interval_ms).max(1);
+    let max_gap_s = trigger_gap_ms as f64 / 1_000.0;
+    let dedup_s = sample_dedup_ms as f64 / 1_000.0;
+    let periodic = if max_sample_gap_ms == 0 {
+        String::new()
+    } else {
+        format!("+gte(t-prev_selected_t,{max_gap_s:.6})")
+    };
+    let filter = format!(
+        "setpts=PTS-STARTPTS,select='isnan(prev_selected_t){periodic}+gte(t-prev_selected_t,{dedup_s:.6})*gte(scene,{threshold:.6})',metadata=print:file=selected.txt"
+    );
+    let status = Command::new("ffmpeg")
+        .current_dir(report_dir.path())
+        .args(["-y", "-hide_banner", "-loglevel", "error", "-i"])
+        .arg(&input)
+        .args(["-filter:v", &filter, "-an", "-fps_mode", "vfr", "-q:v", "3"])
+        .arg(&pattern)
         .status()
-        .map_err(|error| Error::Probe(format!("could not run ffmpeg scene filter: {error}")))?;
+        .map_err(|error| {
+            Error::Probe(format!("could not run ffmpeg sample extraction: {error}"))
+        })?;
     if !status.success() {
         return Err(Error::Probe(format!(
-            "ffmpeg scene filter exited with {status}"
+            "ffmpeg sample extraction exited with {status}"
         )));
     }
     let text = if report.is_file() {
@@ -261,7 +345,40 @@ fn probe_cut_times(path: &Path, threshold: f64) -> Result<Vec<u64>> {
     } else {
         String::new()
     };
-    Ok(parse_scene_report(&text))
+    let times = parse_scene_report(&text);
+    if times.is_empty() {
+        return Err(Error::Probe(
+            "ffmpeg selected no frames for the visual index".to_owned(),
+        ));
+    }
+    let mut samples = Vec::with_capacity(times.len());
+    for (offset, time_ms) in times.into_iter().enumerate() {
+        let number = offset + 1;
+        let still = stills_root.join(format!("scene-{number:04}.jpg"));
+        let bytes = std::fs::read(&still).map_err(|error| {
+            Error::Probe(format!(
+                "ffmpeg reported sample {number} at {time_ms}ms but {} could not be read: {error}",
+                still.display()
+            ))
+        })?;
+        if bytes.is_empty() {
+            return Err(Error::Probe(format!(
+                "ffmpeg wrote an empty still at {time_ms}ms"
+            )));
+        }
+        let (width, height) = jpeg_dimensions(&bytes).unzip();
+        samples.push((
+            time_ms,
+            Keyframe {
+                path: still,
+                sha256: hex::encode(Sha256::digest(&bytes)),
+                byte_length: bytes.len() as u64,
+                width,
+                height,
+            },
+        ));
+    }
+    Ok(samples)
 }
 
 /// Parses `metadata=print` output for `pts_time` lines.
@@ -279,35 +396,6 @@ pub fn parse_scene_report(text: &str) -> Vec<u64> {
         }
     }
     cuts
-}
-
-fn extract_keyframe(path: &Path, at_ms: u64, dir: &Path, index: u32) -> Result<Keyframe> {
-    let still = dir.join(format!("scene-{index:04}.jpg"));
-    let seconds = format!("{:.3}", at_ms as f64 / 1_000.0);
-    let status = Command::new("ffmpeg")
-        .args(["-y", "-hide_banner", "-loglevel", "error", "-i"])
-        .arg(path)
-        .args(["-ss", &seconds, "-frames:v", "1", "-q:v", "3"])
-        .arg(&still)
-        .status()
-        .map_err(|error| Error::Probe(format!("could not extract keyframe: {error}")))?;
-    if !status.success() || !still.is_file() {
-        return Err(Error::Probe(format!(
-            "ffmpeg did not write a still at {seconds}s"
-        )));
-    }
-    let bytes = std::fs::read(&still)?;
-    if bytes.is_empty() {
-        return Err(Error::Probe("keyframe jpeg is empty".to_owned()));
-    }
-    let (width, height) = jpeg_dimensions(&bytes).unzip();
-    Ok(Keyframe {
-        path: still,
-        sha256: hex::encode(Sha256::digest(&bytes)),
-        byte_length: bytes.len() as u64,
-        width,
-        height,
-    })
 }
 
 /// SOF0/SOF2 width and height from a jpeg. Used to scale normalized boxes

@@ -10,8 +10,10 @@ use evidence_intake::{
     TemporalRelation,
 };
 use evidence_video::{
-    EXTRACTOR_SCENE, Keyframe, Scene, SceneAnalysis, SceneRequest, VideoIdentity, cut_scenes,
-    detect_scenes, dropout_span, ffprobe_available, parse_scene_report, scenes_to_batch,
+    DEFAULT_SAMPLE_DEDUP_MS, DEFAULT_SAMPLE_GAP_MS, EXTRACTOR_SCENE, Keyframe, Scene,
+    SceneAnalysis, SceneRequest, VideoIdentity, cut_scenes, detect_scenes,
+    detect_scenes_with_sampling, dropout_span, ffprobe_available, parse_scene_report,
+    scenes_to_batch,
 };
 
 fn ffmpeg_available() -> bool {
@@ -254,10 +256,135 @@ fn a_two_color_clip_is_cut_into_more_than_one_scene() {
         temporal_relation: TemporalRelation::Contemporaneous,
         threshold: 0.2,
         gap_ms: 2_000,
+        max_sample_gap_ms: DEFAULT_SAMPLE_GAP_MS,
+        sample_dedup_ms: DEFAULT_SAMPLE_DEDUP_MS,
         stills_dir: Some(dir.path().to_path_buf()),
     })
     .expect("cut");
     assert_eq!(batch.sources[0].source_kind, SourceKind::Video);
     assert!(batch.sources.len() > 1);
     store.import_normalized(&batch).expect("import");
+}
+
+#[test]
+fn continuous_footage_has_a_configurable_maximum_sampling_gap() {
+    if !ffmpeg_available() {
+        return;
+    }
+    let dir = tempfile::tempdir().expect("tmpdir");
+    let mp4 = dir.path().join("continuous.mp4");
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=64x64:d=12:r=10",
+            "-an",
+        ])
+        .arg(&mp4)
+        .status()
+        .expect("ffmpeg continuous clip");
+    if !status.success() {
+        return;
+    }
+
+    let analysis = detect_scenes_with_sampling(&mp4, 1.0, 2_000, Some(dir.path()), 5_000, 250)
+        .expect("hybrid samples");
+    let starts: Vec<_> = analysis.scenes.iter().map(|scene| scene.start_ms).collect();
+    assert_eq!(starts.first(), Some(&0));
+    assert!(starts.windows(2).all(|pair| pair[1] - pair[0] <= 5_000));
+    assert!(
+        analysis.duration_ms - starts.last().copied().unwrap_or(0) <= 5_000,
+        "tail is not coverage-bounded: {starts:?}"
+    );
+}
+
+#[test]
+fn scene_and_periodic_samples_merge_without_duplicate_stills() {
+    if !ffmpeg_available() {
+        return;
+    }
+    let dir = tempfile::tempdir().expect("tmpdir");
+    let mp4 = dir.path().join("hybrid.mp4");
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=64x64:d=3:r=10",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=white:s=64x64:d=3:r=10",
+            "-filter_complex",
+            "[0:v][1:v]concat=n=2:v=1:a=0",
+            "-an",
+        ])
+        .arg(&mp4)
+        .status()
+        .expect("ffmpeg hybrid clip");
+    if !status.success() {
+        return;
+    }
+
+    let analysis = detect_scenes_with_sampling(&mp4, 0.2, 2_000, Some(dir.path()), 2_000, 500)
+        .expect("hybrid samples");
+    let starts: Vec<_> = analysis.scenes.iter().map(|scene| scene.start_ms).collect();
+    assert!(
+        starts.iter().any(|start| (2_900..=3_100).contains(start)),
+        "the black-to-white scene change was not retained: {starts:?}"
+    );
+    assert!(starts.windows(2).all(|pair| pair[1] - pair[0] >= 500));
+    assert!(starts.windows(2).all(|pair| pair[1] - pair[0] <= 2_000));
+}
+
+#[test]
+fn hybrid_samples_keep_exact_original_timeline_locators() {
+    if !ffmpeg_available() {
+        return;
+    }
+    let dir = tempfile::tempdir().expect("tmpdir");
+    let mp4 = dir.path().join("locator.mp4");
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=64x64:d=7:r=10",
+            "-an",
+        ])
+        .arg(&mp4)
+        .status()
+        .expect("ffmpeg locator clip");
+    if !status.success() {
+        return;
+    }
+
+    let analysis = detect_scenes_with_sampling(&mp4, 1.0, 2_000, Some(dir.path()), 2_000, 250)
+        .expect("hybrid samples");
+    let (_, case_id) = seeded();
+    let batch = scenes_to_batch(&identity(case_id), &analysis).expect("map");
+    assert_eq!(batch.sources.len(), analysis.scenes.len() + 1);
+    assert_eq!(batch.edges.len(), analysis.scenes.len());
+    for (scene, still) in analysis.scenes.iter().zip(&batch.sources[1..]) {
+        assert_eq!(still.segments[0].start_ms, Some(scene.start_ms));
+        assert_eq!(still.segments[0].end_ms, Some(scene.start_ms));
+        assert!(
+            still.segments[0]
+                .locator
+                .contains(&format!("scene {}", scene.index))
+        );
+    }
 }

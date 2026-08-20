@@ -16,8 +16,8 @@ mod sync;
 mod vision;
 
 pub use caption::{
-    CaptionBackend, CaptionDocument, DEFAULT_PROMPT, EXTRACTOR_CAPTION, JsonCaptionBackend,
-    SceneCaption, VlmCliBackend, caption_scene, caption_scenes,
+    BatchCaptionCliBackend, CaptionBackend, CaptionDocument, DEFAULT_PROMPT, EXTRACTOR_CAPTION,
+    JsonCaptionBackend, SceneCaption, VlmCliBackend, caption_scene, caption_scenes,
 };
 pub use clock::{
     ClockBackend, ClockDocument, ClockReading, EXTRACTOR_CLOCK, JsonClockBackend, OverlayBand,
@@ -35,7 +35,8 @@ pub use map::{
     scenes_and_detections_to_batch, scenes_to_batch,
 };
 pub use scene::{
-    DEFAULT_GAP_MS, DEFAULT_THRESHOLD, Keyframe, Scene, SceneAnalysis, detect_scenes, dropout_span,
+    DEFAULT_GAP_MS, DEFAULT_SAMPLE_DEDUP_MS, DEFAULT_SAMPLE_GAP_MS, DEFAULT_THRESHOLD, Keyframe,
+    Scene, SceneAnalysis, detect_scenes, detect_scenes_with_sampling, dropout_span,
     ffprobe_available, jpeg_dimensions, parse_scene_report,
 };
 pub use soundtrack::{
@@ -76,6 +77,11 @@ pub struct SceneRequest {
     pub threshold: f64,
     /// Minimum missing tail, in milliseconds, that becomes a `recording_gap`.
     pub gap_ms: u64,
+    /// Longest intended interval between retained visual-index frames.
+    /// Zero keeps only the first frame and scene-triggered frames.
+    pub max_sample_gap_ms: u64,
+    /// Suppress a scene-triggered frame this close to the previous sample.
+    pub sample_dedup_ms: u64,
     /// Where to keep derived stills. A temp directory when omitted.
     pub stills_dir: Option<std::path::PathBuf>,
 }
@@ -292,11 +298,13 @@ pub(crate) fn open_and_cut(request: &SceneRequest) -> Result<(VideoIdentity, Sce
         }
     }
     let identity = hash_original(request)?;
-    let analysis = detect_scenes(
+    let analysis = detect_scenes_with_sampling(
         &request.path,
         request.threshold,
         request.gap_ms,
         request.stills_dir.as_deref(),
+        request.max_sample_gap_ms,
+        request.sample_dedup_ms,
     )?;
     Ok((identity, analysis))
 }

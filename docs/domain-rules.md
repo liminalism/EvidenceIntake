@@ -123,7 +123,7 @@ These rules are invariants for the kernel and future UI.
     per case, which is how that refusal stays unambiguous.
 38. A visual finder points; it does not assert. Keyframe embeddings are a
     case-local index against derived stills, not content and not an edge.
-    Hits that meet a similarity cut are ordered by identifier, and the
-    number is never reported. Retrieval writes no observation; only what a
-    reviewer confirms is authored. The index is excluded from every export.
-
+    Internal similarity selects the reviewer's bounded candidate pool, then
+    the pool is ordered chronologically; the number is never reported.
+    Retrieval writes no observation; only what a reviewer confirms is
+    authored. The index is excluded from every export.

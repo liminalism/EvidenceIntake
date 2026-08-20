@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "title": "Neutral body-camera frame labels",
+  "groups": [
+    {
+      "id": "setting",
+      "labels": [
+        {
+          "id": "outdoor-road-night",
+          "text": "outdoor roadway at night",
+          "prompts": [
+            "an outdoor roadway at night",
+            "a nighttime street scene",
+            "a road outside after dark"
+          ]
+        },
+        {
+          "id": "outdoor-road-day",
+          "text": "outdoor roadway in daylight",
+          "prompts": [
+            "an outdoor roadway in daylight",
+            "a daytime street scene",
+            "a road outside during the day"
+          ]
+        },
+        {
+          "id": "inside-vehicle",
+          "text": "inside a vehicle",
+          "prompts": [
+            "the camera is inside a vehicle",
+            "a view from within a car",
+            "a vehicle dashboard or interior"
+          ]
+        },
+        {
+          "id": "indoor",
+          "text": "inside a building",
+          "prompts": [
+            "the camera is inside a building",
+            "an indoor room or hallway",
+            "an interior space inside a building"
+          ]
+        },
+        {
+          "id": "parking-area",
+          "text": "outdoor parking area",
+          "prompts": [
+            "an outdoor parking area",
+            "a parking lot with vehicles",
+            "cars parked outside"
+          ]
+        },
+        {
+          "id": "unclear-setting",
+          "text": "setting unclear",
+          "prompts": [
+            "the setting is visually unclear",
+            "the location cannot be seen clearly",
+            "an unrecognizable background"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "people",
+      "labels": [
+        {
+          "id": "none",
+          "text": "no person clearly visible",
+          "prompts": [
+            "an empty scene with no person visible",
+            "no people can be seen",
+            "a scene without a visible person"
+          ]
+        },
+        {
+          "id": "one",
+          "text": "one person visible",
+          "prompts": [
+            "one person is visible",
+            "a single person in the scene",
+            "an image showing one person"
+          ]
+        },
+        {
+          "id": "multiple",
+          "text": "multiple people visible",
+          "prompts": [
+            "multiple people are visible",
+            "several people in the scene",
+            "an image showing a group of people"
+          ]
+        },
+        {
+          "id": "close",
+          "text": "person close to camera",
+          "prompts": [
+            "a person close to the camera",
+            "a close-up view of a person",
+            "a nearby person fills much of the image"
+          ]
+        },
+        {
+          "id": "unclear-people",
+          "text": "people unclear",
+          "prompts": [
+            "it is unclear whether a person is visible",
+            "people cannot be seen clearly",
+            "an indistinct or obscured view of people"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vehicles",
+      "labels": [
+        {
+          "id": "none",
+          "text": "no vehicle clearly visible",
+          "prompts": [
+            "no vehicle is visible",
+            "a scene without a visible car",
+            "no automobile can be seen"
+          ]
+        },
+        {
+          "id": "ordinary",
+          "text": "passenger vehicle visible",
+          "prompts": [
+            "an ordinary passenger vehicle",
+            "a car is visible",
+            "a passenger automobile in the scene"
+          ]
+        },
+        {
+          "id": "emergency",
+          "text": "emergency vehicle or flashing lights",
+          "prompts": [
+            "an emergency vehicle with flashing lights",
+            "a police or emergency car with lights on",
+            "red and blue emergency vehicle lights"
+          ]
+        },
+        {
+          "id": "damaged",
+          "text": "damaged vehicle visible",
+          "prompts": [
+            "a visibly damaged vehicle",
+            "a crashed or wrecked car",
+            "an automobile with collision damage"
+          ]
+        },
+        {
+          "id": "interior",
+          "text": "vehicle interior visible",
+          "prompts": [
+            "a steering wheel or vehicle dashboard",
+            "the interior of a car",
+            "a view from the driver's seat"
+          ]
+        },
+        {
+          "id": "unclear-vehicle",
+          "text": "vehicles unclear",
+          "prompts": [
+            "it is unclear whether a vehicle is visible",
+            "vehicles cannot be seen clearly",
+            "an indistinct or obscured view of a car"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "view_quality",
+      "labels": [
+        {
+          "id": "wide-clear",
+          "text": "wide view",
+          "prompts": [
+            "a clear wide view of the scene",
+            "a broad unobstructed camera view",
+            "the surroundings are visible in a wide shot"
+          ]
+        },
+        {
+          "id": "low-light",
+          "text": "low-light view",
+          "prompts": [
+            "a dark low-light camera view",
+            "a dim nighttime image",
+            "poor visibility because it is dark"
+          ]
+        },
+        {
+          "id": "obstructed",
+          "text": "blurred or obstructed view",
+          "prompts": [
+            "a blurred or obstructed camera view",
+            "the lens view is blocked or smeared",
+            "an image with severe blur or obstruction"
+          ]
+        },
+        {
+          "id": "ground",
+          "text": "camera toward ground",
+          "prompts": [
+            "the camera is pointed toward the ground",
+            "a close view of pavement or the floor",
+            "the ground fills most of the image"
+          ]
+        },
+        {
+          "id": "close-up",
+          "text": "close-up view",
+          "prompts": [
+            "a close-up camera view",
+            "a nearby object fills most of the image",
+            "the camera is extremely close to the subject"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "added_text",
+      "labels": [
+        {
+          "id": "large-subtitles",
+          "text": "large subtitle text visible",
+          "prompts": [
+            "large subtitle text over the image",
+            "prominent video captions are visible",
+            "large colored words appear on the screen"
+          ]
+        },
+        {
+          "id": "small-overlay-only",
+          "text": "only small camera overlay text",
+          "prompts": [
+            "only small body camera timestamp text",
+            "small device overlay writing near the image edge",
+            "tiny camera metadata text without large subtitles"
+          ]
+        },
+        {
+          "id": "no-added-text",
+          "text": "no added text clearly visible",
+          "prompts": [
+            "an image without added text",
+            "no subtitles or captions are visible",
+            "a plain image with no words over it"
+          ]
+        },
+        {
+          "id": "unclear-text",
+          "text": "added text unclear",
+          "prompts": [
+            "it is unclear whether text is visible",
+            "writing cannot be seen clearly",
+            "an indistinct image where text is uncertain"
+          ]
+        }
+      ]
+    }
+  ]
+}

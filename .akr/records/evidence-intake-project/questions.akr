@@ -40,6 +40,35 @@ record evidence-intake-project.video.anonymous-tracking-question/1 : question {
     depends_on [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
 }
 
+record evidence-intake-project.video.keyframe-candidate-selection-question/1 : question {
+    title "Should visual search select the best candidate pool before chronological presentation?"
+    state superseded
+    scope [ path "adapters/video/**", path "src/store.rs" ]
+    question """
+        Store::search_keyframes currently sorts every above-cut hit by still identifier and then truncates to the result limit. On long recordings, early weak matches can therefore crowd all later matches out. Should the kernel select the candidate pool by internal similarity (still never storing, printing or exporting the number) and then present that pool chronologically, return every above-cut hit with pagination, or use another recall-preserving rule? Resolve from the real-model benchmark because the answer depends on actual score distributions and a reviewer's practical result budget.
+        """
+    blocks [ @evidence-intake-project.video.real-embedding-benchmark/1 ]
+    depends_on [ @evidence-intake-project.decision.keyframe-finder-is-an-index/1 ]
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.keyframe-candidate-selection-question/2 : question {
+    title "Should visual search select the best candidate pool before chronological presentation?"
+    state resolved
+    scope [ path "adapters/video/**", path "src/store.rs" ]
+    question """
+        Store::search_keyframes currently sorts every above-cut hit by still identifier and then truncates to the result limit. On long recordings, early weak matches can therefore crowd all later matches out. Should the kernel select the candidate pool by internal similarity (still never storing, printing or exporting the number) and then present that pool chronologically, return every above-cut hit with pagination, or use another recall-preserving rule? Resolve from the real-model benchmark because the answer depends on actual score distributions and a reviewer's practical result budget.
+        """
+    resolution """
+        Select the reviewer's bounded candidate pool by internal cosine similarity, then reorder that pool by still identifier for chronological presentation. Store, hits, JSON and exports still contain no score. Do not apply the synthetic 0.20 fixed cut: the first live SigLIP 2 run produced maxima of only 0.0766–0.1204 for nine representative queries, so the cut returned nothing. A no-match judgment remains the reviewer's; future human-labeled evaluation may add a pinned per-model stopping rule, but it must not restore early-timeline bias.
+        """
+    blocks [ @evidence-intake-project.video.real-embedding-benchmark/1 ]
+    depends_on [ @evidence-intake-project.decision.keyframe-finder-is-an-index/1 ]
+    derived_from [ @evidence-intake-project.video.siglip2-cut-distribution/3 ]
+    supersedes [ @evidence-intake-project.video.keyframe-candidate-selection-question/1 ]
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.video.soundtrack-pts-offset-question/1 : question {
     title "Does the soundtrack ffmpeg extracts share the video stream's zero, or can a container's audio start_time shift every statement by a fixed delta?"
     state open

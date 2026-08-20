@@ -1,6 +1,88 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.collation.all-feature-quality/1 : evidence {
+    title "All 201 workspace tests passed with optional features enabled; strict Clippy, formatting and diff whitespace checks passed."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo test --workspace --all-features && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo fmt --all -- --check && git diff --check"
+    summary """
+        All 201 workspace tests passed with optional features enabled; strict Clippy, formatting and diff whitespace checks passed.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.collation.anchor-coverage/1 : evidence {
+    title "Fifteen collation integration tests passed, covering source anchor counts, placement gaps, rejected-content exclusion, exact locators, conservative place keys and no evaluative fields."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo test --test collation"
+    artifact "tests/collation.rs"
+    summary """
+        Fifteen collation integration tests passed, covering source anchor counts, placement gaps, rejected-content exclusion, exact locators, conservative place keys and no evaluative fields.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.collation.cli-smoke/1 : evidence {
+    title "The CLI collation view opened on a freshly seeded database and returned one normalized-date group, three exact-location groups, zero possible groups, four passages without normalized dates and one without location."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo run -q -p evidence-intake -- --database <temporary.sqlite> seed vehicle-stop && cargo run -q -p evidence-intake -- --database <temporary.sqlite> view case-vehicle-stop-001 collation"
+    artifact "docs/collation.md"
+    summary """
+        The CLI collation view opened on a freshly seeded database and returned one normalized-date group, three exact-location groups, zero possible groups, four passages without normalized dates and one without location.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.collation.gui-native-view/1 : evidence {
+    title "Fifteen platform-neutral and feature-gated WinSafe tests passed, including unique mnemonics, tenth-row geometry and readable collation rendering."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo test --lib --features gui-winsafe"
+    artifact "src/gui/winsafe.rs"
+    summary """
+        Fifteen platform-neutral and feature-gated WinSafe tests passed, including unique mnemonics, tenth-row geometry and readable collation rendering.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.collation.time-location-contract/1 : evidence {
+    title "14 collation tests passed. The new view preserves source/locator and raw, creation, asserted and normalized times with time basis, machine attribution and review state; keeps conservative locations distinct; requires shared date/location keys across distinct originals for possible groups; writes nothing; and refuses cross-case access."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo test --test collation"
+    artifact "tests/collation.rs"
+    summary """
+        14 collation tests passed. The new view preserves source/locator and raw, creation, asserted and normalized times with time basis, machine attribution and review state; keeps conservative locations distinct; requires shared date/location keys across distinct originals for possible groups; writes nothing; and refuses cross-case access.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.collation.workspace-verification/1 : evidence {
+    title "All 198 workspace tests passed; strict workspace clippy, formatting and diff whitespace checks also passed after the time/location collation implementation."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings && cargo fmt --all -- --check && git diff --check"
+    summary """
+        All 198 workspace tests passed; strict workspace clippy, formatting and diff whitespace checks also passed after the time/location collation implementation.
+        """
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.evidence.analyzer-suite/1 : evidence {
     title "77 tests pass, clippy clean under -D warnings, formatting clean. tests/suggest.rs adds 10: proposals entering only `suggested` and surfacing in the review queue as machine-generated with the analyzer named, a rerun proposing nothing, a rejected suggestion never returning, deferring to a human edge recorded in the opposite direction, overlaps proposed without any event changing lane, a before/after review-state snapshot proving nothing else was touched and the review trail stayed empty, rationales free of scoring language, the two content analyzers never claiming the same pair, case scoping, and an unknown case refused. Verified by hand on both fixtures: vehicle-stop proposes 3 and skips 1, a second run proposes 0, hit-and-run proposes 10."
     state verified
@@ -674,4 +756,153 @@ record evidence-intake-project.evidence.workspace-gate-after-video-slices/1 : ev
     summary """
         fmt clean, clippy clean, 177 tests passed / 0 failed across kernel, audio adapter and video adapter after soundtrack, clock OCR, structural edges and audio sync landed.
         """
+}
+
+record evidence-intake-project.scope.owner-feature-lock/1 : evidence {
+    title "Owner locked the three intake modalities"
+    state verified
+    result pass
+    method observation
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    summary """
+        The product owner stated that document, audio and video are the complete intake feature set and that future work should wire those modules together rather than add 3D forensic mapping.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.caption-adapter-verification/1 : evidence {
+    title "All 46 Rust video-adapter integration tests, 12 Python tests, strict clippy, formatting, Python compilation and diff whitespace checks passed after the load-once caption integration."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo test -p evidence-video && cargo clippy -p evidence-video --all-targets -- -D warnings && python -m unittest discover -s adapters/video/python -p *_test.py -v && cargo fmt --all -- --check && git diff --check"
+    summary """
+        All 46 Rust video-adapter integration tests, 12 Python tests, strict clippy, formatting, Python compilation and diff whitespace checks passed after the load-once caption integration.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.evidence.bounded-single-ffmpeg-decode-20260820/1 : evidence {
+    title "The hybrid sampler builds one ffmpeg select filter for first-frame, periodic, and scene-change triggers and emits all retained JPEGs from that one decoder process; the local 18:34.986 smoke run produced 254 retained stills through that path."
+    state verified
+    result pass
+    method observation
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    artifact "adapters/video/src/scene.rs"
+    summary """
+        The hybrid sampler builds one ffmpeg select filter for first-frame, periodic, and scene-change triggers and emits all retained JPEGs from that one decoder process; the local 18:34.986 smoke run produced 254 retained stills through that path.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.evidence.configurable-sampling-gap-20260820/1 : evidence {
+    title "The continuous-footage maximum-gap test passed."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo test -p evidence-video continuous_footage_has_a_configurable_maximum_sampling_gap"
+    artifact "adapters/video/tests/scenes.rs"
+    summary """
+        The continuous-footage maximum-gap test passed.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.evidence.hybrid-original-locators-20260820/1 : evidence {
+    title "The hybrid-still original-timeline locator and lineage test passed."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo test -p evidence-video hybrid_samples_keep_exact_original_timeline_locators"
+    artifact "adapters/video/tests/scenes.rs"
+    summary """
+        The hybrid-still original-timeline locator and lineage test passed.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.evidence.hybrid-sample-dedup-20260820/1 : evidence {
+    title "The hybrid scene-plus-periodic deduplication test passed."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo test -p evidence-video scene_and_periodic_samples_merge_without_duplicate_stills"
+    artifact "adapters/video/tests/scenes.rs"
+    summary """
+        The hybrid scene-plus-periodic deduplication test passed.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.evidence.interval-benchmark-contract-20260820/1 : evidence {
+    title "Three pure benchmark contract tests passed, including separate sampling-opportunity and retrieval-recall accounting and exclusion of temporal and negative queries from static-frame recall."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "C:\\Python313\\python.exe adapters\\video\\python\\benchmark_cli_test.py"
+    artifact "adapters/video/python/benchmark_cli_test.py"
+    summary """
+        Three pure benchmark contract tests passed, including separate sampling-opportunity and retrieval-recall accounting and exclusion of temporal and negative queries from static-frame recall.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.evidence.siglip-batched-query-smoke-20260820/1 : evidence {
+    title "One locally loaded CUDA SigLIP process embedded two text queries as finite 768-dimensional vectors in one batch; observed model load was 1.582 seconds and the two-query batch was 0.234 seconds."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "C:\\Python313\\python.exe -c \"load SiglipEmbedder and embed two queries with texts()\""
+    artifact "adapters/video/python/embed_cli.py"
+    summary """
+        One locally loaded CUDA SigLIP process embedded two text queries as finite 768-dimensional vectors in one batch; observed model load was 1.582 seconds and the two-query batch was 0.234 seconds.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.evidence.siglip-live-cli-contract-20260820/1 : evidence {
+    title "The fully local SigLIP CLI loaded the cached checkpoint, batch-embedded two stills, embedded a text query, and returned finite normalized 768-dimensional vectors."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "cargo test -p evidence-video live_embedding_cli_contract"
+    artifact "adapters/video/tests/embed.rs"
+    summary """
+        The fully local SigLIP CLI loaded the cached checkpoint, batch-embedded two stills, embedded a text query, and returned finite normalized 768-dimensional vectors.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.evidence.siglip-load-once-batch-20260820/1 : evidence {
+    title "The Rust backend starts one `batch` child for all selected still paths, and that Python process constructs one SiglipEmbedder before iterating GPU-sized image chunks; no still starts its own model-loading process."
+    state verified
+    result pass
+    method observation
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    artifact "adapters/video/python/embed_cli.py"
+    summary """
+        The Rust backend starts one `batch` child for all selected still paths, and that Python process constructs one SiglipEmbedder before iterating GPU-sized image chunks; no still starts its own model-loading process.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.qwen-caption-integrated-first2m/1 : evidence {
+    title "The project-owned Rust/Python load-once path produced 26 suggested captions over 00:00.000-02:00.040; every caption used the pinned model revision and bounded visible-term format, with zero forbidden role/event terms and zero malformed wrappers."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command "target/debug/evidence-video.exe describe --file .agent/scratch/donetsk-jaf69w/first-2m-working.mp4 --sample-gap-ms 5000 --sample-dedup-ms 250 --vlm adapters/video/python/caption_cli.py --model-dir .agent/scratch/models/Qwen2-VL-2B-Instruct-895c3a49 --model Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c --vlm-device cuda --vlm-dtype float16 --vlm-max-new-tokens 64"
+    artifact ".agent/scratch/donetsk-jaf69w/integrated-qwen-final/batch.json"
+    summary """
+        The project-owned Rust/Python load-once path produced 26 suggested captions over 00:00.000-02:00.040; every caption used the pinned model revision and bounded visible-term format, with zero forbidden role/event terms and zero malformed wrappers.
+        """
+    author "GitHub Uploader"
 }
