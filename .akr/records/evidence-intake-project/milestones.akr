@@ -1,0 +1,43 @@
+akr 0.1
+project evidence-intake-project
+
+record evidence-intake-project.inference.universal-tensorrt-integration/1 : milestone {
+    title "Document intake and universal TensorRT runtime"
+    state active
+    scope [ path "Cargo.toml", path "adapters/**", path "runtime/**", path "scripts/**" ]
+    intent """
+        Wire PDF document processing into Evidence Intake, then replace every live GPU-model backend with an Evidence-owned Windows NVIDIA inference broker using TensorRT or TensorRT-LLM.
+        """
+    acceptance {
+        check document-intake {
+            statement """
+                The evidence-document CLI maps packaged Lege DocIR raw text regions into an importable NormalizedBatch while retaining artifacts.
+                """
+            method command
+        }
+        check model-migrations {
+            statement """
+                OCR, SigLIP, YOLO, Whisper, and Qwen use the broker and superseded live Evidence inference backends are removed after parity tests.
+                """
+            method command
+        }
+        check runtime-broker {
+            statement """
+                A versioned fail-closed local broker supervises typed TensorRT and TensorRT-LLM inference operations with model provenance and bounded residency.
+                """
+            method command
+        }
+        check windows-doctor {
+            statement """
+                The Windows NVIDIA package doctor validates installed model manifests and executes a real probe for every installed model.
+                """
+            method command
+        }
+        check workspace-tests {
+            statement """
+                Workspace tests and static checks pass.
+                """
+            method command
+        }
+    }
+}

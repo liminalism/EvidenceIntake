@@ -32,6 +32,12 @@ pub enum Error {
     /// A keyframe embedding could not be stored against a derived still.
     #[error("invalid keyframe index: {0}")]
     InvalidIndex(String),
+    /// A persistent intake request, result, state transition or source path was invalid.
+    #[error("invalid intake: {0}")]
+    InvalidIntake(String),
+    /// Reading or verifying a local original/artifact failed.
+    #[error("file error: {0}")]
+    Io(#[from] std::io::Error),
     /// A proposition was mapped again to an element it is already filed under.
     #[error(
         "proposition `{proposition}` is already assessed `{assessment}` on element `{element}`"

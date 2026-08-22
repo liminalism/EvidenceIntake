@@ -10,7 +10,6 @@
 //! surface.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use evidence_audio::format_locator;
 use evidence_intake::{
@@ -126,119 +125,6 @@ impl JsonClockBackend {
                 self.path.display()
             ))
         })
-    }
-}
-
-/// Crops the overlay bands with ffmpeg and runs the Tesseract CLI on each.
-///
-/// Overnight, not realtime. A missing binary is a hard error with an install
-/// hint; an illegible band is simply absent from the result.
-#[derive(Debug, Clone)]
-pub struct TesseractCliBackend {
-    /// Binary name or path. Default `tesseract`.
-    pub binary: PathBuf,
-    /// Tesseract page-segmentation mode. Default 7, one text line.
-    pub psm: u32,
-    /// Tesseract language pack. Default `eng`.
-    pub lang: String,
-}
-
-impl TesseractCliBackend {
-    /// `tesseract` on PATH, one-line segmentation, English.
-    pub fn default_local() -> Self {
-        Self {
-            binary: PathBuf::from("tesseract"),
-            psm: 7,
-            lang: "eng".to_owned(),
-        }
-    }
-
-    fn ensure_binary(&self) -> Result<()> {
-        let ok = Command::new(&self.binary)
-            .arg("--version")
-            .output()
-            .is_ok_and(|output| output.status.success());
-        if ok {
-            Ok(())
-        } else {
-            Err(Error::Backend(format!(
-                "could not run `{}`. Install Tesseract OCR (winget install UB-Mannheim.TesseractOCR, \
-                 apt install tesseract-ocr, or brew install tesseract) or pass a JSON clock document.",
-                self.binary.display()
-            )))
-        }
-    }
-
-    fn crop_band(still: &Path, band: OverlayBand, into: &Path) -> Result<()> {
-        let status = Command::new("ffmpeg")
-            .args(["-y", "-hide_banner", "-loglevel", "error", "-i"])
-            .arg(still)
-            .args(["-vf", band.crop_expression(), "-frames:v", "1"])
-            .arg(into)
-            .status()
-            .map_err(|error| {
-                Error::Backend(format!(
-                    "could not run ffmpeg to crop the {} overlay band: {error}. \
-                     Install ffmpeg to read burned-in clocks.",
-                    band.as_str()
-                ))
-            })?;
-        if !status.success() || !into.is_file() {
-            return Err(Error::Backend(format!(
-                "ffmpeg did not write a {} band crop of {}",
-                band.as_str(),
-                still.display()
-            )));
-        }
-        Ok(())
-    }
-
-    fn ocr(&self, png: &Path) -> Result<String> {
-        let output = Command::new(&self.binary)
-            .arg(png)
-            .arg("stdout")
-            .arg("-l")
-            .arg(&self.lang)
-            .args(["--psm", &self.psm.to_string()])
-            .output()
-            .map_err(|error| {
-                Error::Backend(format!(
-                    "could not run `{}`: {error}. Install Tesseract OCR or pass a JSON clock document.",
-                    self.binary.display()
-                ))
-            })?;
-        if !output.status.success() {
-            return Err(Error::Backend(format!(
-                "`{}` exited with {}: {}",
-                self.binary.display(),
-                output.status,
-                String::from_utf8_lossy(&output.stderr)
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
-    }
-}
-
-impl ClockBackend for TesseractCliBackend {
-    fn read(&self, still: &Path) -> Result<Vec<RawClockText>> {
-        self.ensure_binary()?;
-        let work = tempfile::tempdir()
-            .map_err(|error| Error::Backend(format!("could not create a crop dir: {error}")))?;
-        let mut texts = Vec::new();
-        for band in OverlayBand::all() {
-            let png = work.path().join(format!("{}.png", band.as_str()));
-            Self::crop_band(still, band, &png)?;
-            let text = self.ocr(&png)?;
-            if text.is_empty() {
-                continue;
-            }
-            texts.push(RawClockText { band, text });
-        }
-        Ok(texts)
-    }
-
-    fn version(&self) -> String {
-        format!("tesseract@{}/psm{}", self.lang, self.psm)
     }
 }
 

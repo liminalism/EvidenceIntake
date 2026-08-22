@@ -1,0 +1,44 @@
+[package]
+name = "evidence-document"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+description = "PDF and DocIR intake adapter for the Evidence collation kernel"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[lib]
+name = "evidence_document"
+path = "src/lib.rs"
+
+[[bin]]
+name = "evidence-document"
+path = "src/bin/evidence-document.rs"
+
+[dependencies]
+blake3 = "1.8.2"
+clap = { version = "4.6.2", features = ["derive"] }
+evidence-intake = { path = "../.." }
+evidence-adapter-protocol = { path = "../protocol" }
+hex = "0.4.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+sha2 = "0.10.9"
+thiserror = "2.0.18"
+
+[dev-dependencies]
+tempfile = "3.23.0"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+missing_errors_doc = "allow"
+must_use_candidate = "allow"
+too_many_lines = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+doc_markdown = "allow"

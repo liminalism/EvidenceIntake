@@ -166,6 +166,49 @@ record evidence-intake-project.case.isolation-and-lifecycle/1 : work {
     }
 }
 
+record evidence-intake-project.collation.document-integration-pass/1 : work {
+    title "Exercise document intake through the collation core"
+    state completed
+    scope [ path "adapters/document/tests/**", path "src/store.rs" ]
+    intent """
+        Exercise TensorRT-backed document intake through the collation, review, search, proposition, and export surfaces with synthetic non-privileged material, and correct any shared-core integration defects found.
+        """
+    note """
+        A real case file is intentionally unavailable because it would contain privileged information; the integration fixture is synthetic and case-shaped.
+        """
+    acceptance {
+        check strict-lints {
+            statement """
+                All workspace targets pass Clippy with warnings denied.
+                """
+            method command
+            command "cargo clippy --workspace --all-targets -- -D warnings"
+            verified_by [ @evidence-intake-project.evidence.document-collation-strict-lints/1 ]
+        }
+        check synthetic-document-seam {
+            statement """
+                A synthetic multi-page DocIR document imports and traverses search, collation, review, proposition evidence, and disclosable export with exact locators and numeric page order.
+                """
+            method command
+            command "cargo test -p evidence-document synthetic_document_collates_reviews_and_exports_in_page_order -- --nocapture"
+            verified_by [
+                @evidence-intake-project.evidence.document-collation-synthetic-seam/1
+            ]
+        }
+        check workspace-regression {
+            statement """
+                All workspace tests pass after the shared ordering change.
+                """
+            method command
+            command "cargo test --workspace"
+            verified_by [
+                @evidence-intake-project.evidence.document-collation-workspace-tests/1
+            ]
+        }
+    }
+    part_of [ @evidence-intake-project.inference.universal-tensorrt-integration ]
+}
+
 record evidence-intake-project.collation.gui-anchor-coverage/1 : work {
     title "Make collation usable in the native workspace and expose placement gaps by source"
     state superseded
@@ -454,6 +497,170 @@ record evidence-intake-project.gui.winsafe-shell/1 : work {
         }
     }
     author "GitHub Uploader"
+}
+
+record evidence-intake-project.inference.document-adapter/1 : work {
+    title "Wire packaged Lege OCR into document intake"
+    state completed
+    intent """
+        Add an evidence-document adapter that invokes packaged lege-ocr, retains canonical DocIR artifacts and deterministically maps raw page regions into the kernel NormalizedBatch contract.
+        """
+    part_of [ @evidence-intake-project.inference.universal-tensorrt-integration ]
+}
+
+record evidence-intake-project.inference.gui-intake-orchestration/1 : work {
+    title "Unify document, audio and video intake in the native GUI"
+    state superseded
+    scope [
+        path "Cargo.toml",
+        path "adapters/**",
+        path "migrations/**",
+        path "runtime/**",
+        path "scripts/**",
+        path "src/gui/**",
+        path "src/ingest.rs",
+        path "src/store.rs"
+    ]
+    intent """
+        Add a versioned adapter-job protocol, persistent intake queue, source-location registry, broker-backed document/audio/video execution, and WinSafe intake/queue/search surfaces without making the evidence kernel depend on modality implementations.
+        """
+    acceptance {
+        check brokered-document {
+            statement """
+                Lege document intake reaches TensorRT OCR through the Evidence broker and retains DocIR artifacts.
+                """
+            method command
+            command "cargo test -p evidence-document -p evidence-trt"
+        }
+        check protocol-and-persistence {
+            statement """
+                Adapter protocol, job lifecycle, atomic import, source relink and restart recovery tests pass.
+                """
+            method command
+            command "cargo test --workspace"
+        }
+        check three-gui-modalities {
+            statement """
+                The WinSafe build exposes separate document, audio and video intake flows plus a persistent processing queue.
+                """
+            method command
+            command "cargo test -p evidence-intake --features gui-winsafe"
+        }
+        check windows-package {
+            statement """
+                The Windows package contains the GUI, adapters, broker bridge and one checksummed OCR payload and passes its doctors.
+                """
+            method command
+            command "powershell -File scripts/package_windows_tensorrt.ps1 -SkipBuild"
+        }
+        check workspace-tests {
+            statement """
+                Workspace tests and static checks pass.
+                """
+            method command
+            command "cargo test --workspace --no-fail-fast"
+        }
+    }
+    part_of [ @evidence-intake-project.inference.universal-tensorrt-integration ]
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.inference.gui-intake-orchestration/2 : work {
+    title "Unify document, audio and video intake in the native GUI"
+    state active
+    scope [
+        path "Cargo.toml",
+        path "adapters/**",
+        path "migrations/**",
+        path "runtime/**",
+        path "scripts/**",
+        path "src/**",
+        path "tests/**"
+    ]
+    intent """
+        Add a versioned adapter-job protocol, persistent intake queue, source-location registry, broker-backed document/audio/video execution, and WinSafe intake/queue/search surfaces without making the evidence kernel depend on modality implementations.
+        """
+    note """
+        Protocol, persistence, adapters, broker bridge, GUI, tests, and release builds are implemented. Final package/doctor evidence remains open because this checkout has no packaged Lege TensorRT payload or exported SigLIP, YOLO, Whisper, and Qwen TensorRT model packs; real NVIDIA document/audio/video smoke and DPI review must be run on the packaging target.
+        """
+    acceptance {
+        check brokered-document {
+            statement """
+                Lege document intake reaches TensorRT OCR through the Evidence broker and retains DocIR artifacts.
+                """
+            method command
+            command "cargo test -p evidence-document -p evidence-trt"
+            verified_by [
+                @evidence-intake-project.evidence.gui-intake-broker-bridge-20260822/1
+            ]
+        }
+        check protocol-and-persistence {
+            statement """
+                Adapter protocol, job lifecycle, atomic import, source relink and restart recovery tests pass.
+                """
+            method command
+            command "cargo test --workspace"
+            verified_by [ @evidence-intake-project.evidence.gui-intake-persistence-20260822/1 ]
+        }
+        check three-gui-modalities {
+            statement """
+                The WinSafe build exposes separate document, audio and video intake flows plus a persistent processing queue.
+                """
+            method command
+            command "cargo test -p evidence-intake --features gui-winsafe"
+            verified_by [ @evidence-intake-project.evidence.gui-intake-winsafe-20260822/1 ]
+        }
+        check windows-package {
+            statement """
+                The Windows package contains the GUI, adapters, broker bridge and one checksummed OCR payload and passes its doctors.
+                """
+            method command
+            command "powershell -File scripts/package_windows_tensorrt.ps1 -SkipBuild"
+        }
+        check workspace-tests {
+            statement """
+                Workspace tests and static checks pass.
+                """
+            method command
+            command "cargo test --workspace --no-fail-fast"
+            verified_by [
+                @evidence-intake-project.evidence.gui-intake-persistence-20260822/1,
+                @evidence-intake-project.evidence.gui-intake-static-20260822/1
+            ]
+        }
+    }
+    part_of [ @evidence-intake-project.inference.universal-tensorrt-integration ]
+    supersedes [ @evidence-intake-project.inference.gui-intake-orchestration/1 ]
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.inference.model-migrations/1 : work {
+    title "Migrate Evidence model backends to TensorRT"
+    state proposed
+    intent """
+        Migrate OCR, clock OCR, SigLIP, YOLO, Whisper and Qwen to the broker in that order, proving parity and removing each superseded live Evidence backend after its gate passes.
+        """
+    after [ @evidence-intake-project.inference.tensorrt-broker ]
+    part_of [ @evidence-intake-project.inference.universal-tensorrt-integration ]
+}
+
+record evidence-intake-project.inference.tensorrt-broker/1 : work {
+    title "Build the universal TensorRT broker"
+    state proposed
+    intent """
+        Add a safe Rust broker/client contract and specialized native TensorRT and TensorRT-LLM workers with versioned local IPC, checksummed model packs, fail-closed execution and bounded GPU residency.
+        """
+    part_of [ @evidence-intake-project.inference.universal-tensorrt-integration ]
+}
+
+record evidence-intake-project.inference.windows-package/1 : work {
+    title "Package and probe the Windows NVIDIA runtime"
+    state proposed
+    intent """
+        Package the broker, workers, model manifests and doctor probes for the Windows NVIDIA deployment, with per-user engine caching and no Python inference runtime.
+        """
+    after [ @evidence-intake-project.inference.model-migrations ]
+    part_of [ @evidence-intake-project.inference.universal-tensorrt-integration ]
 }
 
 record evidence-intake-project.ingest.structural-edges/1 : work {

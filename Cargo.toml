@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "adapters/audio", "adapters/video"]
+members = [".", "adapters/audio", "adapters/document", "adapters/protocol", "adapters/video", "runtime/tensorrt"]
 resolver = "2"
 
 [package]
@@ -16,7 +16,7 @@ default-run = "evidence"
 default = []
 # Native Windows shell. The application/controller remains platform-neutral so a
 # future Linux frontend can consume the same API without pulling in Win32 code.
-gui-winsafe = ["dep:winsafe"]
+gui-winsafe = ["dep:evidence-trt", "dep:winsafe"]
 
 [lib]
 name = "evidence_intake"
@@ -33,14 +33,17 @@ required-features = ["gui-winsafe"]
 
 [dependencies]
 clap = { version = "4.6.2", features = ["derive"] }
+evidence-adapter-protocol = { path = "adapters/protocol" }
+evidence-trt = { path = "runtime/tensorrt", optional = true }
 rusqlite = { version = "0.40.1", features = ["bundled", "uuid"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
+sha2 = "0.10.9"
 thiserror = "2.0.18"
 uuid = { version = "1.24.0", features = ["serde", "v7"] }
 
 [target.'cfg(windows)'.dependencies]
-winsafe = { version = "0.0.27", features = ["gui"], optional = true }
+winsafe = { version = "0.0.27", features = ["gui", "shell"], optional = true }
 
 [dev-dependencies]
 tempfile = "3.23.0"

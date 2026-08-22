@@ -13,20 +13,21 @@ mod map;
 mod scene;
 mod soundtrack;
 mod sync;
+mod trt;
 mod vision;
 
 pub use caption::{
-    BatchCaptionCliBackend, CaptionBackend, CaptionDocument, DEFAULT_PROMPT, EXTRACTOR_CAPTION,
-    JsonCaptionBackend, SceneCaption, VlmCliBackend, caption_scene, caption_scenes,
+    CaptionBackend, CaptionDocument, DEFAULT_PROMPT, EXTRACTOR_CAPTION, JsonCaptionBackend,
+    SceneCaption, caption_scene, caption_scenes,
 };
 pub use clock::{
     ClockBackend, ClockDocument, ClockReading, EXTRACTOR_CLOCK, JsonClockBackend, OverlayBand,
-    RawClockText, TesseractCliBackend, attach_clock_readings, parse_clock_text,
-    read_clock_overlays, read_clocks, read_clocks_from_json,
+    RawClockText, attach_clock_readings, parse_clock_text, read_clock_overlays, read_clocks,
+    read_clocks_from_json,
 };
 pub use embed::{
-    CliEmbeddingBackend, EXTRACTOR_EMBED, EmbeddingBackend, EmbeddingDocument,
-    JsonEmbeddingBackend, QueryEmbedding, StillEmbedding, embed_from_document, embed_keyframes,
+    EXTRACTOR_EMBED, EmbeddingBackend, EmbeddingDocument, JsonEmbeddingBackend, QueryEmbedding,
+    StillEmbedding, embed_from_document, embed_keyframes,
 };
 pub use error::{Error, Result};
 pub use map::{
@@ -47,9 +48,10 @@ pub use sync::{
     EXTRACTOR_SYNC, SYNC_VERSION, SyncMeasurement, SyncOptions, SyncPair, SyncSide, measure_offset,
     measurement_to_batch, sync_pair,
 };
+pub use trt::{TrtCaptionBackend, TrtClockBackend, TrtEmbeddingBackend, TrtVisionBackend};
 pub use vision::{
     Detection, DetectionDocument, EXTRACTOR_DETECT, JsonVisionBackend, RawDetection, VisionBackend,
-    YoloCliBackend, coco_label, detect_on_scenes, parse_yolo_txt, place_on_scene,
+    coco_label, detect_on_scenes, parse_yolo_txt, place_on_scene,
 };
 
 use std::path::Path;
@@ -172,6 +174,40 @@ pub fn analyze(
     soundtrack: SoundtrackInput<'_>,
 ) -> Result<NormalizedBatch> {
     let (identity, analysis) = open_and_cut(request)?;
+    analyze_prepared(
+        request, &identity, &analysis, detections, captions, clocks, soundtrack,
+    )
+}
+
+/// Cut scenes once, run the selected analysis, and optionally embed those
+/// exact retained stills for the finder index.
+pub fn analyze_and_embed(
+    request: &SceneRequest,
+    detections: DetectionInput<'_>,
+    captions: CaptionInput<'_>,
+    clocks: ClockInput<'_>,
+    soundtrack: SoundtrackInput<'_>,
+    embedding: Option<&dyn EmbeddingBackend>,
+) -> Result<(NormalizedBatch, Option<KeyframeIndex>)> {
+    let (identity, analysis) = open_and_cut(request)?;
+    let batch = analyze_prepared(
+        request, &identity, &analysis, detections, captions, clocks, soundtrack,
+    )?;
+    let index = embedding
+        .map(|backend| embed_keyframes(&identity, &analysis, backend))
+        .transpose()?;
+    Ok((batch, index))
+}
+
+fn analyze_prepared(
+    request: &SceneRequest,
+    identity: &VideoIdentity,
+    analysis: &SceneAnalysis,
+    detections: DetectionInput<'_>,
+    captions: CaptionInput<'_>,
+    clocks: ClockInput<'_>,
+    soundtrack: SoundtrackInput<'_>,
+) -> Result<NormalizedBatch> {
     let (boxes, box_version) = match detections {
         DetectionInput::None => (Vec::new(), String::new()),
         DetectionInput::Json(path) => {
@@ -186,7 +222,7 @@ pub fn analyze(
             (document.detections, version)
         }
         DetectionInput::Live(backend) => {
-            let hits = detect_on_scenes(&analysis, backend)?;
+            let hits = detect_on_scenes(analysis, backend)?;
             (hits, backend.version())
         }
     };
@@ -204,13 +240,13 @@ pub fn analyze(
             (document.captions, version)
         }
         CaptionInput::Live(backend) => {
-            let hits = caption_scenes(&analysis, backend)?;
+            let hits = caption_scenes(analysis, backend)?;
             (hits, backend.version())
         }
     };
     let mut batch = analyze_to_batch(
-        &identity,
-        &analysis,
+        identity,
+        analysis,
         &boxes,
         &box_version,
         &texts,
@@ -227,15 +263,15 @@ pub fn analyze(
                 .version
                 .clone()
                 .unwrap_or_else(|| "from-json".to_owned());
-            attach_clock_readings(&mut batch, &identity, &document.readings, &version)?;
+            attach_clock_readings(&mut batch, identity, &document.readings, &version)?;
         }
         ClockInput::Live(backend) => {
-            let readings = read_clocks(&analysis, backend)?;
-            attach_clock_readings(&mut batch, &identity, &readings, &backend.version())?;
+            let readings = read_clocks(analysis, backend)?;
+            attach_clock_readings(&mut batch, identity, &readings, &backend.version())?;
         }
     }
     if let Some(spoken) = soundtrack_batch(request, soundtrack, SoundtrackOptions::default())? {
-        merge_soundtrack(&mut batch, &identity, spoken)?;
+        merge_soundtrack(&mut batch, identity, spoken)?;
     }
     Ok(batch)
 }

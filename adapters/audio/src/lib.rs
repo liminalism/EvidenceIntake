@@ -12,11 +12,10 @@ mod decode;
 mod error;
 mod map;
 mod media;
-#[cfg(feature = "native-whisper")]
-mod native;
+mod trt;
 mod whisperx;
 
-pub use backend::{JsonFileBackend, TranscriptBackend, WhisperxCliBackend};
+pub use backend::{JsonFileBackend, TranscriptBackend};
 pub use channel::{
     CHANNEL_RATIO, ChannelSide, ChannelSplit, DUAL_MONO_BALANCE, LEVEL_RATIO, LevelSplit,
     SILENCE_RMS, channel_split, file_rms, level_split,
@@ -26,12 +25,11 @@ pub use decode::{DecodedAudio, decode_wav, write_wav};
 pub use error::{Error, Result};
 pub use map::{
     ANALYSIS_VERSION, EXTRACTOR_CHANNEL, EXTRACTOR_DIARIZE, EXTRACTOR_GAP, EXTRACTOR_LEVEL,
-    EXTRACTOR_NATIVE_WHISPER, EXTRACTOR_WHISPERX, MappingOptions, SourceIdentity, format_clock,
-    format_locator, transcript_to_batch,
+    EXTRACTOR_WHISPERX, MappingOptions, SourceIdentity, format_clock, format_locator,
+    transcript_to_batch,
 };
 pub use media::{MediaClass, OpenedMedia, classify, ffmpeg_available, media_type, open_media};
-#[cfg(feature = "native-whisper")]
-pub use native::NativeWhisperBackend;
+pub use trt::{EXTRACTOR_TRT_WHISPER, TrtWhisperBackend};
 pub use whisperx::{WhisperxSegment, WhisperxTranscript, WhisperxWord};
 
 use std::path::Path;

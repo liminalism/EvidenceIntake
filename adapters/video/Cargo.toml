@@ -18,7 +18,9 @@ path = "src/bin/evidence-video.rs"
 [dependencies]
 clap = { version = "4.6.2", features = ["derive"] }
 evidence-audio = { path = "../audio" }
+evidence-adapter-protocol = { path = "../protocol" }
 evidence-intake = { path = "../.." }
+evidence-trt = { path = "../../runtime/tensorrt" }
 hex = "0.4.3"
 rustfft = "6.4.1"
 serde = { version = "1.0.228", features = ["derive"] }

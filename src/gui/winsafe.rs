@@ -1,13 +1,22 @@
 //! `WinSafe` adapter for the platform-neutral evidence workspace.
 
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use evidence_adapter_protocol::{
+    ADAPTER_PROTOCOL_VERSION, AdapterJobRequest, AdapterProfile, ModelRef, TemporalRelationArg,
+    VideoTier,
+};
+use evidence_trt::{Client, InputMetadata, Operation, Request, ResultBody};
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
 use winsafe::{self as w, co, gui, prelude::*};
 
 use super::{AuthorKind, GuiError, GuiResult, Workspace, WorkspaceView, review_target};
-use crate::{DemoFixture, ExportAudience, ReviewState};
+use crate::{ExportAudience, IntakeCoordinator, IntakeJobState, ReviewState};
 
 /// Design size of the client area, in logical units. `gui::dpi` scales every
 /// coordinate below by the system DPI, so at 200% scaling this window wants
@@ -63,8 +72,8 @@ const RULE_HIGHLIGHT: (u8, u8, u8) = (0xFC, 0xFC, 0xFC);
 /// labels take the same prefix, so a heading may not contain a bare `&`.
 const OPEN_DATABASE: &str = "Open Data&base";
 const NEW_CASE: &str = "&Untitled Case";
-const SEED_VEHICLE: &str = "Seed &Vehicle Stop";
-const SEED_HIT_RUN: &str = "Seed Hit-and-&Run";
+const INTAKE_EVIDENCE: &str = "Intake E&vidence";
+const PROCESSING_QUEUE: &str = "P&rocessing Queue";
 const RUN_COLLATION: &str = "Run Co&llation";
 const DISCLOSABLE_EXPORT: &str = "Disclosable &Export";
 const WORK_FILE_EXPORT: &str = "&Privileged Work File";
@@ -93,23 +102,75 @@ const VIEW_BUTTONS: [(&str, WorkspaceView); 10] = [
 
 const STATUS_HINT: &str = "Alt + the underlined letter runs a command. All derived material must be checked against the original.";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IntakeModality {
+    Document,
+    Audio,
+    Video,
+}
+
+impl IntakeModality {
+    const fn title(self) -> &'static str {
+        match self {
+            Self::Document => "Document intake",
+            Self::Audio => "Audio intake",
+            Self::Video => "Video intake",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct IntakeSelection {
+    modality: IntakeModality,
+    files: Vec<PathBuf>,
+    production_index: usize,
+    new_production: String,
+    temporal: TemporalRelationArg,
+    phone_band: bool,
+    level_split: bool,
+    overnight: bool,
+}
+
+#[derive(Debug)]
+struct BrokerModels {
+    by_operation: HashMap<Operation, Vec<ModelRef>>,
+}
+
+impl BrokerModels {
+    fn required(&self, operation: Operation, preferred: &str) -> GuiResult<ModelRef> {
+        let models = self.by_operation.get(&operation).ok_or_else(|| {
+            GuiError::new(format!("The TensorRT broker has no model for {operation}."))
+        })?;
+        models
+            .iter()
+            .find(|model| model.id == preferred)
+            .or_else(|| models.first())
+            .cloned()
+            .ok_or_else(|| {
+                GuiError::new(format!("The TensorRT broker has no model for {operation}."))
+            })
+    }
+}
+
 #[derive(Clone)]
 struct MainWindow {
     wnd: gui::WindowMain,
     workspace: Rc<RefCell<Workspace>>,
+    coordinator: Rc<RefCell<Option<IntakeCoordinator>>>,
     _labels: Vec<gui::Label>,
     actor_label: gui::Label,
     database_edit: gui::Edit,
     open_button: gui::Button,
     case_combo: gui::ComboBox,
     new_case_button: gui::Button,
-    vehicle_button: gui::Button,
-    hit_run_button: gui::Button,
+    intake_button: gui::Button,
+    queue_button: gui::Button,
     view_buttons: Vec<(WorkspaceView, gui::Button)>,
     suggest_button: gui::Button,
     safe_export_button: gui::Button,
     work_export_button: gui::Button,
     persist_export_button: gui::Button,
+    search_mode: gui::ComboBox,
     search_edit: gui::Edit,
     search_button: gui::Button,
     output_edit: gui::Edit,
@@ -132,6 +193,12 @@ impl MainWindow {
             .or_else(|_| Workspace::in_memory())
             .map_err(|error| -> Box<dyn std::error::Error + Send + Sync> { Box::new(error) })?;
         let workspace = Rc::new(RefCell::new(workspace));
+        let coordinator = Rc::new(RefCell::new(
+            workspace
+                .borrow()
+                .database()
+                .and_then(|path| IntakeCoordinator::start(path).ok()),
+        ));
 
         let wnd = gui::WindowMain::new(gui::WindowMainOpts {
             title: "Evidence Intake — Local Case Workspace",
@@ -196,9 +263,9 @@ impl MainWindow {
         );
         let new_case_button = button(&wnd, NEW_CASE, 948, 34, 132, SLIDE_X);
 
-        // --- Rail group 1: put a case in the workspace ------------------------
-        let vehicle_button = button(&wnd, SEED_VEHICLE, RAIL_X, 78, RAIL_WIDTH, ANCHOR);
-        let hit_run_button = button(&wnd, SEED_HIT_RUN, RAIL_X, 110, RAIL_WIDTH, ANCHOR);
+        // --- Rail group 1: put evidence in the workspace ---------------------
+        let intake_button = button(&wnd, INTAKE_EVIDENCE, RAIL_X, 78, RAIL_WIDTH, ANCHOR);
+        let queue_button = button(&wnd, PROCESSING_QUEUE, RAIL_X, 110, RAIL_WIDTH, ANCHOR);
 
         // --- Rail group 2: read the case -------------------------------------
         let view_buttons = VIEW_BUTTONS
@@ -255,12 +322,22 @@ impl MainWindow {
         );
 
         // --- Pane: search over originals -------------------------------------
+        let search_mode = gui::ComboBox::new(
+            &wnd,
+            gui::ComboBoxOpts {
+                position: gui::dpi(PANE_X, 78),
+                width: gui::dpi_x(140),
+                items: &["Text", "Video Frames"],
+                selected_item: Some(0),
+                ..Default::default()
+            },
+        );
         let search_edit = gui::Edit::new(
             &wnd,
             gui::EditOpts {
                 text: "",
-                position: gui::dpi(PANE_X, 81),
-                width: gui::dpi_x(736),
+                position: gui::dpi(364, 81),
+                width: gui::dpi_x(588),
                 resize_behavior: (gui::Horz::Resize, gui::Vert::None),
                 ..Default::default()
             },
@@ -400,19 +477,21 @@ impl MainWindow {
         let new_self = Self {
             wnd,
             workspace,
+            coordinator,
             _labels: labels,
             actor_label,
             database_edit,
             open_button,
             case_combo,
             new_case_button,
-            vehicle_button,
-            hit_run_button,
+            intake_button,
+            queue_button,
             view_buttons,
             suggest_button,
             safe_export_button,
             work_export_button,
             persist_export_button,
+            search_mode,
             search_edit,
             search_button,
             output_edit,
@@ -437,8 +516,8 @@ impl MainWindow {
         let mut all = vec![
             &self.open_button,
             &self.new_case_button,
-            &self.vehicle_button,
-            &self.hit_run_button,
+            &self.intake_button,
+            &self.queue_button,
         ];
         all.extend(self.view_buttons.iter().map(|(_, control)| control));
         all.extend([
@@ -525,21 +604,37 @@ impl MainWindow {
         }
 
         let me = self.clone();
-        self.vehicle_button.on().bn_clicked(move || {
-            me.seed(DemoFixture::VehicleStop)?;
+        self.intake_button.on().bn_clicked(move || {
+            me.intake_evidence()?;
             Ok(())
         });
         let me = self.clone();
-        self.hit_run_button.on().bn_clicked(move || {
-            me.seed(DemoFixture::HitAndRun)?;
+        self.queue_button.on().bn_clicked(move || {
+            me.show_processing_queue()?;
             Ok(())
         });
 
         let me = self.clone();
         self.search_button.on().bn_clicked(move || {
             let query = me.search_edit.text()?;
-            let result = me.workspace.borrow().search(query.trim(), 100);
-            me.present(result, "Search results")?;
+            let mode = me
+                .search_mode
+                .items()
+                .selected_text()?
+                .unwrap_or_else(|| "Text".to_owned());
+            let result = if mode == "Video Frames" {
+                me.search_video_frames(query.trim())
+            } else {
+                me.workspace.borrow().search(query.trim(), 100)
+            };
+            me.present(
+                result,
+                if mode == "Video Frames" {
+                    "Frame finder results"
+                } else {
+                    "Search results"
+                },
+            )?;
             Ok(())
         });
 
@@ -619,6 +714,637 @@ impl MainWindow {
             me.present(result, "Normalized intake imported")?;
             Ok(())
         });
+    }
+
+    fn intake_evidence(&self) -> w::SysResult<()> {
+        let Some(modality) = self.choose_modality()? else {
+            return Ok(());
+        };
+        let productions = match self.workspace.borrow().productions() {
+            Ok(productions) => productions,
+            Err(error) => return self.present(Err(error), "Intake evidence"),
+        };
+        let Some(selection) = self.show_intake_dialog(modality, &productions)? else {
+            return Ok(());
+        };
+        let result = self.queue_selection(selection, &productions);
+        if result.is_ok()
+            && let Some(coordinator) = self.coordinator.borrow().as_ref()
+        {
+            coordinator.wake();
+        }
+        self.present(result, "Evidence queued for local processing")
+    }
+
+    fn choose_modality(&self) -> w::SysResult<Option<IntakeModality>> {
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: "Intake Evidence",
+            size: gui::dpi(420, 190),
+            ..Default::default()
+        });
+        let _heading = label(
+            &modal,
+            "Choose the original evidence type. Each type has its own processing profile.",
+            22,
+            20,
+            375,
+            ANCHOR,
+        );
+        let document = button(&modal, "&Document", 22, 64, 116, ANCHOR);
+        let audio = button(&modal, "&Audio", 152, 64, 116, ANCHOR);
+        let video = button(&modal, "&Video", 282, 64, 116, ANCHOR);
+        let cancel = button(&modal, "Cancel", 282, 126, 116, ANCHOR);
+        let selected = Rc::new(RefCell::new(None));
+        for (control, modality) in [
+            (document, IntakeModality::Document),
+            (audio, IntakeModality::Audio),
+            (video, IntakeModality::Video),
+        ] {
+            let selected = selected.clone();
+            let modal = modal.clone();
+            control.on().bn_clicked(move || {
+                *selected.borrow_mut() = Some(modality);
+                modal.close();
+                Ok(())
+            });
+        }
+        let modal_close = modal.clone();
+        cancel.on().bn_clicked(move || {
+            modal_close.close();
+            Ok(())
+        });
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+        Ok(*selected.borrow())
+    }
+
+    fn show_intake_dialog(
+        &self,
+        modality: IntakeModality,
+        productions: &[crate::OpenedProduction],
+    ) -> w::SysResult<Option<IntakeSelection>> {
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: modality.title(),
+            size: gui::dpi(590, 360),
+            ..Default::default()
+        });
+        let _files_label = label(&modal, "Originals", 22, 22, 90, ANCHOR);
+        let choose_files = button(&modal, "Choose &Files…", 120, 16, 140, ANCHOR);
+        let file_status = label(&modal, "No files selected", 274, 22, 290, ANCHOR);
+
+        let _production_label = label(&modal, "Production", 22, 72, 90, ANCHOR);
+        let mut production_labels = productions
+            .iter()
+            .map(|production| production.label.clone())
+            .collect::<Vec<_>>();
+        production_labels.push("<New production>".to_owned());
+        let production_refs = production_labels
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        let production_combo = gui::ComboBox::new(
+            &modal,
+            gui::ComboBoxOpts {
+                position: gui::dpi(120, 68),
+                width: gui::dpi_x(220),
+                items: &production_refs,
+                selected_item: Some(if productions.is_empty() {
+                    0
+                } else {
+                    u32::try_from(productions.len() - 1).unwrap_or(0)
+                }),
+                ..Default::default()
+            },
+        );
+        let new_production = gui::Edit::new(
+            &modal,
+            gui::EditOpts {
+                text: "",
+                position: gui::dpi(352, 68),
+                width: gui::dpi_x(212),
+                ..Default::default()
+            },
+        );
+        let _new_hint = label(
+            &modal,
+            "New production label (when selected)",
+            352,
+            94,
+            212,
+            ANCHOR,
+        );
+
+        let _temporal_label = label(&modal, "Temporal relation", 22, 130, 96, ANCHOR);
+        let temporal_combo = gui::ComboBox::new(
+            &modal,
+            gui::ComboBoxOpts {
+                position: gui::dpi(120, 126),
+                width: gui::dpi_x(220),
+                items: &["Unknown", "Contemporaneous", "After event", "Mixed"],
+                selected_item: Some(0),
+                ..Default::default()
+            },
+        );
+
+        let (option_one_text, option_two_text) = match modality {
+            IntakeModality::Document => (
+                "Lege search-profile OCR through the Evidence TensorRT broker",
+                "",
+            ),
+            IntakeModality::Audio => (
+                "Telephone-band working copy (off by default)",
+                "Near/far level observations (off by default)",
+            ),
+            IntakeModality::Video => (
+                "Overnight analysis: embeddings, detections and captions",
+                "Tier 1 always includes scenes, clock OCR and soundtrack transcription",
+            ),
+        };
+        let option_one = gui::CheckBox::new(
+            &modal,
+            gui::CheckBoxOpts {
+                text: option_one_text,
+                position: gui::dpi(22, 184),
+                check_state: if modality == IntakeModality::Document {
+                    co::BST::CHECKED
+                } else {
+                    co::BST::UNCHECKED
+                },
+                ..Default::default()
+            },
+        );
+        if modality == IntakeModality::Document {
+            option_one.hwnd().EnableWindow(false);
+        }
+        let option_two = gui::CheckBox::new(
+            &modal,
+            gui::CheckBoxOpts {
+                text: option_two_text,
+                position: gui::dpi(22, 220),
+                ..Default::default()
+            },
+        );
+        if modality != IntakeModality::Audio {
+            option_two.hwnd().EnableWindow(false);
+        }
+        let queue = button(&modal, "&Queue", 318, 300, 116, ANCHOR);
+        let cancel = button(&modal, "Cancel", 448, 300, 116, ANCHOR);
+
+        let files = Rc::new(RefCell::new(Vec::new()));
+        let files_for_picker = files.clone();
+        let file_status_for_picker = file_status.clone();
+        let parent = modal.clone();
+        choose_files.on().bn_clicked(move || {
+            if let Ok(chosen) = select_files(parent.hwnd(), modality)
+                && !chosen.is_empty()
+            {
+                let summary = if chosen.len() == 1 {
+                    chosen[0].display().to_string()
+                } else {
+                    format!("{} files selected", chosen.len())
+                };
+                *files_for_picker.borrow_mut() = chosen;
+                file_status_for_picker.hwnd().SetWindowText(&summary)?;
+            }
+            Ok(())
+        });
+
+        let result = Rc::new(RefCell::new(None));
+        let result_for_queue = result.clone();
+        let files_for_queue = files.clone();
+        let modal_close = modal.clone();
+        queue.on().bn_clicked(move || {
+            let temporal = match temporal_combo.items().selected_index().unwrap_or(0) {
+                1 => TemporalRelationArg::Contemporaneous,
+                2 => TemporalRelationArg::AfterEvent,
+                3 => TemporalRelationArg::Mixed,
+                _ => TemporalRelationArg::Unknown,
+            };
+            *result_for_queue.borrow_mut() = Some(IntakeSelection {
+                modality,
+                files: files_for_queue.borrow().clone(),
+                production_index: production_combo.items().selected_index().unwrap_or(0) as usize,
+                new_production: new_production.text()?.trim().to_owned(),
+                temporal,
+                phone_band: modality == IntakeModality::Audio
+                    && option_one.state() == co::BST::CHECKED,
+                level_split: modality == IntakeModality::Audio
+                    && option_two.state() == co::BST::CHECKED,
+                overnight: modality == IntakeModality::Video
+                    && option_one.state() == co::BST::CHECKED,
+            });
+            modal_close.close();
+            Ok(())
+        });
+        let modal_close = modal.clone();
+        cancel.on().bn_clicked(move || {
+            modal_close.close();
+            Ok(())
+        });
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+        Ok(result.borrow().clone())
+    }
+
+    fn queue_selection(
+        &self,
+        selection: IntakeSelection,
+        productions: &[crate::OpenedProduction],
+    ) -> GuiResult<String> {
+        if selection.files.is_empty() {
+            return Err(GuiError::new("Choose at least one original file."));
+        }
+        let production_id = if let Some(production) = productions.get(selection.production_index) {
+            production.id.clone()
+        } else {
+            if selection.new_production.trim().is_empty() {
+                return Err(GuiError::new("Enter a label for the new production."));
+            }
+            self.workspace
+                .borrow_mut()
+                .open_production(&selection.new_production)?
+                .id
+        };
+        let (case_id, _) = self
+            .workspace
+            .borrow()
+            .active_case()
+            .cloned()
+            .ok_or_else(|| GuiError::new("Select a case before intake."))?;
+        let database = self
+            .workspace
+            .borrow()
+            .database()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| GuiError::new("Persistent intake requires a case database on disk."))?;
+        let models = Self::broker_models("evidence-trt")?;
+        let ocr = matches!(
+            selection.modality,
+            IntakeModality::Document | IntakeModality::Video
+        )
+        .then(|| models.required(Operation::PageOcr, "turbo-ocr"))
+        .transpose()?;
+        let whisper = matches!(
+            selection.modality,
+            IntakeModality::Audio | IntakeModality::Video
+        )
+        .then(|| models.required(Operation::TranscribeAudio, "whisper-large-v3"))
+        .transpose()?;
+        let (embedding, detector, caption) = if selection.overnight {
+            (
+                Some(models.required(Operation::EmbedImage, "siglip2-base-patch16-384")?),
+                Some(models.required(Operation::DetectImage, "yolo-v8n")?),
+                Some(models.required(Operation::CaptionImage, "qwen2-vl-2b")?),
+            )
+        } else {
+            (None, None, None)
+        };
+        let executable_dir = std::env::current_exe()?
+            .parent()
+            .ok_or_else(|| GuiError::new("Application executable has no directory."))?
+            .to_path_buf();
+        let sidecar = artifact_sidecar(&database);
+        let mut queued = 0_usize;
+        for original_path in selection.files {
+            let (original_sha256, original_byte_length) = hash_file(&original_path)?;
+            let job_id = Uuid::now_v7().to_string();
+            let source_id = format!("source-{}", Uuid::now_v7());
+            let artifacts_dir = sidecar.join(&job_id).join("attempt-0001");
+            let logical_name = original_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("original evidence")
+                .to_owned();
+            let profile = match selection.modality {
+                IntakeModality::Document => AdapterProfile::Document {
+                    lege_ocr: companion(&executable_dir, "lege-ocr"),
+                    broker_bridge: companion(
+                        &executable_dir,
+                        "evidence-trt-lege-ocr-bridge",
+                    ),
+                    broker_endpoint: "evidence-trt".to_owned(),
+                    ocr: ocr
+                        .clone()
+                        .ok_or_else(|| GuiError::new("Document intake requires broker OCR."))?,
+                },
+                IntakeModality::Audio => AdapterProfile::Audio {
+                    broker_endpoint: "evidence-trt".to_owned(),
+                    whisper: whisper
+                        .clone()
+                        .ok_or_else(|| GuiError::new("Audio intake requires broker Whisper."))?,
+                    language: "en".to_owned(),
+                    phone_band: selection.phone_band,
+                    level_split: selection.level_split,
+                    gap_ms: 2_000,
+                },
+                IntakeModality::Video => AdapterProfile::Video {
+                    broker_endpoint: "evidence-trt".to_owned(),
+                    tier: if selection.overnight {
+                        VideoTier::Overnight
+                    } else {
+                        VideoTier::Tier1
+                    },
+                    ocr: ocr
+                        .clone()
+                        .ok_or_else(|| GuiError::new("Video intake requires broker OCR."))?,
+                    whisper: whisper
+                        .clone()
+                        .ok_or_else(|| GuiError::new("Video intake requires broker Whisper."))?,
+                    embedding: embedding.clone(),
+                    detector: detector.clone(),
+                    caption: caption.clone(),
+                    language: "en".to_owned(),
+                    threshold: 0.30,
+                    gap_ms: 2_000,
+                    sample_gap_ms: 5_000,
+                    sample_dedup_ms: 250,
+                    detector_confidence: 0.25,
+                    caption_prompt:
+                        "Describe only directly visible scene content; do not identify people, infer intent, enhance, reconstruct, or assess authenticity."
+                            .to_owned(),
+                },
+            };
+            let request = AdapterJobRequest {
+                schema_version: ADAPTER_PROTOCOL_VERSION,
+                job_id,
+                case_id: case_id.0.clone(),
+                production_id: production_id.clone(),
+                source_id,
+                original_path,
+                original_sha256,
+                original_byte_length,
+                logical_name,
+                temporal_relation: selection.temporal,
+                artifacts_dir,
+                profile,
+            };
+            request
+                .validate()
+                .map_err(|error| GuiError::new(error.to_string()))?;
+            self.workspace.borrow_mut().queue_intake(&request)?;
+            queued += 1;
+        }
+        Ok(format!(
+            "Queued {queued} original(s). Processing is local, persistent, and one GPU-heavy job at a time."
+        ))
+    }
+
+    fn broker_models(endpoint: &str) -> GuiResult<BrokerModels> {
+        let mut client = Client::connect(endpoint)
+            .map_err(|error| GuiError::new(format!("TensorRT broker is unavailable: {error}")))?;
+        let ResultBody::Models { models } = client
+            .request(Request::Models, &[])
+            .map_err(|error| GuiError::new(format!("Could not inspect broker models: {error}")))?
+        else {
+            return Err(GuiError::new("Broker returned an incompatible model list."));
+        };
+        let mut by_operation: HashMap<Operation, Vec<ModelRef>> = HashMap::new();
+        for model in models {
+            for operation in model.operations {
+                by_operation.entry(operation).or_default().push(ModelRef {
+                    id: model.id.clone(),
+                    revision: model.revision.clone(),
+                });
+            }
+        }
+        Ok(BrokerModels { by_operation })
+    }
+
+    fn search_video_frames(&self, query: &str) -> GuiResult<String> {
+        if query.trim().is_empty() {
+            return Err(GuiError::new("Enter a frame-search description."));
+        }
+        let models = self.workspace.borrow().keyframe_models()?;
+        let model = models.first().ok_or_else(|| {
+            GuiError::new(
+                "This case has no stored video-frame index. Run overnight video analysis first.",
+            )
+        })?;
+        let broker_models = Self::broker_models("evidence-trt")?;
+        let installed = broker_models.required(Operation::EmbedText, model)?;
+        if installed.id != *model {
+            return Err(GuiError::new(format!(
+                "Stored frames require model `{model}`, which the broker does not expose for text embedding."
+            )));
+        }
+        let mut client = Client::connect("evidence-trt")
+            .map_err(|error| GuiError::new(format!("TensorRT broker is unavailable: {error}")))?;
+        let ResultBody::Embedding { vector } = client
+            .request(
+                Request::Infer {
+                    model: installed.id.clone(),
+                    revision: installed.revision,
+                    operation: Operation::EmbedText,
+                    input: InputMetadata {
+                        media_type: Some("text/plain; charset=utf-8".to_owned()),
+                        ..InputMetadata::default()
+                    },
+                },
+                query.as_bytes(),
+            )
+            .map_err(|error| GuiError::new(format!("Frame query failed: {error}")))?
+        else {
+            return Err(GuiError::new(
+                "Broker returned a non-embedding frame query result.",
+            ));
+        };
+        let hits = self.workspace.borrow().search_frames(model, &vector, 100)?;
+        let rendered = hits
+            .into_iter()
+            .map(|hit| {
+                let path = self
+                    .workspace
+                    .borrow()
+                    .source_location(&hit.source_id)
+                    .map_or_else(
+                        |_| "<retained still unavailable>".to_owned(),
+                        |location| location.path.display().to_string(),
+                    );
+                serde_json::json!({
+                    "original": hit.source,
+                    "original_sha256": hit.sha256,
+                    "time_range": hit.locator,
+                    "derived_still": path,
+                    "still_sha256": hit.still_sha256,
+                    "review_state": hit.review_state,
+                    "machine_generated": hit.machine_generated,
+                    "bears_on": hit.bears_on,
+                })
+            })
+            .collect::<Vec<_>>();
+        serde_json::to_string_pretty(&rendered).map_err(GuiError::from)
+    }
+
+    fn show_processing_queue(&self) -> w::SysResult<()> {
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: "Processing Queue",
+            size: gui::dpi(760, 520),
+            ..Default::default()
+        });
+        let _job_label = label(&modal, "Job", 20, 22, 44, ANCHOR);
+        let job_combo = gui::ComboBox::new(
+            &modal,
+            gui::ComboBoxOpts {
+                position: gui::dpi(68, 18),
+                width: gui::dpi_x(530),
+                items: &[],
+                ..Default::default()
+            },
+        );
+        let refresh = button(&modal, "&Refresh", 612, 16, 126, ANCHOR);
+        let output = gui::Edit::new(
+            &modal,
+            gui::EditOpts {
+                text: "",
+                position: gui::dpi(20, 62),
+                width: gui::dpi_x(718),
+                height: gui::dpi_y(386),
+                control_style: co::ES::MULTILINE
+                    | co::ES::AUTOVSCROLL
+                    | co::ES::AUTOHSCROLL
+                    | co::ES::READONLY,
+                window_style: co::WS::CHILD
+                    | co::WS::VISIBLE
+                    | co::WS::BORDER
+                    | co::WS::VSCROLL
+                    | co::WS::HSCROLL
+                    | co::WS::TABSTOP,
+                ..Default::default()
+            },
+        );
+        let open_original = button(&modal, "Open &Original", 20, 468, 146, ANCHOR);
+        let open_artifacts = button(&modal, "Open &Artifacts", 178, 468, 146, ANCHOR);
+        let retry = button(&modal, "Ret&ry", 336, 468, 116, ANCHOR);
+        let close = button(&modal, "Close", 622, 468, 116, ANCHOR);
+        let jobs = Rc::new(RefCell::new(Vec::new()));
+
+        let update = {
+            let workspace = self.workspace.clone();
+            let combo = job_combo.clone();
+            let output = output.clone();
+            let jobs = jobs.clone();
+            move || refresh_queue_view(&workspace, &combo, &output, &jobs)
+        };
+        update()?;
+        let update = Rc::new(update);
+        let update_click = update.clone();
+        refresh.on().bn_clicked(move || {
+            update_click()?;
+            Ok(())
+        });
+        let update_timer = update.clone();
+        modal.on().wm_timer(1, move || {
+            update_timer()?;
+            Ok(())
+        });
+        let modal_timer = modal.clone();
+        modal.on().wm_create(move |_| {
+            modal_timer.hwnd().SetTimer(1, 1_000, None)?;
+            Ok(0)
+        });
+
+        let jobs_for_open = jobs.clone();
+        let combo_for_open = job_combo.clone();
+        let owner = modal.clone();
+        let output_for_open = output.clone();
+        open_original.on().bn_clicked(move || {
+            if let Some(job) = selected_queue_job(&jobs_for_open, &combo_for_open) {
+                match hash_file(&job.original_path) {
+                    Ok((hash, length))
+                        if hash.eq_ignore_ascii_case(&job.original_sha256)
+                            && length == job.original_byte_length => {}
+                    Ok(_) => {
+                        output_for_open.set_text(
+                            "ERROR\r\n\r\nThe original no longer matches its queued SHA-256 and length.",
+                        )?;
+                        return Ok(());
+                    }
+                    Err(error) => {
+                        output_for_open.set_text(&format!("ERROR\r\n\r\n{error}"))?;
+                        return Ok(());
+                    }
+                }
+                let path = job.original_path.to_string_lossy();
+                owner
+                    .hwnd()
+                    .ShellExecute("open", &path, None, None, co::SW::SHOWNORMAL)?;
+            }
+            Ok(())
+        });
+
+        let workspace_for_artifacts = self.workspace.clone();
+        let jobs_for_artifacts = jobs.clone();
+        let combo_for_artifacts = job_combo.clone();
+        let owner = modal.clone();
+        open_artifacts.on().bn_clicked(move || {
+            if let Some(job) = selected_queue_job(&jobs_for_artifacts, &combo_for_artifacts) {
+                let artifacts = workspace_for_artifacts
+                    .borrow()
+                    .intake_artifacts(&job.id)
+                    .unwrap_or_default();
+                let path = artifacts
+                    .first()
+                    .and_then(|artifact| artifact.path.parent().map(Path::to_path_buf))
+                    .unwrap_or(job.artifact_dir);
+                let path = path.to_string_lossy();
+                owner
+                    .hwnd()
+                    .ShellExecute("open", &path, None, None, co::SW::SHOWNORMAL)?;
+            }
+            Ok(())
+        });
+
+        let workspace_for_retry = self.workspace.clone();
+        let coordinator = self.coordinator.clone();
+        let jobs_for_retry = jobs.clone();
+        let combo_for_retry = job_combo.clone();
+        let output_for_retry = output.clone();
+        let update_retry = update.clone();
+        retry.on().bn_clicked(move || {
+            let Some(job) = selected_queue_job(&jobs_for_retry, &combo_for_retry) else {
+                return Ok(());
+            };
+            if !matches!(
+                job.state,
+                IntakeJobState::Failed | IntakeJobState::Interrupted
+            ) {
+                output_for_retry
+                    .set_text("Retry is available only for failed or interrupted jobs.")?;
+                return Ok(());
+            }
+            let result = (|| -> GuiResult<()> {
+                let mut request: AdapterJobRequest = serde_json::from_str(&job.request_json)?;
+                let root = job
+                    .artifact_dir
+                    .parent()
+                    .ok_or_else(|| GuiError::new("Attempt directory has no job root."))?;
+                request.artifacts_dir = root.join(format!("attempt-{:04}", job.attempt + 1));
+                workspace_for_retry
+                    .borrow_mut()
+                    .retry_intake(&job.id, &request)?;
+                Ok(())
+            })();
+            match result {
+                Ok(()) => {
+                    if let Some(coordinator) = coordinator.borrow().as_ref() {
+                        coordinator.wake();
+                    }
+                    update_retry()?;
+                }
+                Err(error) => output_for_retry.set_text(&format!("ERROR\r\n\r\n{error}"))?,
+            }
+            Ok(())
+        });
+        let modal_close = modal.clone();
+        close.on().bn_clicked(move || {
+            modal_close.close();
+            Ok(())
+        });
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)
     }
 
     /// Shrinks the window onto the monitor it opened on.
@@ -779,28 +1505,30 @@ impl MainWindow {
     }
 
     fn open_database(&self) -> w::SysResult<()> {
+        if self.workspace.borrow().has_active_intake().unwrap_or(false) {
+            return self.present(
+                Err(GuiError::new(
+                    "This database has an actively running intake job. Wait for it to finish before switching.",
+                )),
+                "Open database",
+            );
+        }
         let path = self.database_edit.text()?;
         match Workspace::open(path.trim()) {
             Ok(workspace) => {
+                let coordinator = IntakeCoordinator::start(path.trim()).map_err(GuiError::from);
+                let coordinator = match coordinator {
+                    Ok(coordinator) => coordinator,
+                    Err(error) => return self.present(Err(error), "Open database"),
+                };
                 *self.workspace.borrow_mut() = workspace;
+                *self.coordinator.borrow_mut() = Some(coordinator);
                 self.refresh_case_combo()?;
                 self.show_view(WorkspaceView::Overview)?;
                 self.set_status(&format!("Opened {}.", path.trim()))
             }
             Err(error) => self.present(Err(error), "Open database"),
         }
-    }
-
-    fn seed(&self, fixture: DemoFixture) -> w::SysResult<()> {
-        let result = self
-            .workspace
-            .borrow_mut()
-            .seed(fixture)
-            .map(|id| format!("Seeded {id}."));
-        if result.is_ok() {
-            self.refresh_case_combo()?;
-        }
-        self.present(result, "Demonstration case ready")
     }
 
     fn refresh_case_combo(&self) -> w::SysResult<()> {
@@ -1006,6 +1734,157 @@ fn case_labels(workspace: &Workspace) -> Vec<String> {
         .collect()
 }
 
+fn select_files(parent: &w::HWND, modality: IntakeModality) -> w::HrResult<Vec<PathBuf>> {
+    let dialog = w::CoCreateInstance::<w::IFileOpenDialog>(
+        &co::CLSID::FileOpenDialog,
+        None::<&w::IUnknown>,
+        co::CLSCTX::INPROC_SERVER,
+    )?;
+    dialog.SetOptions(
+        dialog.GetOptions()?
+            | co::FOS::FORCEFILESYSTEM
+            | co::FOS::FILEMUSTEXIST
+            | co::FOS::ALLOWMULTISELECT,
+    )?;
+    let types = match modality {
+        IntakeModality::Document => [("PDF documents", "*.pdf"), ("All files", "*.*")],
+        IntakeModality::Audio => [
+            (
+                "Audio recordings",
+                "*.wav;*.mp3;*.m4a;*.flac;*.ogg;*.opus;*.aac",
+            ),
+            ("All files", "*.*"),
+        ],
+        IntakeModality::Video => [
+            ("Video recordings", "*.mp4;*.mov;*.mkv;*.avi;*.webm;*.m4v"),
+            ("All files", "*.*"),
+        ],
+    };
+    dialog.SetFileTypes(&types)?;
+    dialog.SetFileTypeIndex(1)?;
+    if !dialog.Show(parent)? {
+        return Ok(Vec::new());
+    }
+    dialog
+        .GetResults()?
+        .iter()?
+        .map(|item| {
+            item.and_then(|item| item.GetDisplayName(co::SIGDN::FILESYSPATH))
+                .map(PathBuf::from)
+        })
+        .collect()
+}
+
+fn artifact_sidecar(database: &Path) -> PathBuf {
+    let parent = database.parent().unwrap_or_else(|| Path::new("."));
+    let stem = database
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("evidence.sqlite");
+    parent.join(format!("{stem}.artifacts"))
+}
+
+fn companion(directory: &Path, name: &str) -> PathBuf {
+    directory.join(if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_owned()
+    })
+}
+
+fn hash_file(path: &Path) -> GuiResult<(String, u64)> {
+    let mut file = std::fs::File::open(path)?;
+    let length = file.metadata()?.len();
+    if length == 0 {
+        return Err(GuiError::new(format!("{} is empty.", path.display())));
+    }
+    let mut digest = Sha256::new();
+    let mut buffer = vec![0_u8; 1024 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    Ok((format!("{:x}", digest.finalize()), length))
+}
+
+fn selected_queue_job(
+    jobs: &Rc<RefCell<Vec<crate::IntakeJob>>>,
+    combo: &gui::ComboBox,
+) -> Option<crate::IntakeJob> {
+    combo
+        .items()
+        .selected_index()
+        .and_then(|index| jobs.borrow().get(index as usize).cloned())
+}
+
+fn refresh_queue_view(
+    workspace: &Rc<RefCell<Workspace>>,
+    combo: &gui::ComboBox,
+    output: &gui::Edit,
+    jobs: &Rc<RefCell<Vec<crate::IntakeJob>>>,
+) -> w::SysResult<()> {
+    let selected_id = selected_queue_job(jobs, combo).map(|job| job.id);
+    match workspace.borrow().intake_jobs() {
+        Ok(current) => {
+            let labels = current
+                .iter()
+                .map(|job| {
+                    format!(
+                        "{}  {}  attempt {}  [{}]",
+                        job.modality,
+                        job.logical_name,
+                        job.attempt,
+                        job.state.as_str()
+                    )
+                })
+                .collect::<Vec<_>>();
+            let selected = selected_id
+                .as_ref()
+                .and_then(|id| current.iter().position(|job| &job.id == id))
+                .or_else(|| (!current.is_empty()).then_some(0));
+            combo.items().delete_all();
+            combo.items().add(&labels)?;
+            combo
+                .items()
+                .select(selected.and_then(|index| u32::try_from(index).ok()));
+            let rows = current
+                .iter()
+                .map(|job| {
+                    let artifacts = workspace
+                        .borrow()
+                        .intake_artifacts(&job.id)
+                        .unwrap_or_default();
+                    serde_json::json!({
+                        "job": job.id,
+                        "source": job.logical_name,
+                        "modality": job.modality,
+                        "profile": job.profile,
+                        "state": job.state,
+                        "attempt": job.attempt,
+                        "stage": job.stage,
+                        "completed": job.progress_completed,
+                        "total": job.progress_total,
+                        "message": job.message,
+                        "error": job.error,
+                        "original": job.original_path,
+                        "artifact_directory": job.artifact_dir,
+                        "artifacts": artifacts,
+                    })
+                })
+                .collect::<Vec<_>>();
+            *jobs.borrow_mut() = current;
+            output.set_text(&windows_lines(
+                &serde_json::to_string_pretty(&rows).unwrap_or_else(|error| error.to_string()),
+            ))?;
+        }
+        Err(error) => output.set_text(&format!("ERROR\r\n\r\n{error}"))?,
+    }
+    Ok(())
+}
+
 fn optional_text(value: &str) -> Option<String> {
     let value = value.trim();
     (!value.is_empty()).then(|| value.to_owned())
@@ -1017,6 +1896,8 @@ fn windows_lines(value: &str) -> String {
 
 /// Starts the Windows native frontend for one database path.
 pub fn run(database: &Path) {
+    let _com_guard =
+        w::CoInitializeEx(co::COINIT::APARTMENTTHREADED | co::COINIT::DISABLE_OLE1DDE).ok();
     if let Err(error) = MainWindow::create_and_run(database) {
         eprintln!("Evidence Intake GUI error: {error}");
     }
@@ -1053,8 +1934,8 @@ mod tests {
         let commands = VIEW_BUTTONS.iter().map(|(caption, _)| *caption).chain([
             OPEN_DATABASE,
             NEW_CASE,
-            SEED_VEHICLE,
-            SEED_HIT_RUN,
+            INTAKE_EVIDENCE,
+            PROCESSING_QUEUE,
             RUN_COLLATION,
             DISCLOSABLE_EXPORT,
             WORK_FILE_EXPORT,

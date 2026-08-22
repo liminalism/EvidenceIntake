@@ -1,6 +1,25 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.distribution.open-source-for-public-defenders/1 : question {
+    title "Should the coherent intake program be released as open source for public defenders?"
+    state open
+    question """
+        Now that document, audio and video form a coherent local-first evidence-review program, should it be released as open source for public defenders rather than sold as a proprietary product? No distribution model has been chosen. A later decision should separately consider defender access, sustainable maintenance and support, privacy and security review, contribution governance, licensing, model-weight redistribution terms and whether paid implementation or support can coexist with an open core.
+        """
+    claim decision-factors {
+        text """
+            The distribution decision must address access, sustainability, governance, security, licensing and model redistribution rather than treating source availability as the only dimension.
+            """
+    }
+    claim undecided {
+        text """
+            The owner is considering public-defender-focused open source but has not chosen it over commercialization.
+            """
+    }
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.ingest.append-to-identical-source-question/1 : question {
     title "May a later pass append new segments to an already-imported source when the hash and length match exactly?"
     state open

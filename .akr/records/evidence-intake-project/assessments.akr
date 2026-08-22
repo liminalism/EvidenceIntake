@@ -1,0 +1,53 @@
+akr 0.1
+project evidence-intake-project
+
+record evidence-intake-project.assessment.mapping-boundary-follows-software-output/1 : assessment {
+    title "Mapping stays collation only while it presents sourced placement rather than deriving forensic opinions"
+    state verified
+    statement """
+        The meaningful scope boundary follows what the software derives and claims, not whether its operator is a public defender. A map remains a collation read model when it plots only source-stated or reviewer-confirmed locations, preserves raw location language, provenance, exact locators and disagreement, labels address-to-coordinate conversion as derived and reviewable, and returns the reviewer to the underlying document, audio or video. It crosses the adopted forensic boundary when it authenticates media, infers location from pixels, measures depicted objects or distances, compares scenes or people to render an identification opinion, reconstructs routes or events, or asserts a common event across sources.
+        """
+    as_of git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    claim forensic-crossing {
+        text """
+            Image-derived geolocation or measurement, authentication, comparative identification and route or event reconstruction cross the adopted product boundary.
+            """
+    }
+    claim role-is-not-boundary {
+        text """
+            A defender reviewing evidence is doing litigation analysis, but the user's role does not make every review action a technical forensic examination.
+            """
+    }
+    claim safe-map {
+        text """
+            A safe map is a provenance-preserving read model over source-stated or reviewer-confirmed location anchors.
+            """
+    }
+    author "GitHub Uploader"
+    source {
+        kind external
+        role rationale
+        document "mapping-forensic-boundary-2026-08-20"
+        start_byte 216
+        end_byte 1943
+        start_line 7
+        end_line 35
+        excerpt_hash "sha256:aa2d7a57478ff3d4917eaa30979f332252eca1c335318ce702fcf9e65d98e8f5"
+        use """
+            Retains the NIST/OSAC forensic-video categories and NIJ distinction between plotting and broader spatial analysis that motivate the boundary.
+            """
+    }
+    source {
+        kind external
+        role rationale
+        document "mapping-forensic-boundary-2026-08-20"
+        start_byte 1996
+        end_byte 3756
+        start_line 39
+        end_line 68
+        excerpt_hash "sha256:f0999414c4db3dc0fe2861976a682d2f1ec892c2131a99110f5acde6b1b873b3"
+        use """
+            Retains the provenance requirements, use-specific court distinction and adopted output-based boundary.
+            """
+    }
+}

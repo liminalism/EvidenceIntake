@@ -3,14 +3,13 @@
 #![allow(missing_docs)]
 
 use std::path::PathBuf;
-use std::process::Command;
 
 use evidence_intake::CaseId;
 use evidence_intake::TemporalRelation;
 use evidence_video::{
-    CliEmbeddingBackend, EXTRACTOR_EMBED, EmbeddingBackend, EmbeddingDocument,
-    JsonEmbeddingBackend, Keyframe, QueryEmbedding, Scene, SceneAnalysis, StillEmbedding,
-    VideoIdentity, embed_from_document, embed_keyframes,
+    EXTRACTOR_EMBED, EmbeddingBackend, EmbeddingDocument, JsonEmbeddingBackend, Keyframe,
+    QueryEmbedding, Scene, SceneAnalysis, StillEmbedding, VideoIdentity, embed_from_document,
+    embed_keyframes,
 };
 
 fn identity(case_id: CaseId) -> VideoIdentity {
@@ -138,71 +137,4 @@ fn json_backend_embeds_stills_by_file_name() {
         .expect("embed");
     assert_eq!(index.embeddings[0].vector, vec![1.0, 0.0]);
     assert_eq!(index.embeddings[1].vector, vec![0.0, 1.0]);
-}
-
-#[test]
-fn live_embedding_cli_contract() {
-    let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let model = workspace.join("siglip");
-    let script = workspace.join("adapters/video/python/embed_cli.py");
-    if !model.join("model.safetensors").is_file() || !script.is_file() {
-        return;
-    }
-    let python = std::env::var_os("EVIDENCE_VIDEO_PYTHON")
-        .map_or_else(|| PathBuf::from("python"), PathBuf::from);
-    if !Command::new(&python)
-        .arg("--version")
-        .output()
-        .is_ok_and(|output| output.status.success())
-    {
-        return;
-    }
-    let dir = tempfile::tempdir().expect("temp");
-    let frame = dir.path().join("blue.jpg");
-    let status = Command::new("ffmpeg")
-        .args([
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-f",
-            "lavfi",
-            "-i",
-            "color=c=blue:s=64x64:d=1",
-            "-frames:v",
-            "1",
-        ])
-        .arg(&frame)
-        .status()
-        .expect("ffmpeg frame");
-    if !status.success() {
-        return;
-    }
-    let backend = CliEmbeddingBackend {
-        bin: script,
-        python: Some(python),
-        model_dir: Some(model),
-        model: "google/siglip2-base-patch16-384".to_owned(),
-    };
-    let vectors = backend
-        .embed_stills(&[frame.clone(), frame])
-        .expect("batch stills");
-    assert_eq!(vectors.len(), 2);
-    assert!(vectors.iter().all(|vector| vector.len() == 768));
-    assert!(vectors.iter().flatten().all(|value| value.is_finite()));
-    assert!(
-        vectors
-            .iter()
-            .all(|vector| (norm(vector) - 1.0).abs() < 1e-4)
-    );
-
-    let query = backend
-        .embed_query("vehicle interior at night")
-        .expect("text query");
-    assert_eq!(query.len(), 768);
-    assert!((norm(&query) - 1.0).abs() < 1e-4);
-}
-
-fn norm(vector: &[f32]) -> f32 {
-    vector.iter().map(|value| value * value).sum::<f32>().sqrt()
 }

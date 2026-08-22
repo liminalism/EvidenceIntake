@@ -11,8 +11,6 @@ use crate::{Error, Result};
 
 /// Adapter name written on every WhisperX statement.
 pub const EXTRACTOR_WHISPERX: &str = "whisperx";
-/// Adapter name written on a statement from the in-process native engine.
-pub const EXTRACTOR_NATIVE_WHISPER: &str = "franken_whisper";
 /// Adapter name written on a stereo-channel observation.
 pub const EXTRACTOR_CHANNEL: &str = "audio_channel_split";
 /// Adapter name written on an opt-in level observation.
@@ -51,7 +49,7 @@ pub struct SourceIdentity {
 /// How the mapper should attach optional analysis next to each statement.
 #[derive(Debug, Clone, Default)]
 pub struct MappingOptions {
-    /// Extractor name stored on each statement (`franken_whisper` or `whisperx`).
+    /// Extractor name stored on each statement (for example `tensorrt_whisper` or `whisperx`).
     pub extractor: String,
     /// Exact model / binary version string stored on each statement.
     pub extractor_version: String,

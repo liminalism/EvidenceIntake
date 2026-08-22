@@ -1,0 +1,49 @@
+[package]
+name = "evidence-trt"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+description = "Versioned local TensorRT inference broker for Evidence adapters"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[lib]
+name = "evidence_trt"
+path = "src/lib.rs"
+
+[[bin]]
+name = "evidence-trt-broker"
+path = "src/bin/evidence-trt-broker.rs"
+
+[[bin]]
+name = "evidence-trt-ocr-worker"
+path = "src/bin/evidence-trt-ocr-worker.rs"
+
+[[bin]]
+name = "evidence-trt-lege-ocr-bridge"
+path = "src/bin/evidence-trt-lege-ocr-bridge.rs"
+
+[dependencies]
+clap = { version = "4.6.2", features = ["derive"] }
+interprocess = "2.2.3"
+image = { version = "0.25.8", default-features = false, features = ["jpeg", "png"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+sha2 = "0.10.9"
+thiserror = "2.0.18"
+
+[dev-dependencies]
+tempfile = "3.23.0"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+missing_errors_doc = "allow"
+must_use_candidate = "allow"
+too_many_lines = "allow"
+cast_possible_truncation = "allow"
+doc_markdown = "allow"

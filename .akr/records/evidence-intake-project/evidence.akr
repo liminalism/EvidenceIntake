@@ -205,6 +205,43 @@ record evidence-intake-project.evidence.docket-lists-cases-separately/1 : eviden
     author "GitHub Uploader"
 }
 
+record evidence-intake-project.evidence.document-collation-strict-lints/1 : evidence {
+    title "Clippy passed for every workspace target with warnings denied."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo clippy --workspace --all-targets -- -D warnings"
+    summary """
+        Clippy passed for every workspace target with warnings denied.
+        """
+}
+
+record evidence-intake-project.evidence.document-collation-synthetic-seam/1 : evidence {
+    title "The synthetic ten-page DocIR fixture traversed import, discovery, FTS, placement gaps, exact-locator verification, proposition evidence, and disclosable export in numeric page order."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo test -p evidence-document synthetic_document_collates_reviews_and_exports_in_page_order -- --nocapture"
+    artifact "adapters/document/tests/mapping.rs"
+    summary """
+        The synthetic ten-page DocIR fixture traversed import, discovery, FTS, placement gaps, exact-locator verification, proposition evidence, and disclosable export in numeric page order.
+        """
+}
+
+record evidence-intake-project.evidence.document-collation-workspace-tests/1 : evidence {
+    title "Every workspace unit, integration, and documentation test passed; the native GPU OCR test remained explicitly ignored because it requires the external TensorRT build, models, and NVIDIA GPU."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo test --workspace"
+    summary """
+        Every workspace unit, integration, and documentation test passed; the native GPU OCR test remained explicitly ignored because it requires the external TensorRT build, models, and NVIDIA GPU.
+        """
+}
+
 record evidence-intake-project.evidence.edges-alone-and-stills/1 : evidence {
     title "2 passed: a sourceless batch relates two earlier-imported sources (queue shows edge/suggested/machine, extractor suggest:...); a batch relates the stills it brings."
     state verified
@@ -263,6 +300,71 @@ record evidence-intake-project.evidence.export-suite/1 : evidence {
     summary """
         67 tests pass, clippy clean under -D warnings, formatting clean. tests/export.rs adds 9: a canary phrase seeded into all three privileged tables and asserted absent from the serialized disclosable export and present in the work-file one, every exported line carrying a non-empty source and locator, an evidence-free proposition reported as unsupported rather than as fact, rejected evidence counted, unreviewed evidence counted and reconciled against what the lines themselves say, the production ledger carried through unchanged, an unknown case refused, and two cases in one database not bleeding into each other's export. Verified by hand that both audiences produce sane output and no work-product text appears in the disclosable JSON.
         """
+}
+
+record evidence-intake-project.evidence.gui-intake-broker-bridge-20260822/1 : evidence {
+    title "Document mapping, broker supervision, protocol v2, manifest checks, OCR worker, and the process-level Lege page-OCR bridge contract all passed; the real CUDA OCR smoke remained correctly ignored without its native payload."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo test -p evidence-document -p evidence-trt"
+    summary """
+        Document mapping, broker supervision, protocol v2, manifest checks, OCR worker, and the process-level Lege page-OCR bridge contract all passed; the real CUDA OCR smoke remained correctly ignored without its native payload.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-intake-persistence-20260822/1 : evidence {
+    title "The full Evidence workspace passed, including adapter protocol version rejection, persistent intake lifecycle, atomic import, duplicate preflight, recovery, retry, artifact confinement, relinking, and chronological score-free keyframe search."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo test --workspace --no-fail-fast"
+    summary """
+        The full Evidence workspace passed, including adapter protocol version rejection, persistent intake lifecycle, atomic import, duplicate preflight, recovery, retry, artifact confinement, relinking, and chronological score-free keyframe search.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-intake-release-build-20260822/1 : evidence {
+    title "Release builds completed for the broker, Lege bridge, all three adapters, and the WinSafe GUI."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo build --release -p evidence-trt -p evidence-document -p evidence-audio -p evidence-video -p evidence-intake --features gui-winsafe --bin evidence-gui"
+    summary """
+        Release builds completed for the broker, Lege bridge, all three adapters, and the WinSafe GUI.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-intake-static-20260822/1 : evidence {
+    title "All Evidence workspace targets and features passed strict Clippy with warnings denied."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo clippy --workspace --all-targets --all-features -- -D warnings"
+    summary """
+        All Evidence workspace targets and features passed strict Clippy with warnings denied.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-intake-winsafe-20260822/1 : evidence {
+    title "The WinSafe feature build and tests passed, including mnemonic uniqueness and layout boundary checks."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo test -p evidence-intake --features gui-winsafe"
+    summary """
+        The WinSafe feature build and tests passed, including mnemonic uniqueness and layout boundary checks.
+        """
+    author "GitHub Uploader"
 }
 
 record evidence-intake-project.evidence.gui-native-smoke/1 : evidence {
@@ -467,6 +569,19 @@ record evidence-intake-project.evidence.keyframe-workspace-gate/1 : evidence {
         fmt/clippy clean, 192 tests passed / 0 failed after keyframe retrieval landed.
         """
     author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/1 : evidence {
+    title "Linux built the lean TurboOCR CUDA/TensorRT text worker from source, passed its native runtime probe, compiled detector and recognizer engines on the RTX 4060, and passed the real Evidence broker OCR integration test in 99.17 seconds."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cmake -S ../Lege-ecosystem/lege-document-ocr/turboocr -B <temporary> -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc -DTURBO_TRT_RUNTIME_ONLY=ON -DTURBO_TRT_TEXT_PIPELINE=ON && cmake --build <temporary> --target turboocr-text -j 4 && ctest --test-dir <temporary> --output-on-failure && EVIDENCE_TURBOOCR_WORKER=<temporary>/turboocr-text EVIDENCE_TURBOOCR_MODELS=../Lege-ecosystem/lege-document-ocr/turboocr/models cargo test -p evidence-trt broker_runs_real_turboocr_cuda_inference -- --ignored --nocapture"
+    artifact "runtime/tensorrt/tests/ocr_worker.rs"
+    summary """
+        Linux built the lean TurboOCR CUDA/TensorRT text worker from source, passed its native runtime probe, compiled detector and recognizer engines on the RTX 4060, and passed the real Evidence broker OCR integration test in 99.17 seconds.
+        """
 }
 
 record evidence-intake-project.evidence.optimization-pass-measured/1 : evidence {
@@ -755,6 +870,80 @@ record evidence-intake-project.evidence.workspace-gate-after-video-slices/1 : ev
     command "cargo fmt --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features"
     summary """
         fmt clean, clippy clean, 177 tests passed / 0 failed across kernel, audio adapter and video adapter after soundtrack, clock OCR, structural edges and audio sync landed.
+        """
+}
+
+record evidence-intake-project.inference.evidence.broker-tests/1 : evidence {
+    title "Broker protocol, manifest checksum, revision pinning, worker supervision, LRU residency and local transport tests passed."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo test -p evidence-trt"
+    summary """
+        Broker protocol, manifest checksum, revision pinning, worker supervision, LRU residency and local transport tests passed.
+        """
+}
+
+record evidence-intake-project.inference.evidence.document-adapter-tests/1 : evidence {
+    title "Four document adapter tests passed, including packaged CLI artifact retention and raw DocIR mapping."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo test -p evidence-document"
+    summary """
+        Four document adapter tests passed, including packaged CLI artifact retention and raw DocIR mapping.
+        """
+}
+
+record evidence-intake-project.inference.evidence.ocr-broker-real-cuda/1 : evidence {
+    title "The broker started the checksummed OCR bridge and persistent native TurboOCR worker; TensorRT 11 loaded pack-local detector and recognizer engines, passed CUDA preflight, and returned typed PageOcr output on the RTX 4060."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "EVIDENCE_TURBOOCR_WORKER=.agent/scratch/turboocr-linux-trt-sm89/turboocr-text EVIDENCE_TURBOOCR_MODELS=/mnt/Samsung980_1TB/Rust-projects/Lege-ecosystem/lege-document-ocr/turboocr/models cargo test -p evidence-trt --test ocr_worker broker_runs_real_turboocr_cuda_inference -- --ignored --nocapture"
+    artifact "runtime/tensorrt/tests/ocr_worker.rs"
+    summary """
+        The broker started the checksummed OCR bridge and persistent native TurboOCR worker; TensorRT 11 loaded pack-local detector and recognizer engines, passed CUDA preflight, and returned typed PageOcr output on the RTX 4060.
+        """
+}
+
+record evidence-intake-project.inference.evidence.workspace-clippy/1 : evidence {
+    title "Strict workspace Clippy passed for all targets."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo clippy --workspace --all-targets -- -D warnings"
+    summary """
+        Strict workspace Clippy passed for all targets.
+        """
+}
+
+record evidence-intake-project.inference.evidence.workspace-tests/1 : evidence {
+    title "Every workspace unit, integration and documentation test passed."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo test --workspace --no-fail-fast"
+    summary """
+        Every workspace unit, integration and documentation test passed.
+        """
+}
+
+record evidence-intake-project.inference.evidence.workspace-tests-ocr-pass/1 : evidence {
+    title "All workspace unit, integration, and documentation tests passed after the OCR broker integration; strict all-target Clippy passed after the final bridge and supervision hardening."
+    state verified
+    result pass
+    method command
+    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    command "cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings"
+    artifact "runtime/tensorrt/src/bin/evidence-trt-ocr-worker.rs"
+    summary """
+        All workspace unit, integration, and documentation tests passed after the OCR broker integration; strict all-target Clippy passed after the final bridge and supervision hardening.
         """
 }
 

@@ -1,6 +1,12 @@
-# Local visual-finder backend
+# Retired Python parity tools
 
-`embed_cli.py` implements the JSON CLI used by the Rust video adapter. It
+These scripts are not runtime backends for Evidence Intake. Live SigLIP and
+Qwen inference is accepted only through the checksum-pinned `evidence-trt`
+broker. The Python implementations remain temporarily as offline benchmark
+oracles for TensorRT export parity and are not included in the Windows runtime
+package.
+
+`embed_cli.py` implements the former JSON CLI contract. It
 opens a Hugging Face SigLIP/SigLIP 2 directory with `local_files_only=True` and
 does not upload stills or queries.
 
@@ -12,8 +18,7 @@ The batch command loads the model once and reads paths from standard input:
 ```
 
 Use the same model identifier and preprocessing for indexing and querying.
-The Rust CLI accepts `--embed-python`, `--embed-bin`, and `--model-dir` so the
-interpreter, this script, and the local checkpoint are explicit.
+The Rust CLI no longer accepts this process boundary.
 
 ## Scene-caption backend
 
@@ -37,8 +42,8 @@ fail the remaining overnight job.
 
 The model directory must already be complete. Loading uses
 `local_files_only=True` and `trust_remote_code=False`; no frame or prompt is
-sent over the network. The Rust `describe` and `analyze` commands stamp the
-operator-supplied immutable model identifier on every retained suggestion.
+sent over the network. The Rust `describe` and `analyze` commands now require
+an installed broker model id and immutable revision.
 
 ## Retrieval benchmark
 

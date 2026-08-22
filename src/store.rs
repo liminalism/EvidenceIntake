@@ -3,7 +3,12 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
+use evidence_adapter_protocol::{
+    ADAPTER_PROTOCOL_VERSION, AdapterEvent, AdapterJobRequest, AdapterProfile,
+    AdapterResultManifest, VideoTier,
+};
 use rusqlite::{Connection, OptionalExtension, params};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
@@ -11,13 +16,14 @@ use crate::{
     AuthoredLink, AuthoredProposition, CaseExport, CaseId, CaseStanding, CaseSummary,
     ChargeStanding, CollationEntry, CollationGroup, CollationIndex, DecisionBrief, DiscoveryItem,
     EdgeKind, ElementAssessment, ElementCoverage, ElementRow, ElementStanding, Error,
-    ExportAudience, ExportedProposition, ExportedWorkProduct, IndexedKeyframe, IssueWorkspace,
-    KeyframeHit, KeyframeIndex, LiveDispute, LoadBearingSource, NodeKind, NodeRef, NormalizedBatch,
-    OffenseComparison, OpenGap, OpenedCase, OpenedProduction, Overview, PlacementGap,
-    ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge,
-    ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition,
-    PropositionEvidence, Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState,
-    ReviewTarget, SearchHit, SourceAnchorCoverage, SuggestionKind, SuggestionRun, TimelineEntry,
+    ExportAudience, ExportedProposition, ExportedWorkProduct, IndexedKeyframe, IntakeArtifact,
+    IntakeJob, IntakeJobState, IssueWorkspace, KeyframeHit, KeyframeIndex, LiveDispute,
+    LoadBearingSource, NewIntakeJob, NodeKind, NodeRef, NormalizedBatch, OffenseComparison,
+    OpenGap, OpenedCase, OpenedProduction, Overview, PlacementGap, ProposedAdvocacyItem,
+    ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge, ProposedElementMapping,
+    ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition, PropositionEvidence,
+    Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, SearchHit,
+    SourceAnchorCoverage, SourceLocation, SuggestionKind, SuggestionRun, TimelineEntry,
     UnsupportedProposition, WitnessStatement, WorkProductVersion, review::transition_allowed,
     suggest::Finding,
 };
@@ -29,7 +35,7 @@ use crate::{
 /// migrations stay additive and re-runnable regardless: a database at any
 /// earlier version — including one written before this stamp existed, which
 /// reads as zero — runs all of them again.
-const SCHEMA_VERSION: i64 = 9;
+const SCHEMA_VERSION: i64 = 10;
 
 /// Distinct prepared statements kept compiled per connection.
 ///
@@ -49,6 +55,22 @@ const MATERIAL_FOR_ISSUE: &str =
        AND ((target_kind = 'advocacy' AND target_id = ?2)
          OR (source_kind = 'advocacy' AND source_id = ?2))
      ORDER BY relation, id";
+
+const INTAKE_JOB_SELECT_COLUMNS: &str =
+    "SELECT id, case_id, production_id, source_id, modality, profile,
+            original_path, original_sha256, original_byte_length, logical_name,
+            request_json, artifact_dir, state, attempt, stage,
+            progress_completed, progress_total, message, error,
+            created_at, started_at, finished_at
+     FROM intake_jobs";
+
+const INTAKE_JOB_SELECT_ONE: &str =
+    "SELECT id, case_id, production_id, source_id, modality, profile,
+            original_path, original_sha256, original_byte_length, logical_name,
+            request_json, artifact_dir, state, attempt, stage,
+            progress_completed, progress_total, message, error,
+            created_at, started_at, finished_at
+     FROM intake_jobs WHERE id = ?1";
 
 /// A local `SQLite` case store.
 ///
@@ -113,6 +135,7 @@ impl Store {
         connection.execute_batch(include_str!("../migrations/0007_search.sql"))?;
         connection.execute_batch(include_str!("../migrations/0008_case_isolation.sql"))?;
         connection.execute_batch(include_str!("../migrations/0009_keyframe_embeddings.sql"))?;
+        connection.execute_batch(include_str!("../migrations/0010_intake_jobs.sql"))?;
         Ok(())
     }
 
@@ -312,6 +335,521 @@ impl Store {
             .map_err(Into::into)
     }
 
+    /// Queue one validated adapter request without starting model work.
+    pub fn enqueue_intake_job(&mut self, proposed: &NewIntakeJob) -> Result<IntakeJob> {
+        let request: AdapterJobRequest = serde_json::from_str(&proposed.request_json)?;
+        request
+            .validate()
+            .map_err(|error| Error::InvalidIntake(error.to_string()))?;
+        verify_file_identity(
+            &request.original_path,
+            &request.original_sha256,
+            request.original_byte_length,
+        )?;
+        self.require_case(&CaseId(request.case_id.clone()))?;
+        if self.exists(
+            "SELECT 1 FROM sources WHERE case_id = ?1 AND lower(sha256) = lower(?2)",
+            params![request.case_id, request.original_sha256],
+        )? {
+            return Err(Error::AlreadyExists {
+                kind: "source hash",
+                id: request.original_sha256,
+            });
+        }
+        if self.exists(
+            "SELECT 1 FROM intake_jobs
+             WHERE case_id = ?1 AND lower(json_extract(request_json, '$.original_sha256')) = lower(?2)
+               AND state IN ('queued','running','importing','completed')",
+            params![request.case_id, request.original_sha256],
+        )? {
+            return Err(Error::AlreadyExists {
+                kind: "intake job for source hash",
+                id: request.original_sha256,
+            });
+        }
+        let (modality, profile) = intake_profile_labels(&request.profile);
+        let original_path = request
+            .original_path
+            .to_str()
+            .ok_or_else(|| Error::InvalidIntake("original path is not Unicode".to_owned()))?;
+        let artifact_dir = request
+            .artifacts_dir
+            .to_str()
+            .ok_or_else(|| Error::InvalidIntake("artifact path is not Unicode".to_owned()))?;
+        self.connection.execute(
+            "INSERT INTO intake_jobs
+               (id, case_id, production_id, source_id, modality, profile,
+                original_path, original_sha256, original_byte_length, logical_name,
+                request_json, artifact_dir, state)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'queued')",
+            params![
+                request.job_id,
+                request.case_id,
+                request.production_id,
+                request.source_id,
+                modality,
+                profile,
+                original_path,
+                request.original_sha256,
+                to_sql_integer(request.original_byte_length, "original byte length")?,
+                request.logical_name,
+                proposed.request_json,
+                artifact_dir,
+            ],
+        )?;
+        self.intake_job(&request.job_id)
+    }
+
+    /// Return one intake job by identifier.
+    pub fn intake_job(&self, job_id: &str) -> Result<IntakeJob> {
+        self.connection
+            .query_row(INTAKE_JOB_SELECT_ONE, [job_id], map_intake_job)
+            .optional()?
+            .ok_or_else(|| Error::NotFound {
+                kind: "intake job",
+                id: job_id.to_owned(),
+            })
+    }
+
+    /// List a case's intake jobs, newest first.
+    pub fn intake_jobs(&self, case_id: &CaseId) -> Result<Vec<IntakeJob>> {
+        self.require_case(case_id)?;
+        let mut statement = self.connection.prepare(&format!(
+            "{INTAKE_JOB_SELECT_COLUMNS} WHERE case_id = ?1 ORDER BY created_at DESC, id DESC"
+        ))?;
+        let rows = statement.query_map([&case_id.0], map_intake_job)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Whether a process/import currently owns this database's GPU slot.
+    pub fn has_active_intake(&self) -> Result<bool> {
+        self.exists(
+            "SELECT 1 FROM intake_jobs WHERE state IN ('running','importing')",
+            [],
+        )
+    }
+
+    /// Register a retained attempt artifact outside a successful result commit.
+    ///
+    /// This is primarily for failure logs, which must remain inspectable even
+    /// when no valid adapter manifest was produced.
+    pub fn register_intake_artifact(
+        &mut self,
+        job_id: &str,
+        kind: &str,
+        path: &Path,
+        sha256: Option<&str>,
+    ) -> Result<()> {
+        let path = path
+            .to_str()
+            .ok_or_else(|| Error::InvalidIntake("artifact path is not Unicode".to_owned()))?;
+        self.connection.execute(
+            "INSERT OR IGNORE INTO intake_artifacts(job_id, kind, path, sha256)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                job_id,
+                require_text(kind, "an intake artifact needs a kind")?,
+                path,
+                sha256
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Mark unfinished processes interrupted after an application restart.
+    pub fn recover_interrupted_intake_jobs(&mut self) -> Result<u64> {
+        let changed = self.connection.execute(
+            "UPDATE intake_jobs
+             SET state = 'interrupted',
+                 error = COALESCE(error, 'Application exited before the adapter reached a terminal state.'),
+                 finished_at = CURRENT_TIMESTAMP
+             WHERE state IN ('running','importing')",
+            [],
+        )?;
+        Ok(changed as u64)
+    }
+
+    /// Atomically claim the oldest queued job across the open database.
+    pub fn claim_next_intake_job(&mut self) -> Result<Option<IntakeJob>> {
+        let transaction = self.connection.transaction()?;
+        let id: Option<String> = transaction
+            .query_row(
+                "SELECT id FROM intake_jobs WHERE state = 'queued' ORDER BY created_at, id LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(id) = id else {
+            transaction.commit()?;
+            return Ok(None);
+        };
+        let changed = transaction.execute(
+            "UPDATE intake_jobs
+             SET state = 'running', started_at = CURRENT_TIMESTAMP, finished_at = NULL,
+                 error = NULL, stage = 'starting', progress_completed = NULL,
+                 progress_total = NULL, message = 'Starting adapter'
+             WHERE id = ?1 AND state = 'queued'",
+            [&id],
+        )?;
+        transaction.commit()?;
+        if changed == 0 {
+            return Ok(None);
+        }
+        self.intake_job(&id).map(Some)
+    }
+
+    /// Persist one correlated adapter progress event.
+    pub fn update_intake_progress(&mut self, event: &AdapterEvent) -> Result<()> {
+        if event.schema_version != ADAPTER_PROTOCOL_VERSION {
+            return Err(Error::InvalidIntake(format!(
+                "progress protocol {} is incompatible",
+                event.schema_version
+            )));
+        }
+        let changed = self.connection.execute(
+            "UPDATE intake_jobs
+             SET stage = ?2, progress_completed = ?3, progress_total = ?4, message = ?5
+             WHERE id = ?1 AND state = 'running'",
+            params![
+                event.job_id,
+                event.stage,
+                event
+                    .completed
+                    .map(|value| to_sql_integer(value, "intake progress"))
+                    .transpose()?,
+                event
+                    .total
+                    .map(|value| to_sql_integer(value, "intake total"))
+                    .transpose()?,
+                event.message,
+            ],
+        )?;
+        if changed == 0 {
+            return Err(Error::InvalidIntake(format!(
+                "job `{}` is not running",
+                event.job_id
+            )));
+        }
+        Ok(())
+    }
+
+    /// Move a running job to the import boundary.
+    pub fn mark_intake_importing(&mut self, job_id: &str) -> Result<()> {
+        self.transition_intake_job(job_id, "running", "importing", None)
+    }
+
+    /// Validate and import one adapter result as a single database commit.
+    ///
+    /// Files are checked before the transaction begins. Sources, optional
+    /// finder vectors, retained paths, artifacts, and the terminal job state
+    /// are then written together; any failure rolls all of them back.
+    pub fn commit_intake_result(
+        &mut self,
+        job_id: &str,
+        manifest: &AdapterResultManifest,
+    ) -> Result<()> {
+        let job = self.intake_job(job_id)?;
+        if job.state != IntakeJobState::Importing {
+            return Err(Error::InvalidIntake(format!(
+                "job `{job_id}` is not ready to import"
+            )));
+        }
+        let request: AdapterJobRequest = serde_json::from_str(&job.request_json)?;
+        request
+            .validate()
+            .map_err(|error| Error::InvalidIntake(error.to_string()))?;
+        manifest
+            .validate_for(&request)
+            .map_err(|error| Error::InvalidIntake(error.to_string()))?;
+
+        let batch: NormalizedBatch = serde_json::from_slice(&std::fs::read(&manifest.batch_path)?)?;
+        if batch.case_id.0 != request.case_id {
+            return Err(Error::InvalidIntake(format!(
+                "result case `{}` does not match job case `{}`",
+                batch.case_id, request.case_id
+            )));
+        }
+        validate_batch(&batch)?;
+        self.refuse_cross_case_batch(&batch)?;
+        let original = batch
+            .sources
+            .iter()
+            .find(|source| source.id == request.source_id)
+            .ok_or_else(|| {
+                Error::InvalidIntake(format!(
+                    "result does not contain requested source `{}`",
+                    request.source_id
+                ))
+            })?;
+        if original.production_id != request.production_id
+            || !original
+                .sha256
+                .eq_ignore_ascii_case(&request.original_sha256)
+            || original.byte_length != request.original_byte_length
+        {
+            return Err(Error::InvalidIntake(
+                "result changed the requested production or original identity".to_owned(),
+            ));
+        }
+
+        let locations = manifest
+            .source_locations
+            .iter()
+            .map(|location| (location.source_id.as_str(), location))
+            .collect::<HashMap<_, _>>();
+        for source in &batch.sources {
+            let location = locations.get(source.id.as_str()).ok_or_else(|| {
+                Error::InvalidIntake(format!(
+                    "result does not retain a location for source `{}`",
+                    source.id
+                ))
+            })?;
+            if !source.sha256.eq_ignore_ascii_case(&location.sha256)
+                || source.byte_length != location.byte_length
+            {
+                return Err(Error::InvalidIntake(format!(
+                    "location identity does not match source `{}`",
+                    source.id
+                )));
+            }
+            verify_file_identity(&location.path, &location.sha256, location.byte_length)?;
+        }
+        let original_location = locations.get(request.source_id.as_str()).ok_or_else(|| {
+            Error::InvalidIntake("requested source location is missing".to_owned())
+        })?;
+        if original_location.path.canonicalize()? != request.original_path.canonicalize()? {
+            return Err(Error::InvalidIntake(
+                "adapter changed the referenced original path".to_owned(),
+            ));
+        }
+
+        for artifact in &manifest.artifacts {
+            if let Some(hash) = &artifact.sha256 {
+                verify_file_identity(&artifact.path, hash, artifact.path.metadata()?.len())?;
+            }
+        }
+
+        let keyframes = manifest
+            .keyframe_index_path
+            .as_ref()
+            .map(|path| -> Result<KeyframeIndex> {
+                Ok(serde_json::from_slice(&std::fs::read(path)?)?)
+            })
+            .transpose()?;
+        if let Some(index) = &keyframes {
+            if index.case_id != batch.case_id {
+                return Err(Error::InvalidIntake(
+                    "keyframe index belongs to a different case".to_owned(),
+                ));
+            }
+            Self::validate_keyframe_index(index)?;
+        }
+
+        let transaction = self.connection.transaction()?;
+        Self::import_normalized_tx(&transaction, &batch)?;
+        if let Some(index) = &keyframes {
+            Self::index_keyframes_tx(&transaction, index)?;
+        }
+        for location in &manifest.source_locations {
+            let path = location.path.to_str().ok_or_else(|| {
+                Error::InvalidIntake("source location path is not Unicode".to_owned())
+            })?;
+            transaction.execute(
+                "INSERT INTO source_locations(source_id, case_id, path, last_verified_at)
+                 VALUES (?1, ?2, ?3, CURRENT_TIMESTAMP)",
+                params![location.source_id, request.case_id, path],
+            )?;
+        }
+        for artifact in &manifest.artifacts {
+            let path = artifact
+                .path
+                .to_str()
+                .ok_or_else(|| Error::InvalidIntake("artifact path is not Unicode".to_owned()))?;
+            transaction.execute(
+                "INSERT INTO intake_artifacts(job_id, kind, path, sha256)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![job_id, artifact.kind, path, artifact.sha256],
+            )?;
+        }
+        for (kind, path) in [
+            ("normalized_batch", Some(&manifest.batch_path)),
+            ("keyframe_index", manifest.keyframe_index_path.as_ref()),
+        ] {
+            if let Some(path) = path {
+                let path = path
+                    .to_str()
+                    .ok_or_else(|| Error::InvalidIntake("result path is not Unicode".to_owned()))?;
+                transaction.execute(
+                    "INSERT OR IGNORE INTO intake_artifacts(job_id, kind, path, sha256)
+                     VALUES (?1, ?2, ?3, NULL)",
+                    params![job_id, kind, path],
+                )?;
+            }
+        }
+        let changed = transaction.execute(
+            "UPDATE intake_jobs
+             SET state = 'completed', stage = 'completed', message = 'Import completed',
+                 error = NULL, finished_at = CURRENT_TIMESTAMP
+             WHERE id = ?1 AND state = 'importing'",
+            [job_id],
+        )?;
+        if changed != 1 {
+            return Err(Error::InvalidIntake(format!(
+                "job `{job_id}` changed state while importing"
+            )));
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
+    /// Record a visible terminal adapter/import failure.
+    pub fn fail_intake_job(&mut self, job_id: &str, error: &str) -> Result<()> {
+        let changed = self.connection.execute(
+            "UPDATE intake_jobs
+             SET state = 'failed', error = ?2, message = 'Processing failed',
+                 finished_at = CURRENT_TIMESTAMP
+             WHERE id = ?1 AND state IN ('running','importing')",
+            params![
+                job_id,
+                require_text(error, "an intake failure needs a diagnostic")?
+            ],
+        )?;
+        if changed == 0 {
+            return Err(Error::InvalidIntake(format!(
+                "job `{job_id}` cannot fail from its current state"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Queue a new immutable attempt after failure or interruption.
+    pub fn retry_intake_job(&mut self, job_id: &str, request_json: &str) -> Result<IntakeJob> {
+        let request: AdapterJobRequest = serde_json::from_str(request_json)?;
+        request
+            .validate()
+            .map_err(|error| Error::InvalidIntake(error.to_string()))?;
+        if request.job_id != job_id {
+            return Err(Error::InvalidIntake(
+                "retry request changed the job identifier".to_owned(),
+            ));
+        }
+        let artifact_dir = request
+            .artifacts_dir
+            .to_str()
+            .ok_or_else(|| Error::InvalidIntake("artifact path is not Unicode".to_owned()))?;
+        let changed = self.connection.execute(
+            "UPDATE intake_jobs
+             SET state = 'queued', attempt = attempt + 1, request_json = ?2,
+                 artifact_dir = ?3, stage = NULL, progress_completed = NULL,
+                 progress_total = NULL, message = 'Queued for retry', error = NULL,
+                 started_at = NULL, finished_at = NULL
+             WHERE id = ?1 AND state IN ('failed','interrupted')",
+            params![job_id, request_json, artifact_dir],
+        )?;
+        if changed == 0 {
+            return Err(Error::InvalidIntake(format!(
+                "job `{job_id}` is not failed or interrupted"
+            )));
+        }
+        self.intake_job(job_id)
+    }
+
+    /// Return retained artifacts for one job.
+    pub fn intake_artifacts(&self, job_id: &str) -> Result<Vec<IntakeArtifact>> {
+        let mut statement = self.connection.prepare(
+            "SELECT job_id, kind, path, sha256 FROM intake_artifacts
+             WHERE job_id = ?1 ORDER BY kind, path",
+        )?;
+        let rows = statement.query_map([job_id], |row| {
+            Ok(IntakeArtifact {
+                job_id: row.get(0)?,
+                kind: row.get(1)?,
+                path: std::path::PathBuf::from(row.get::<_, String>(2)?),
+                sha256: row.get(3)?,
+            })
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Return the current path for an imported source.
+    pub fn source_location(&self, source_id: &str) -> Result<SourceLocation> {
+        self.connection
+            .query_row(
+                "SELECT source_id, case_id, path, last_verified_at
+                 FROM source_locations WHERE source_id = ?1",
+                [source_id],
+                |row| {
+                    Ok(SourceLocation {
+                        source_id: row.get(0)?,
+                        case_id: CaseId(row.get(1)?),
+                        path: std::path::PathBuf::from(row.get::<_, String>(2)?),
+                        last_verified_at: row.get(3)?,
+                    })
+                },
+            )
+            .optional()?
+            .ok_or_else(|| Error::NotFound {
+                kind: "source location",
+                id: source_id.to_owned(),
+            })
+    }
+
+    /// Relink a moved original only when its bytes still match the source row.
+    pub fn relink_source(&mut self, source_id: &str, path: &Path) -> Result<SourceLocation> {
+        let expected: Option<(String, i64, String)> = self
+            .connection
+            .query_row(
+                "SELECT sha256, byte_length, case_id FROM sources WHERE id = ?1",
+                [source_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?;
+        let Some((expected_hash, expected_length, case_id)) = expected else {
+            return Err(Error::NotFound {
+                kind: "source",
+                id: source_id.to_owned(),
+            });
+        };
+        let expected_length = u64::try_from(expected_length).map_err(|_| {
+            Error::InvalidIntake(format!("source `{source_id}` has an invalid stored length"))
+        })?;
+        verify_file_identity(path, &expected_hash, expected_length)?;
+        let path = path
+            .to_str()
+            .ok_or_else(|| Error::InvalidIntake("source path is not Unicode".to_owned()))?;
+        self.connection.execute(
+            "INSERT INTO source_locations(source_id, case_id, path, last_verified_at)
+             VALUES (?1, ?2, ?3, CURRENT_TIMESTAMP)
+             ON CONFLICT(source_id) DO UPDATE SET
+                 case_id = excluded.case_id,
+                 path = excluded.path,
+                 last_verified_at = CURRENT_TIMESTAMP",
+            params![source_id, case_id, path],
+        )?;
+        self.source_location(source_id)
+    }
+
+    fn transition_intake_job(
+        &mut self,
+        job_id: &str,
+        from: &str,
+        to: &str,
+        error: Option<&str>,
+    ) -> Result<()> {
+        let changed = self.connection.execute(
+            "UPDATE intake_jobs SET state = ?3, error = ?4 WHERE id = ?1 AND state = ?2",
+            params![job_id, from, to, error],
+        )?;
+        if changed == 0 {
+            return Err(Error::InvalidIntake(format!(
+                "job `{job_id}` cannot move from `{from}` to `{to}`"
+            )));
+        }
+        Ok(())
+    }
+
     /// Atomically imports adapter-normalized sources and extracted content.
     ///
     /// Machine-generated records must enter as `suggested`; an adapter cannot
@@ -323,6 +861,15 @@ impl Store {
         self.refuse_cross_case_batch(batch)?;
         let transaction = self.connection.transaction()?;
 
+        Self::import_normalized_tx(&transaction, batch)?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    fn import_normalized_tx(
+        transaction: &rusqlite::Transaction<'_>,
+        batch: &NormalizedBatch,
+    ) -> Result<()> {
         // A batch is many rows of three shapes, so each statement is compiled
         // once and reused for every row rather than once per row.
         let mut owning_production = transaction
@@ -427,10 +974,9 @@ impl Store {
         drop(owning_production);
 
         if !batch.edges.is_empty() {
-            Self::import_edges(&transaction, batch)?;
+            Self::import_edges(transaction, batch)?;
         }
 
-        transaction.commit()?;
         Ok(())
     }
 
@@ -687,7 +1233,10 @@ impl Store {
              LEFT JOIN entities attributed ON attributed.id = c.attributed_to_entity_id
              WHERE c.case_id = ?1 AND c.kind IN ('statement','document_assertion')
                AND (c.speaker_entity_id = ?2 OR c.attributed_to_entity_id = ?2)
-             ORDER BY COALESCE(c.content_created_at, c.raw_time, ''), src.logical_name, seg.locator",
+             ORDER BY COALESCE(c.content_created_at, c.raw_time, ''), src.logical_name,
+                      CASE WHEN seg.page IS NULL THEN 1 ELSE 0 END, seg.page,
+                      CASE WHEN seg.start_ms IS NULL THEN 1 ELSE 0 END, seg.start_ms,
+                      seg.locator, c.id",
         )?;
         let base = statement
             .query_map(params![case_id.0, entity_id], |row| {
@@ -767,7 +1316,10 @@ impl Store {
              JOIN sources src ON src.id = seg.source_id
              WHERE c.case_id = ?1 AND c.review_state <> 'rejected'
              ORDER BY COALESCE(c.normalized_start, c.asserted_time, c.raw_time, ''),
-                      src.logical_name, seg.locator, c.id",
+                      src.logical_name,
+                      CASE WHEN seg.page IS NULL THEN 1 ELSE 0 END, seg.page,
+                      CASE WHEN seg.start_ms IS NULL THEN 1 ELSE 0 END, seg.start_ms,
+                      seg.locator, c.id",
         )?;
         let entries = statement
             .query_map([&case_id.0], |row| {
@@ -1060,7 +1612,10 @@ impl Store {
              WHERE edge.case_id = ?1 AND edge.target_kind = 'proposition'
                AND edge.target_id = ?2 AND edge.review_state != 'rejected'
              ORDER BY COALESCE(content.normalized_start, content.asserted_time, content.raw_time, ''),
-                      source.logical_name, segment.locator",
+                      source.logical_name,
+                      CASE WHEN segment.page IS NULL THEN 1 ELSE 0 END, segment.page,
+                      CASE WHEN segment.start_ms IS NULL THEN 1 ELSE 0 END, segment.start_ms,
+                      segment.locator, content.id",
         )?;
         let rows = statement.query_map(params![case_id.0, proposition_id], |row| {
             Ok(PropositionEvidence {
@@ -1285,6 +1840,14 @@ impl Store {
     /// is refused. Re-running the same `(source_id, model)` replaces the vector.
     pub fn index_keyframes(&mut self, index: &KeyframeIndex) -> Result<()> {
         self.require_case(&index.case_id)?;
+        Self::validate_keyframe_index(index)?;
+        let transaction = self.connection.transaction()?;
+        Self::index_keyframes_tx(&transaction, index)?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    fn validate_keyframe_index(index: &KeyframeIndex) -> Result<()> {
         if index.embeddings.is_empty() {
             return Err(Error::InvalidIndex(
                 "an index needs at least one keyframe".to_owned(),
@@ -1318,8 +1881,13 @@ impl Store {
                 std::collections::hash_map::Entry::Occupied(_) => {}
             }
         }
+        Ok(())
+    }
 
-        let transaction = self.connection.transaction()?;
+    fn index_keyframes_tx(
+        transaction: &rusqlite::Transaction<'_>,
+        index: &KeyframeIndex,
+    ) -> Result<()> {
         let mut source_case =
             transaction.prepare_cached("SELECT case_id FROM sources WHERE id = ?1")?;
         let mut is_derived = transaction.prepare_cached(
@@ -1412,7 +1980,6 @@ impl Store {
         drop(existing_dim);
         drop(is_derived);
         drop(source_case);
-        transaction.commit()?;
         Ok(())
     }
 
@@ -1546,6 +2113,18 @@ impl Store {
                 bears_on: by_content.remove(&row.content_id).unwrap_or_default(),
             })
             .collect())
+    }
+
+    /// Embedding spaces currently present in one case's finder index.
+    pub fn keyframe_models(&self, case_id: &CaseId) -> Result<Vec<String>> {
+        self.require_case(case_id)?;
+        let mut statement = self.connection.prepare(
+            "SELECT DISTINCT model FROM keyframe_embeddings
+             WHERE case_id = ?1 ORDER BY model",
+        )?;
+        let rows = statement.query_map([&case_id.0], |row| row.get(0))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
     }
 
     /// Reports where the case stands, element by element.
@@ -2329,7 +2908,10 @@ impl Store {
              ORDER BY edge.target_id,
                       COALESCE(content.normalized_start, content.asserted_time,
                                content.raw_time, ''),
-                      source.logical_name, segment.locator",
+                      source.logical_name,
+                      CASE WHEN segment.page IS NULL THEN 1 ELSE 0 END, segment.page,
+                      CASE WHEN segment.start_ms IS NULL THEN 1 ELSE 0 END, segment.start_ms,
+                      segment.locator, content.id",
         )?;
         let rows = statement.query_map([&case_id.0], |row| {
             Ok((
@@ -2411,14 +2993,19 @@ impl Store {
         self.require_case(case_id)?;
         let mut statement = self.connection.prepare_cached(
             "SELECT 'content', c.id, c.review_state, c.machine_generated, c.text,
-                    src.logical_name || ' @ ' || seg.locator, c.extractor
+                    src.logical_name || ' @ ' || seg.locator, c.extractor,
+                    src.logical_name,
+                    CASE WHEN seg.page IS NOT NULL THEN 0
+                         WHEN seg.start_ms IS NOT NULL THEN 1 ELSE 2 END,
+                    COALESCE(seg.page, seg.start_ms, 0), seg.locator
              FROM content c
              JOIN source_segments seg ON seg.id = c.segment_id
              JOIN sources src ON src.id = seg.source_id
              WHERE c.case_id = ?1 AND c.review_state IN ('unreviewed','suggested')
              UNION ALL
              SELECT 'source', s.id, s.review_state, 0, s.logical_name,
-                    s.logical_name || ' @ sha256:' || s.sha256, NULL
+                    s.logical_name || ' @ sha256:' || s.sha256, NULL,
+                    s.logical_name, 2, 0, ''
              FROM sources s
              WHERE s.case_id = ?1 AND s.review_state IN ('unreviewed','suggested')
              UNION ALL
@@ -2430,18 +3017,21 @@ impl Store {
                     e.source_kind || ' ' || e.source_id || ' ' || e.relation || ' '
                       || e.target_kind || ' ' || e.target_id,
                     NULL,
-                    CASE WHEN e.created_by LIKE 'suggest:%' THEN e.created_by END
+                    CASE WHEN e.created_by LIKE 'suggest:%' THEN e.created_by END,
+                    e.id, 2, 0, ''
              FROM edges e
              WHERE e.case_id = ?1 AND e.review_state IN ('unreviewed','suggested')
              UNION ALL
-             SELECT 'proposition', p.id, p.review_state, 0, p.text, NULL, NULL
+             SELECT 'proposition', p.id, p.review_state, 0, p.text, NULL, NULL,
+                    p.id, 2, 0, ''
              FROM propositions p
              WHERE p.case_id = ?1 AND p.review_state IN ('unreviewed','suggested')
              UNION ALL
-             SELECT 'event', ev.id, ev.review_state, 0, ev.label, NULL, NULL
+             SELECT 'event', ev.id, ev.review_state, 0, ev.label, NULL, NULL,
+                    ev.id, 2, 0, ''
              FROM events ev
              WHERE ev.case_id = ?1 AND ev.review_state IN ('unreviewed','suggested')
-             ORDER BY 4 DESC, 1, 2",
+             ORDER BY 4 DESC, 1, 8, 9, 10, 11, 2",
         )?;
         let rows = statement.query_map([&case_id.0], |row| {
             Ok(ReviewQueueItem {
@@ -3849,8 +4439,10 @@ fn decode_vector(bytes: &[u8], dim: i64) -> Result<Vec<f32>> {
         ));
     }
     Ok(bytes
-        .chunks_exact(4)
-        .map(|chunk| f32::from_le_bytes(chunk.try_into().expect("chunks_exact(4)")))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|chunk| f32::from_le_bytes(*chunk))
         .collect())
 }
 
@@ -4003,6 +4595,102 @@ fn validate_edges(batch: &NormalizedBatch) -> Result<()> {
 fn to_sql_integer(value: u64, label: &str) -> Result<i64> {
     i64::try_from(value)
         .map_err(|_| Error::InvalidFixture(format!("{label} exceeds SQLite integer range")))
+}
+
+fn verify_file_identity(path: &Path, expected_hash: &str, expected_length: u64) -> Result<()> {
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path)?;
+    let actual_length = file.metadata()?.len();
+    if actual_length != expected_length {
+        return Err(Error::InvalidIntake(format!(
+            "{} is {actual_length} bytes, expected {expected_length}",
+            path.display()
+        )));
+    }
+    let mut digest = Sha256::new();
+    let mut buffer = vec![0_u8; 1024 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    let actual_hash = format!("{:x}", digest.finalize());
+    if !actual_hash.eq_ignore_ascii_case(expected_hash) {
+        return Err(Error::InvalidIntake(format!(
+            "{} does not match its stored SHA-256",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
+fn intake_profile_labels(profile: &AdapterProfile) -> (&'static str, &'static str) {
+    match profile {
+        AdapterProfile::Document { .. } => ("document", "search"),
+        AdapterProfile::Audio { .. } => ("audio", "transcript"),
+        AdapterProfile::Video {
+            tier: VideoTier::Tier1,
+            ..
+        } => ("video", "tier1"),
+        AdapterProfile::Video {
+            tier: VideoTier::Overnight,
+            ..
+        } => ("video", "overnight"),
+    }
+}
+
+fn map_intake_job(row: &rusqlite::Row<'_>) -> rusqlite::Result<IntakeJob> {
+    let state_text: String = row.get(12)?;
+    let state = IntakeJobState::parse(&state_text).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            12,
+            rusqlite::types::Type::Text,
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("unknown intake job state `{state_text}`"),
+            )),
+        )
+    })?;
+    Ok(IntakeJob {
+        id: row.get(0)?,
+        case_id: CaseId(row.get(1)?),
+        production_id: row.get(2)?,
+        source_id: row.get(3)?,
+        modality: row.get(4)?,
+        profile: row.get(5)?,
+        original_path: std::path::PathBuf::from(row.get::<_, String>(6)?),
+        original_sha256: row.get(7)?,
+        original_byte_length: row_u64(row, 8)?,
+        logical_name: row.get(9)?,
+        request_json: row.get(10)?,
+        artifact_dir: std::path::PathBuf::from(row.get::<_, String>(11)?),
+        state,
+        attempt: row.get(13)?,
+        stage: row.get(14)?,
+        progress_completed: row_optional_u64(row, 15)?,
+        progress_total: row_optional_u64(row, 16)?,
+        message: row.get(17)?,
+        error: row.get(18)?,
+        created_at: row.get(19)?,
+        started_at: row.get(20)?,
+        finished_at: row.get(21)?,
+    })
+}
+
+fn row_u64(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<u64> {
+    let value: i64 = row.get(index)?;
+    u64::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(index, value))
+}
+
+fn row_optional_u64(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<Option<u64>> {
+    row.get::<_, Option<i64>>(index)?
+        .map(|value| {
+            u64::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(index, value))
+        })
+        .transpose()
 }
 
 /// Schema-level guarantees that no public API can reach around.

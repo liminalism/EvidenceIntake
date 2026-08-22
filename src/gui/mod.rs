@@ -9,13 +9,15 @@ use std::fmt::{self, Write as _};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use evidence_adapter_protocol::{AdapterJobRequest, AdapterResultManifest};
 use serde::Serialize;
 
 use crate::{
-    CaseId, CollationEntry, CollationIndex, DemoFixture, ExportAudience, NormalizedBatch,
-    ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge,
-    ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProposition, ReviewDecision,
-    ReviewState, ReviewTarget, Store, SuggestionKind,
+    CaseId, CollationEntry, CollationIndex, DemoFixture, ExportAudience, IntakeArtifact, IntakeJob,
+    KeyframeHit, NewIntakeJob, NormalizedBatch, OpenedProduction, ProposedAdvocacyItem,
+    ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge, ProposedElementMapping,
+    ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition, ReviewDecision,
+    ReviewState, ReviewTarget, SourceLocation, Store, SuggestionKind,
 };
 
 #[cfg(all(feature = "gui-winsafe", target_os = "windows"))]
@@ -354,6 +356,96 @@ impl Workspace {
             batch.sources.len(),
             batch.case_id
         ))
+    }
+
+    /// Productions available to receive intake for the selected case.
+    pub fn productions(&self) -> GuiResult<Vec<OpenedProduction>> {
+        Ok(self.store.productions(self.active_case_id()?)?)
+    }
+
+    /// Open a production on the selected case.
+    pub fn open_production(&mut self, label: &str) -> GuiResult<OpenedProduction> {
+        let case_id = self.active_case_id()?.clone();
+        Ok(self.store.open_production(
+            &case_id,
+            &ProposedProduction {
+                id: None,
+                label: label.to_owned(),
+                received_at: None,
+                producing_party: None,
+                notes: None,
+            },
+        )?)
+    }
+
+    /// Persist one fully resolved adapter request.
+    pub fn queue_intake(&mut self, request: &AdapterJobRequest) -> GuiResult<IntakeJob> {
+        if request.case_id != self.active_case_id()?.0 {
+            return Err(GuiError::new("intake request belongs to a different case"));
+        }
+        let request_json = serde_json::to_string_pretty(request)?;
+        Ok(self
+            .store
+            .enqueue_intake_job(&NewIntakeJob { request_json })?)
+    }
+
+    /// Queue rows for the selected case.
+    pub fn intake_jobs(&self) -> GuiResult<Vec<IntakeJob>> {
+        Ok(self.store.intake_jobs(self.active_case_id()?)?)
+    }
+
+    /// Retained artifacts for one queue row.
+    pub fn intake_artifacts(&self, job_id: &str) -> GuiResult<Vec<IntakeArtifact>> {
+        Ok(self.store.intake_artifacts(job_id)?)
+    }
+
+    /// Retry a failed/interrupted row with its new immutable attempt request.
+    pub fn retry_intake(
+        &mut self,
+        job_id: &str,
+        request: &AdapterJobRequest,
+    ) -> GuiResult<IntakeJob> {
+        Ok(self
+            .store
+            .retry_intake_job(job_id, &serde_json::to_string_pretty(request)?)?)
+    }
+
+    /// Whether switching away would hide an actively running process/import.
+    pub fn has_active_intake(&self) -> GuiResult<bool> {
+        Ok(self.store.has_active_intake()?)
+    }
+
+    /// Commit an adapter manifest, exposed for platform coordinators/tests.
+    pub fn commit_intake(
+        &mut self,
+        job_id: &str,
+        manifest: &AdapterResultManifest,
+    ) -> GuiResult<()> {
+        self.store.commit_intake_result(job_id, manifest)?;
+        Ok(())
+    }
+
+    /// Score-free chronological finder hits selected with a caller-provided
+    /// text embedding in the exact stored model space.
+    pub fn search_frames(
+        &self,
+        model: &str,
+        vector: &[f32],
+        limit: u32,
+    ) -> GuiResult<Vec<KeyframeHit>> {
+        Ok(self
+            .store
+            .search_keyframes(self.active_case_id()?, model, vector, limit)?)
+    }
+
+    /// Stored visual finder model spaces for the selected case.
+    pub fn keyframe_models(&self) -> GuiResult<Vec<String>> {
+        Ok(self.store.keyframe_models(self.active_case_id()?)?)
+    }
+
+    /// Current hash-verified path record for one source.
+    pub fn source_location(&self, source_id: &str) -> GuiResult<SourceLocation> {
+        Ok(self.store.source_location(source_id)?)
     }
 
     /// Renders one case read model as presentation-ready JSON.

@@ -10,8 +10,8 @@ use evidence_intake::{
 };
 use evidence_video::{
     ClockBackend, ClockReading, EXTRACTOR_CLOCK, Keyframe, OverlayBand, RawClockText, Result,
-    Scene, SceneAnalysis, TesseractCliBackend, VideoIdentity, attach_clock_readings,
-    parse_clock_text, read_clocks, scenes_to_batch,
+    Scene, SceneAnalysis, VideoIdentity, attach_clock_readings, parse_clock_text, read_clocks,
+    scenes_to_batch,
 };
 
 /// A backend that answers with fixed OCR text and never opens the still.
@@ -369,22 +369,4 @@ fn a_reading_that_ends_before_it_starts_is_refused() {
     )
     .expect_err("empty reading");
     assert!(error.to_string().contains("no timestamp"), "{error}");
-}
-
-#[test]
-fn a_missing_ocr_binary_names_what_to_install() {
-    let backend = TesseractCliBackend {
-        binary: PathBuf::from("tesseract-does-not-exist-here"),
-        ..TesseractCliBackend::default_local()
-    };
-    assert_eq!(backend.version(), "tesseract@eng/psm7");
-    assert_eq!(OverlayBand::Top.crop_expression(), "crop=iw:ih*0.15:0:0");
-    assert_eq!(
-        OverlayBand::Bottom.crop_expression(),
-        "crop=iw:ih*0.15:0:ih*0.85"
-    );
-    let error = backend
-        .read(Path::new("no-such-still.jpg"))
-        .expect_err("missing tesseract");
-    assert!(error.to_string().contains("Install Tesseract"), "{error}");
 }

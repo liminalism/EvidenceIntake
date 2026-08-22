@@ -5,11 +5,13 @@
 //! segment, and attorney work product occupies a distinct advocacy layer.
 
 mod authoring;
+mod coordinator;
 mod error;
 mod export;
 mod fixture;
 pub mod gui;
 mod ingest;
+mod intake;
 mod model;
 mod review;
 mod store;
@@ -22,6 +24,7 @@ pub use authoring::{
     ProposedBrief, ProposedCase, ProposedCharge, ProposedElement, ProposedElementMapping,
     ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition, WorkProductVersion,
 };
+pub use coordinator::IntakeCoordinator;
 pub use error::{Error, Result};
 pub use export::{
     CaseExport, ExportAudience, ExportedProposition, ExportedWorkProduct, UnsupportedProposition,
@@ -31,6 +34,7 @@ pub use ingest::{
     ExtractionProvenance, IndexedKeyframe, KeyframeIndex, NormalizedBatch, NormalizedContent,
     NormalizedEdge, NormalizedSegment, NormalizedSource,
 };
+pub use intake::{IntakeArtifact, IntakeJob, IntakeJobState, NewIntakeJob, SourceLocation};
 pub use model::{
     AdvocacyKind, CaseId, ChargePosture, ContentKind, EdgeKind, ElementAssessment, EntityKind,
     NodeKind, NodeRef, ReviewState, SourceKind, TemporalRelation, TimelineLane,

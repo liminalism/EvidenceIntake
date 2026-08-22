@@ -5,12 +5,17 @@ build {
     tool "akr 0.3.3"
     grammar "0.1"
     vocabulary "0.2"
-    source_graph "sha256:a9cdc668ac7548fff64315f2981ad8e176c7e9d70437fd8463ae95a07eea8e31"
+    source_graph "sha256:c9badbb823f56be42530e6e0655ce8648ba58369e42a90753d062eb6bf92e060"
 }
 
 source ".akr/project.akr" {
     hash "sha256:684f9a9628aef2f77c38e19bdd60a9f033786b227c93681d26961d1ad31eaaae"
     records 0
+}
+
+source ".akr/records/evidence-intake-project/assessments.akr" {
+    hash "sha256:9e23ed8c4b485c45f40a0b926dbc0ad1b6e00dbc2799fc8c2f2d22e7327a2c6b"
+    records 1
 }
 
 source ".akr/records/evidence-intake-project/constraints.akr" {
@@ -19,33 +24,38 @@ source ".akr/records/evidence-intake-project/constraints.akr" {
 }
 
 source ".akr/records/evidence-intake-project/decisions.akr" {
-    hash "sha256:51870fcb46250ce7467fe1ab09b8b13b0c5b8b74f76a9186515f9860d2767ef2"
-    records 8
+    hash "sha256:c3277942fa317aaeda8de1027b144751a5083e8ab38aa15d5c061b93bd5a3b73"
+    records 10
 }
 
 source ".akr/records/evidence-intake-project/evidence.akr" {
-    hash "sha256:1a6c465eebebd725846be7dc66aa3cff9182235fb3e3471dd6ce966ba611ef83"
-    records 72
+    hash "sha256:5110ddfee9350316bb7ff74da633fcc11ce5ce6509dfda04c5f230ad513241f2"
+    records 87
+}
+
+source ".akr/records/evidence-intake-project/milestones.akr" {
+    hash "sha256:329c001827a8cf0565893203e7633b28d57aee897e52bff7c28b0e28813fc46a"
+    records 1
 }
 
 source ".akr/records/evidence-intake-project/observations.akr" {
-    hash "sha256:25142fb27f0b46cab8fc219347c6eed7d7005048619e5f3fafc1ccdadb4f9ba7"
-    records 11
+    hash "sha256:c3360abe7f91dc8e9b12f69801045b501ee3eacc0363b8fc09a28f1b08746b7f"
+    records 19
 }
 
 source ".akr/records/evidence-intake-project/papercuts.akr" {
-    hash "sha256:b1952ef22d8e69803ae729c59f8efafa0f3b98e14beeede37c684cef867acd92"
-    records 24
+    hash "sha256:37fd7a0b05e1d5794a5930bd25da3a3e54c9a3b0d8a9ae17706ebb7c317a7aa7"
+    records 39
 }
 
 source ".akr/records/evidence-intake-project/questions.akr" {
-    hash "sha256:2dc1ee4ee4df5c01e1d333f3db7d3812990757b040c1a8efe870ad774f41a109"
-    records 6
+    hash "sha256:d4ab018408e060db4ae602828d4d4bc286b63d927f7a5857570ad8d44884318d"
+    records 7
 }
 
 source ".akr/records/evidence-intake-project/work.akr" {
-    hash "sha256:ff2d553937c64675f89ea231ce34a489d81f993f09032bca6699d19b5f66feb5"
-    records 25
+    hash "sha256:e120ded4b89a8ceec1aa855c0f41376c2152de5df41709500fd1377cd2d9b1a4"
+    records 32
 }
 
 resolution @evidence-intake-project.audio.intake-adapter/1 {
@@ -54,10 +64,64 @@ resolution @evidence-intake-project.audio.intake-adapter/1 {
     hash "sha256:d820d07821a3d36c71b07d05e1c17037947fc23ed60b15b102cd0b1710db9875"
 }
 
+resolution @evidence-intake-project.collation.document-integration-pass/1 {
+    slot part_of
+    to @evidence-intake-project.inference.universal-tensorrt-integration/1
+    hash "sha256:eb413d9a200f242c30ddc3727d71ffc5eba961975b6875585f314bb53cdd4569"
+}
+
 resolution @evidence-intake-project.decision.adapters-may-propose-structural-edges/1 {
     slot depends_on
     to @evidence-intake-project.decision.video-intake-points-never-asserts/1
     hash "sha256:d820d07821a3d36c71b07d05e1c17037947fc23ed60b15b102cd0b1710db9875"
+}
+
+resolution @evidence-intake-project.inference.document-adapter/1 {
+    slot part_of
+    to @evidence-intake-project.inference.universal-tensorrt-integration/1
+    hash "sha256:eb413d9a200f242c30ddc3727d71ffc5eba961975b6875585f314bb53cdd4569"
+}
+
+resolution @evidence-intake-project.inference.gui-intake-orchestration/1 {
+    slot part_of
+    to @evidence-intake-project.inference.universal-tensorrt-integration/1
+    hash "sha256:eb413d9a200f242c30ddc3727d71ffc5eba961975b6875585f314bb53cdd4569"
+}
+
+resolution @evidence-intake-project.inference.gui-intake-orchestration/2 {
+    slot part_of
+    to @evidence-intake-project.inference.universal-tensorrt-integration/1
+    hash "sha256:eb413d9a200f242c30ddc3727d71ffc5eba961975b6875585f314bb53cdd4569"
+}
+
+resolution @evidence-intake-project.inference.model-migrations/1 {
+    slot after
+    to @evidence-intake-project.inference.tensorrt-broker/1
+    hash "sha256:afb4d01d7f3c02003094d9a6c8b7e9c56ca3e48f2fd07686c74db9a3b0a93ff3"
+}
+
+resolution @evidence-intake-project.inference.model-migrations/1 {
+    slot part_of
+    to @evidence-intake-project.inference.universal-tensorrt-integration/1
+    hash "sha256:eb413d9a200f242c30ddc3727d71ffc5eba961975b6875585f314bb53cdd4569"
+}
+
+resolution @evidence-intake-project.inference.tensorrt-broker/1 {
+    slot part_of
+    to @evidence-intake-project.inference.universal-tensorrt-integration/1
+    hash "sha256:eb413d9a200f242c30ddc3727d71ffc5eba961975b6875585f314bb53cdd4569"
+}
+
+resolution @evidence-intake-project.inference.windows-package/1 {
+    slot after
+    to @evidence-intake-project.inference.model-migrations/1
+    hash "sha256:f7d1df569856a990aa76a54f0b0582432986dcb3675bb183750b002afed5d02f"
+}
+
+resolution @evidence-intake-project.inference.windows-package/1 {
+    slot part_of
+    to @evidence-intake-project.inference.universal-tensorrt-integration/1
+    hash "sha256:eb413d9a200f242c30ddc3727d71ffc5eba961975b6875585f314bb53cdd4569"
 }
 
 resolution @evidence-intake-project.ingest.append-to-identical-source-question/1 {
@@ -246,10 +310,21 @@ resolution @evidence-intake-project.video.siglip2-cut-distribution/3 {
     hash "sha256:46c43f68485c64030120300df057ac3645413465c9491f0c1a3c3515d9c513cb"
 }
 
+resolution @evidence-intake-project.video.siglip2-cut-distribution/4 {
+    slot resolves
+    to @evidence-intake-project.video.keyframe-candidate-selection-question/2
+    hash "sha256:46c43f68485c64030120300df057ac3645413465c9491f0c1a3c3515d9c513cb"
+}
+
 resolution @evidence-intake-project.video.soundtrack-pts-offset-question/1 {
     slot depends_on
     to @evidence-intake-project.video.audio-track-through-audio-adapter/1
     hash "sha256:c500dcad142fd85864f1a697db9cd458bad1adde9a02f32c8af21ab6022ff134"
+}
+
+seal @evidence-intake-project.assessment.mapping-boundary-follows-software-output/1 {
+    state verified
+    hash "sha256:28a4694a795ed9444da556e357b8198ff59f45de103d16ed874fb113cbc4d9de"
 }
 
 seal @evidence-intake-project.assisted.deterministic-analyzers/1 {
@@ -287,6 +362,11 @@ seal @evidence-intake-project.collation.cli-smoke/1 {
     hash "sha256:cc920f5b9995f2e85ce4612535c88c9c7b0bf4ad71013815b113a0420c63f2c4"
 }
 
+seal @evidence-intake-project.collation.document-integration-pass/1 {
+    state completed
+    hash "sha256:01976a91b14f1aa72034a0ff09b58c38c8a7ed08eac1e63266b5edb9e1a5db1c"
+}
+
 seal @evidence-intake-project.collation.gui-anchor-coverage/1 {
     state superseded
     hash "sha256:c2796a207ac4fcb99d163e52337f19b314fd25144fbbaeda4c4b1f4913f3ac21"
@@ -322,9 +402,24 @@ seal @evidence-intake-project.collation.workspace-verification/1 {
     hash "sha256:ea711dc91516ce739e6b01d98feb7c09aea2c619dc2a9e529de5c9ab94373181"
 }
 
+seal @evidence-intake-project.decision.audio-adapter-native-whisper-engine/1 {
+    state superseded
+    hash "sha256:bd99a75ed27e24abba8bb666fa642ef4477b6c653affdc3a3b05593356854e18"
+}
+
 seal @evidence-intake-project.decision.three-intake-modalities-locked/1 {
+    state superseded
+    hash "sha256:ddf69dc820814c08b0ad91040ec50efb6669c11aca1a13001d07285596f4394a"
+}
+
+seal @evidence-intake-project.decision.three-intake-modalities-locked/2 {
     state active
-    hash "sha256:4b6da19060720cbc0d10910f79daed2a6d0938044f93910bf4d0f6c483483b15"
+    hash "sha256:1ad0a0669b8e86f386cb3708910e531ca9a71bf5355e3655896f884d7aba3cc7"
+}
+
+seal @evidence-intake-project.distribution.open-source-for-public-defenders/1 {
+    state open
+    hash "sha256:2e9ff4781c8dbe41e4cbf4f2d85466d67f3396fab74499e9adf7f7a153d111e7"
 }
 
 seal @evidence-intake-project.evidence.analyzer-suite/1 {
@@ -377,6 +472,21 @@ seal @evidence-intake-project.evidence.docket-lists-cases-separately/1 {
     hash "sha256:4bd0754546bf8e2a99981a4bb351c1a042e3f807da28f3670247b14915e5b903"
 }
 
+seal @evidence-intake-project.evidence.document-collation-strict-lints/1 {
+    state verified
+    hash "sha256:9c0fedbf913770fad6ca0c682436b1764a608947fa6e28abb6d23936e806d7f3"
+}
+
+seal @evidence-intake-project.evidence.document-collation-synthetic-seam/1 {
+    state verified
+    hash "sha256:9602760dcf1bcbcbb6bf3e6a03e62742bab54b70f2e8c8ef03dfb49018a15d8f"
+}
+
+seal @evidence-intake-project.evidence.document-collation-workspace-tests/1 {
+    state verified
+    hash "sha256:6a4bc6f6803d069c33b3850f08c4105c29dcb3d7e41aa25b482f6d607d70ce3a"
+}
+
 seal @evidence-intake-project.evidence.edges-alone-and-stills/1 {
     state verified
     hash "sha256:314d267f19e7716d6de8295c6036ca025d9e8511852b69fc760d404f9ea86477"
@@ -400,6 +510,31 @@ seal @evidence-intake-project.evidence.element-mapping-suite/1 {
 seal @evidence-intake-project.evidence.export-suite/1 {
     state verified
     hash "sha256:ee1685088a063bd93321db806cf99a037c8d3917510da98657175e1b56d8193c"
+}
+
+seal @evidence-intake-project.evidence.gui-intake-broker-bridge-20260822/1 {
+    state verified
+    hash "sha256:5d2aa74695f60102f2118dab7e4e0b2a70a8f7219b49574f0b878ab9cd150587"
+}
+
+seal @evidence-intake-project.evidence.gui-intake-persistence-20260822/1 {
+    state verified
+    hash "sha256:f8c7c00372e9a05f6032fc363655ab6bdc9c8051735bfd0324c219beb1cf6f89"
+}
+
+seal @evidence-intake-project.evidence.gui-intake-release-build-20260822/1 {
+    state verified
+    hash "sha256:081067a55b41468bfeb07eaa24f51a0db1420a4616b4d36da9120e45a452636d"
+}
+
+seal @evidence-intake-project.evidence.gui-intake-static-20260822/1 {
+    state verified
+    hash "sha256:3de10cea8f53e81b0a42e4f7c38e955d401fb415e1f64be68fe88112088bb199"
+}
+
+seal @evidence-intake-project.evidence.gui-intake-winsafe-20260822/1 {
+    state verified
+    hash "sha256:8e1c500a696f25470ebd2104d8f620299d0312655ab500df1dfccb417818f961"
 }
 
 seal @evidence-intake-project.evidence.gui-native-smoke/1 {
@@ -480,6 +615,11 @@ seal @evidence-intake-project.evidence.keyframe-silent-index/1 {
 seal @evidence-intake-project.evidence.keyframe-workspace-gate/1 {
     state verified
     hash "sha256:15793206d36778488a077d8e27c3eeea665535583fa50557c55e0d116545f55b"
+}
+
+seal @evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/1 {
+    state verified
+    hash "sha256:9843b4ab3be67470007a24841e4064d6be91ae2f358b892525471c6fb689ad69"
 }
 
 seal @evidence-intake-project.evidence.optimization-pass-measured/1 {
@@ -607,6 +747,66 @@ seal @evidence-intake-project.gui.winsafe-shell/1 {
     hash "sha256:7d0d02a983af1311b37b7ed24cbf03cd17aaf72a6e59a39f157d51db2d2de8bb"
 }
 
+seal @evidence-intake-project.inference.document-adapter/1 {
+    state completed
+    hash "sha256:3c88fc885b62430992f2c565922fc61c2fd754826847bec409ead0f999a3ab50"
+}
+
+seal @evidence-intake-project.inference.evidence.broker-tests/1 {
+    state verified
+    hash "sha256:55affb6232c35362105d90c7b194387d921a7ec363aa9a54f9abd9ca60d14d6c"
+}
+
+seal @evidence-intake-project.inference.evidence.document-adapter-tests/1 {
+    state verified
+    hash "sha256:b508eee7b559022f8ad45b31d25efacfddfe61a838b471e359cfe9505614e00f"
+}
+
+seal @evidence-intake-project.inference.evidence.ocr-broker-real-cuda/1 {
+    state verified
+    hash "sha256:5ff4c774054eac123668ee7a936511ae4da458d1a5413bb3b0e6c8bd10230ea4"
+}
+
+seal @evidence-intake-project.inference.evidence.workspace-clippy/1 {
+    state verified
+    hash "sha256:6fecfc39203d19c64263f8b65ae83e79fcb9962ab22660cd84f663fdc5eee54b"
+}
+
+seal @evidence-intake-project.inference.evidence.workspace-tests/1 {
+    state verified
+    hash "sha256:3971f2898ada1b8796c59f41051be4818e901e1cdc43f63522771705694fc703"
+}
+
+seal @evidence-intake-project.inference.evidence.workspace-tests-ocr-pass/1 {
+    state verified
+    hash "sha256:101b391b09cb0129c9128c2956ea11f5e08ea4114c8e49c5e1a62968c28a3c6b"
+}
+
+seal @evidence-intake-project.inference.gui-intake-orchestration/1 {
+    state superseded
+    hash "sha256:aed30ee79a9a5c43a4949da2f17101113d0eaaa92b4f12cb08966649afba23ef"
+}
+
+seal @evidence-intake-project.inference.gui-intake-orchestration/2 {
+    state active
+    hash "sha256:c1723c5f484d421bac81c36ebb6c32329ec35ee6d29ea7c3ed2281ddd4ad14d3"
+}
+
+seal @evidence-intake-project.inference.linux-tensorrt-ocr-build/1 {
+    state superseded
+    hash "sha256:b4982a2102daeb74698ba145dde7612a48e6b4c996e7beb4d934bed1eb132e4b"
+}
+
+seal @evidence-intake-project.inference.linux-tensorrt-ocr-build/2 {
+    state verified
+    hash "sha256:15a3e3ec6dd84b86134f865ca463746272149d7fcae192be2c1034ae463769cb"
+}
+
+seal @evidence-intake-project.inference.universal-tensorrt-integration/1 {
+    state active
+    hash "sha256:eb413d9a200f242c30ddc3727d71ffc5eba961975b6875585f314bb53cdd4569"
+}
+
 seal @evidence-intake-project.ingest.append-to-identical-source-question/1 {
     state open
     hash "sha256:3c5e640b9e4b6c0136440f82176c82926b32269947bf5b0aecd4549615b2ae58"
@@ -632,9 +832,19 @@ seal @evidence-intake-project.mutation-api.versioned-work-product/1 {
     hash "sha256:c8ee0ebfebe09d9d593b468eaa738545519f0a941e9ecb2c6c960afc43a66213"
 }
 
+seal @evidence-intake-project.papercut.a-broad-evidence-video-cli-migration-patch/1 {
+    state verified
+    hash "sha256:157ff8bb30130dadd577ed9940451901ef858a5e3debece7a0cadda45ad6f3ae"
+}
+
 seal @evidence-intake-project.papercut.a-final-ripgrep-line-number-lookup-embedded-a/1 {
     state verified
     hash "sha256:0bde539c2d60df66609bceacafcdcdfdf0e10c94ffd239b4d30dbb747ca64ac7"
+}
+
+seal @evidence-intake-project.papercut.a-multi-file-documentation-cleanup-patch-missed/1 {
+    state verified
+    hash "sha256:5a5cbc75152f60f5322c476008d88851763c13cccc607c3dadc9f11c0fd6dbfa"
 }
 
 seal @evidence-intake-project.papercut.a-recursive-api-scan-used-the-common-unix-style/1 {
@@ -645,6 +855,16 @@ seal @evidence-intake-project.papercut.a-recursive-api-scan-used-the-common-unix
 seal @evidence-intake-project.papercut.adding-the-evidence-gui-binary-made-the-readme/1 {
     state verified
     hash "sha256:bda9dfb1f99d03c559ec681d05016f2edfe8865096381458e5f0629a680a8f10"
+}
+
+seal @evidence-intake-project.papercut.after-a-diagnostic-linux-build-in-a-validated/1 {
+    state verified
+    hash "sha256:3782714e1affdb95232c003ced6e345745c6971acc43b47a4143a9fb3f715cf6"
+}
+
+seal @evidence-intake-project.papercut.after-knowledge-source-add-succeeded-the/1 {
+    state verified
+    hash "sha256:9c81c3429d3f70a120ce6a0b2002e6394b7af6717e1ea9d2fc50fa9e914bc57b"
 }
 
 seal @evidence-intake-project.papercut.akr-mcp-timed-out-after-65s-on-the-first/1 {
@@ -667,6 +887,11 @@ seal @evidence-intake-project.papercut.codegraph-explore-hung-16-minutes-on-a-12
     hash "sha256:00912cfc205d5dfe7c606c3d0a5d98a69cbf5aec05c45b71205e356b7c2eb203"
 }
 
+seal @evidence-intake-project.papercut.external-ocr-repository-instructions-lived-at/1 {
+    state verified
+    hash "sha256:569d04c37f47fa542680e68fea4d24f402ba24338df0720193a9b9d08c2a21ee"
+}
+
 seal @evidence-intake-project.papercut.i-passed-scope-terms-as-path-src-gui-winsafe-rs/1 {
     state verified
     hash "sha256:c36fa646c0bab3ed79c9341200171504f66213dc99336c637651846c1f1c339d"
@@ -687,6 +912,11 @@ seal @evidence-intake-project.papercut.knowledge-revise-on-a-proposed-decision-i
     hash "sha256:ff9ad2ce492867196f10facdf518a9f1e54757cc0ad8437f8805a4618fbd6101"
 }
 
+seal @evidence-intake-project.papercut.knowledge-validate-returned-an-unexpected/1 {
+    state verified
+    hash "sha256:633585b8e7a0ea06995b1607a9cc3a2fe30dc64beac5fed3d83dbb4bfc36c535"
+}
+
 seal @evidence-intake-project.papercut.ran-knowledge-context-goal-on-a-project-whose/1 {
     state verified
     hash "sha256:19f565a6d7e88f09c971a294cb29427b874037bf2a1143bdb5baf7c9d4e08366"
@@ -702,6 +932,11 @@ seal @evidence-intake-project.papercut.resolving-a-question-from-a-new-observati
     hash "sha256:da72f6a06e407c5adee6dbd78ec8e599f16a74a4b07915783691e6672d174b9e"
 }
 
+seal @evidence-intake-project.papercut.strict-clippy-for-the-adapter-packages-also/1 {
+    state verified
+    hash "sha256:6b64d5e2a7dd47a274c80bc1a3088d9e36ce030ce3ed99b6dc78fe6ae7b8077f"
+}
+
 seal @evidence-intake-project.papercut.the-agents-protocol-names-commands-as-knowledge/1 {
     state verified
     hash "sha256:6dec39407826b02cf09ed3335b859b602acca9b67a44acd7ee35600c43131637"
@@ -712,9 +947,34 @@ seal @evidence-intake-project.papercut.the-curated-vehicle-stop-fixture-s-body-c
     hash "sha256:47ebccbf9f0b8d3620fd8718f599cd16c86774ab4540e860558104cf717bd23d"
 }
 
+seal @evidence-intake-project.papercut.the-evidence-video-package-test-suite-cannot/1 {
+    state verified
+    hash "sha256:7b715749ac9dcf476ef614d34cce42e0745b9ae1ff9a4b3a6c9816d10437b2b1"
+}
+
 seal @evidence-intake-project.papercut.the-first-gui-smoke-screenshot-used/1 {
     state verified
     hash "sha256:25c90795f983e939b9bb697a796b6b8db99fcc5a2ecf34dd5e6cb3757a21eb2a"
+}
+
+seal @evidence-intake-project.papercut.the-first-strict-clippy-pass-on-the-new-broker/1 {
+    state verified
+    hash "sha256:b14ce00ce662b91d7f350d8ff5e78e012249379850aa8f15c98565ad27e29b52"
+}
+
+seal @evidence-intake-project.papercut.the-first-supervised-worker-integration-test/1 {
+    state verified
+    hash "sha256:3fe7a9bc9e5568bf8100171c40109e9c7a36a2d921105fc17120d1a160a47ab5"
+}
+
+seal @evidence-intake-project.papercut.the-interprocess-local-socket-stream-exposes/1 {
+    state verified
+    hash "sha256:96801113a59416f1d1888cf7affa167f229f6a6d660e9d6602632872f2a2f372"
+}
+
+seal @evidence-intake-project.papercut.the-lean-linux-turboocr-tensorrt-build-found/1 {
+    state verified
+    hash "sha256:9950aa16af20901849a5aa92af8059a75f473908fbd397da2938138d5805fbaa"
 }
 
 seal @evidence-intake-project.papercut.the-readme-s-demo-view-commands-fail-against/1 {
@@ -742,6 +1002,11 @@ seal @evidence-intake-project.papercut.while-inspecting-a-sibling-crate-i-tried-
     hash "sha256:2c1aabd01c5d323d028ff5a1d26cc7aef78de5662af33b1be09873473faa62bd"
 }
 
+seal @evidence-intake-project.papercut.while-proposing-a-decision-through-knowledge/1 {
+    state verified
+    hash "sha256:7875502b909f4bf89ee686d9b917dd68b57de0bfd5952a18e254d3d83cd5442f"
+}
+
 seal @evidence-intake-project.papercut.while-recording-a-measured-contradiction-to-the/1 {
     state verified
     hash "sha256:263ad2510f08f8345a0c7e2f526dde3bda2a71bc14568970365cdff5bdfb2fdf"
@@ -750,6 +1015,16 @@ seal @evidence-intake-project.papercut.while-recording-a-measured-contradiction-
 seal @evidence-intake-project.papercut.while-running-the-three-new-scene-acceptance/1 {
     state verified
     hash "sha256:3761391c971a2f87d6354756b75b412b7354af012056961f9acc222825e66c1d"
+}
+
+seal @evidence-intake-project.papercut.while-starting-architecture-planning-knowledge/1 {
+    state verified
+    hash "sha256:1923854c6d33ee2f0db551c555b2ce6f9fc600929809728839ddc843ac4c20fa"
+}
+
+seal @evidence-intake-project.papercut.workspace-strict-clippy-surfaced-the-new/1 {
+    state verified
+    hash "sha256:6dadeb88539d738998fd289fd1e5dd99b9a8d5942b92cb33875d578dd299d087"
 }
 
 seal @evidence-intake-project.performance.read-path-optimization/1 {
@@ -803,8 +1078,13 @@ seal @evidence-intake-project.video.clock-overlay-ocr/1 {
 }
 
 seal @evidence-intake-project.video.cuda-local-vlm-captioning-fit/1 {
+    state superseded
+    hash "sha256:718c0aae2cb33b3c35a7ecf8514a7c7e92eadbea5c1cf13a99a4263a8c304210"
+}
+
+seal @evidence-intake-project.video.cuda-local-vlm-captioning-fit/2 {
     state verified
-    hash "sha256:8ef48486c2875fffaf524cb4b8da48aff63005f9201e125c96f5cd955fce13d6"
+    hash "sha256:971da0f0ba462d456e9a90762d442cf180f9d3e48d7e60a0346a3a05576ef22e"
 }
 
 seal @evidence-intake-project.video.detector-observations/1 {
@@ -868,8 +1148,13 @@ seal @evidence-intake-project.video.keyframe-embedding-retrieval/1 {
 }
 
 seal @evidence-intake-project.video.lege-gpu-siglip2-fit/1 {
+    state superseded
+    hash "sha256:cd60d6ed47b8809ac9e28b712a7b9c8f38842a7fa3e4011a79914df1da101189"
+}
+
+seal @evidence-intake-project.video.lege-gpu-siglip2-fit/2 {
     state verified
-    hash "sha256:cf00487d1be4f2a639fa4d0daa999c37f52b3a0353707d2bebee4c50ff0a1445"
+    hash "sha256:07acfa476d5d7c9e5dd5e2f3e354c8cdf7fbf61a6e0b6cbf881823621f741c25"
 }
 
 seal @evidence-intake-project.video.qwen-caption-integrated-first2m/1 {
@@ -883,8 +1168,13 @@ seal @evidence-intake-project.video.qwen2-vl-donetsk-caption-smoke/1 {
 }
 
 seal @evidence-intake-project.video.qwen2-vl-donetsk-caption-smoke/2 {
+    state superseded
+    hash "sha256:810de2d946f497efc9e8e92f3c6658c0ed46d4d5844bb2b7a089e177606f808f"
+}
+
+seal @evidence-intake-project.video.qwen2-vl-donetsk-caption-smoke/3 {
     state verified
-    hash "sha256:559c0e1651df7c95184d9e379d51ff4aed5b8bc7476598cb335996651ce7a56f"
+    hash "sha256:56954d5456952fc9ea9cbc9114246ea8bf6968e14ca6bafa0b795759bfb0b93c"
 }
 
 seal @evidence-intake-project.video.sample-scene-coverage-gap/1 {
@@ -893,8 +1183,13 @@ seal @evidence-intake-project.video.sample-scene-coverage-gap/1 {
 }
 
 seal @evidence-intake-project.video.sample-scene-coverage-gap/2 {
+    state superseded
+    hash "sha256:11a6b470490ebe87d5b1c4738be8a1dc8d32c0159be371f660ea325b2c6e904a"
+}
+
+seal @evidence-intake-project.video.sample-scene-coverage-gap/3 {
     state verified
-    hash "sha256:3b635284515071397d27a9af06b20c1903ca5ce9e0fdb2bb1cf8d41398f773be"
+    hash "sha256:534532eeb5dade97e735db1b36ace45714c0f00cb05faa69cb944c6d06f8e004"
 }
 
 seal @evidence-intake-project.video.scene-captions/1 {
@@ -918,8 +1213,13 @@ seal @evidence-intake-project.video.siglip2-cut-distribution/2 {
 }
 
 seal @evidence-intake-project.video.siglip2-cut-distribution/3 {
+    state superseded
+    hash "sha256:fdb67f7c3bb0393723cb6610077b0829409ee62a9ad5864dbe199e13d1f724c1"
+}
+
+seal @evidence-intake-project.video.siglip2-cut-distribution/4 {
     state verified
-    hash "sha256:d909164703ab274055d5c0bb481d3f13e7fcd178e30de562a632d12ded8ef757"
+    hash "sha256:b630a90c87a17ae8ac5930b38bde2d13343b2e68cee59454ef7f9f3541528ab6"
 }
 
 seal @evidence-intake-project.video.siglip2-standalone-label-abstention-dvids-966833/1 {
@@ -928,8 +1228,13 @@ seal @evidence-intake-project.video.siglip2-standalone-label-abstention-dvids-96
 }
 
 seal @evidence-intake-project.video.siglip2-standalone-label-abstention-dvids-966833/2 {
+    state superseded
+    hash "sha256:a0a329595aec6b840608d7da46611154454700fda984638a69ce3d80e26b057b"
+}
+
+seal @evidence-intake-project.video.siglip2-standalone-label-abstention-dvids-966833/3 {
     state verified
-    hash "sha256:7d60e33896ba4776ab10a07ef5df81e151af3622571383fa88021295851606b8"
+    hash "sha256:685dd5a3ecc2a11b023e5abd847e231d26c025ca38447c61007aa3a3817fdb2a"
 }
 
 seal @evidence-intake-project.video.soundtrack-pts-offset-question/1 {

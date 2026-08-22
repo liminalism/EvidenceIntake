@@ -1,7 +1,6 @@
 //! Vision backends. Detectors propose boxes; they do not identify people.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
@@ -89,88 +88,6 @@ impl JsonVisionBackend {
                 self.path.display()
             ))
         })
-    }
-}
-
-/// Runs the Ultralytics `yolo` CLI on a still and reads YOLO-txt labels.
-///
-/// Overnight, not realtime. Missing binary is a hard error with an install hint.
-#[derive(Debug, Clone)]
-pub struct YoloCliBackend {
-    /// Binary name or path. Default `yolo`.
-    pub bin: PathBuf,
-    /// Model argument (`yolov8n.pt`, `yolov8s-world.pt`, a local path).
-    pub model: String,
-    /// Minimum confidence to keep.
-    pub confidence: f64,
-}
-
-impl YoloCliBackend {
-    /// `yolo` on PATH, nano COCO weights.
-    pub fn default_local() -> Self {
-        Self {
-            bin: PathBuf::from("yolo"),
-            model: "yolov8n.pt".to_owned(),
-            confidence: 0.25,
-        }
-    }
-}
-
-impl VisionBackend for YoloCliBackend {
-    fn detect_still(&self, still: &Path) -> Result<Vec<RawDetection>> {
-        let work = tempfile::tempdir().map_err(|error| {
-            Error::Backend(format!("could not create yolo output dir: {error}"))
-        })?;
-        let status = Command::new(&self.bin)
-            .current_dir(work.path())
-            .args([
-                "detect",
-                "predict",
-                &format!("model={}", self.model),
-                &format!("source={}", still.display()),
-                &format!("conf={}", self.confidence),
-                "save=False",
-                "save_txt=True",
-                "save_conf=True",
-                "project=.",
-                "name=run",
-                "exist_ok=True",
-            ])
-            .status()
-            .map_err(|error| {
-                Error::Backend(format!(
-                    "could not run `{}`: {error}. Install Ultralytics (`pip install ultralytics`) or pass --from-json.",
-                    self.bin.display()
-                ))
-            })?;
-        if !status.success() {
-            return Err(Error::Backend(format!(
-                "`{}` exited with {status}",
-                self.bin.display()
-            )));
-        }
-        let stem = still
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .ok_or_else(|| Error::Backend("still path has no file stem".to_owned()))?;
-        let label_path = work
-            .path()
-            .join("run")
-            .join("labels")
-            .join(format!("{stem}.txt"));
-        if !label_path.is_file() {
-            return Ok(Vec::new());
-        }
-        let text = std::fs::read_to_string(&label_path)?;
-        parse_yolo_txt(&text)
-    }
-
-    fn extractor(&self) -> &str {
-        EXTRACTOR_DETECT
-    }
-
-    fn version(&self) -> String {
-        format!("yolo@{}", self.model)
     }
 }
 

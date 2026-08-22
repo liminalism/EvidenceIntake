@@ -44,7 +44,7 @@ record evidence-intake-project.decision.adapters-may-propose-structural-edges/1 
 
 record evidence-intake-project.decision.audio-adapter-native-whisper-engine/1 : decision {
     title "The audio adapter transcribes in process with a feature-gated fork of franken_whisper, not whisper-rs"
-    state proposed
+    state superseded
     scope [ path "adapters/audio/**" ]
     decision """
         The `--model-path` backend of `evidence-audio` is `NativeWhisperBackend` (adapters/audio/src/native.rs), built on the pure-Rust native engine of franken_whisper (github.com/Dicklesworthstone/franken_whisper). It replaces the whisper-rs/whisper.cpp backend, which is removed. The crate is consumed with `default-features = false` from a local fork -- sibling checkout `../franken_whisper`, branch `evidence-intake`, `upstream` remote pointing at the original -- whose only change is a `full` feature (default-on upstream) that gates the CLI, orchestrator, bridge backends, diarization, storage, sync, robot and YouTube modules, plus a `distribution` feature for the model downloader. The engine reads the same ggml/gguf files whisper.cpp reads; the adapter never resolves or downloads a model. Statements are stamped `franken_whisper@<model>/<crate version>`. The `native-whisper` feature is on by default because the build is pure Rust (no cmake, no C++ toolchain).
@@ -180,6 +180,23 @@ record evidence-intake-project.decision.painted-window-chrome/1 : decision {
     }
 }
 
+record evidence-intake-project.decision.single-broker-inference/1 : decision {
+    title "All live GPU inference uses the Evidence TensorRT broker"
+    state proposed
+    scope [ path "adapters/**", path "runtime/**", path "scripts/**", path "src/gui/**" ]
+    decision """
+        Document OCR, video clock OCR, visual embeddings, object detection, audio transcription and scene captioning use one versioned fail-closed Evidence TensorRT broker. Adapters may retain JSON fixture backends for tests, but no live adapter owns a second GPU runtime, downloads models, silently falls back, or asks an operator to type an unverified model revision.
+        """
+    context """
+        The document, audio and video adapters already share the NormalizedBatch contract, while live GPU implementations had diverged across an in-process Whisper engine, a Lege-owned TurboOCR worker and ad hoc video CLIs.
+        """
+    consequences """
+        The GUI discovers installed model identities from the broker; Lege keeps PDF/DocIR ownership through a broker bridge; model packs and workers are checksummed, revision-pinned and supervised once.
+        """
+    supersedes [ @evidence-intake-project.decision.audio-adapter-native-whisper-engine/1 ]
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.decision.structure-not-verdict/1 : decision {
     title "Decision views report structure; they never score, rank, or predict a case"
     state proposed
@@ -218,7 +235,7 @@ record evidence-intake-project.decision.structure-not-verdict/1 : decision {
 
 record evidence-intake-project.decision.three-intake-modalities-locked/1 : decision {
     title "Keep document, audio and video as the complete intake modality set"
-    state active
+    state superseded
     scope [ all ]
     topic intake-modality-scope
     decision """
@@ -246,6 +263,42 @@ record evidence-intake-project.decision.three-intake-modalities-locked/1 : decis
             """
     }
     supported_by [ @evidence-intake-project.scope.owner-feature-lock/1 ]
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.decision.three-intake-modalities-locked/2 : decision {
+    title "Keep document, audio and video as the complete intake modality set"
+    state active
+    scope [ all ]
+    decision """
+        The product's intake modalities are document, audio and video. Further work improves their adapters, shared provenance, review, search and collation rather than adding another evidence modality. A future map may only be a presentation of location anchors already supplied or reviewed; 3D scene mapping, photogrammetry, trajectory reconstruction and other forensic reconstruction are outside this product scope.
+        """
+    context """
+        The three pipelines now cover the intended discovery media. The owner explicitly locked the feature set after reviewing speculative 3D mapping and ordinary digital-map ideas.
+        """
+    consequences """
+        Integration and reviewer workflow take priority over new modality experiments. Mapping is eligible only as a provenance-preserving collation view that returns the reviewer to the underlying source and does not infer a scene, route, measurement or common event.
+        """
+    claim map-view-only {
+        text """
+            A map may present sourced or reviewer-confirmed location anchors but is not a fourth modality.
+            """
+    }
+    claim no-reconstruction {
+        text """
+            3D mapping, photogrammetry, trajectory reconstruction and inferred geolocation remain out of scope.
+            """
+    }
+    claim three-modalities {
+        text """
+            Document, audio and video are the complete intake modality set.
+            """
+    }
+    supersedes [ @evidence-intake-project.decision.three-intake-modalities-locked/1 ]
+    supported_by [
+        @evidence-intake-project.assessment.mapping-boundary-follows-software-output/1,
+        @evidence-intake-project.scope.owner-feature-lock/1
+    ]
     author "GitHub Uploader"
 }
 
