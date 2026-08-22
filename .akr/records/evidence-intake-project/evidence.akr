@@ -849,6 +849,19 @@ record evidence-intake-project.evidence.video-scene-suggested-on-timeline/1 : ev
         """
 }
 
+record evidence-intake-project.evidence.windows-broker-ocr-real-cuda-20260822/1 : evidence {
+    title "On the Windows RTX 4060 host, the committed Evidence broker built and cached the PP-OCR detector and recognizer TensorRT engines, loaded both native engines and the dictionary, passed the CUDA inference probe, and returned typed PageOcr output in 657.85 seconds."
+    state verified
+    result pass
+    method command
+    observed_at git:f527d4215c6a3c3b6bf24fdd5b5724b99720d854
+    command "$env:EVIDENCE_TURBOOCR_WORKER='D:\\Rust-projects\\Lege-ecosystem\\lege-document-ocr\\turboocr\\build-windows-trt-text-ninja\\turboocr-text.exe'; $env:EVIDENCE_TURBOOCR_MODELS='D:\\Rust-projects\\Lege-ecosystem\\lege-document-ocr\\turboocr\\models'; cargo test -p evidence-trt broker_runs_real_turboocr_cuda_inference -- --ignored --nocapture"
+    summary """
+        On the Windows RTX 4060 host, the committed Evidence broker built and cached the PP-OCR detector and recognizer TensorRT engines, loaded both native engines and the dictionary, passed the CUDA inference probe, and returned typed PageOcr output in 657.85 seconds.
+        """
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.evidence.work-product-suite/1 : evidence {
     title "58 tests pass, clippy clean under -D warnings, formatting clean. tests/work_product.rs adds 9 covering privileged v1 entry, supersede-not-overwrite with full history from any version identifier, refusal to revise a superseded version, a rewritten issue appearing once in the workspace, current-only annotations, cross-case refusal, per-posture brief numbering continuing the fixture's chain, and work product staying out of the discovery ledger. A schema test proves the author trigger fires on all three tables, and a collation test proves the two hit-and-run issues no longer carry identical task lists. Verified by hand that migration 0005 re-runs against a pre-0005 database."
     state verified

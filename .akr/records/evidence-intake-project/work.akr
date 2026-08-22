@@ -567,7 +567,7 @@ record evidence-intake-project.inference.gui-intake-orchestration/1 : work {
 
 record evidence-intake-project.inference.gui-intake-orchestration/2 : work {
     title "Unify document, audio and video intake in the native GUI"
-    state active
+    state superseded
     scope [
         path "Cargo.toml",
         path "adapters/**",
@@ -631,6 +631,75 @@ record evidence-intake-project.inference.gui-intake-orchestration/2 : work {
     }
     part_of [ @evidence-intake-project.inference.universal-tensorrt-integration ]
     supersedes [ @evidence-intake-project.inference.gui-intake-orchestration/1 ]
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.inference.gui-intake-orchestration/3 : work {
+    title "Unify document, audio and video intake in the native GUI"
+    state active
+    scope [
+        path "Cargo.toml",
+        path "adapters/**",
+        path "migrations/**",
+        path "runtime/**",
+        path "scripts/**",
+        path "src/**",
+        path "tests/**"
+    ]
+    intent """
+        Add a versioned adapter-job protocol, persistent intake queue, source-location registry, broker-backed document/audio/video execution, and WinSafe intake/queue/search surfaces without making the evidence kernel depend on modality implementations.
+        """
+    note """
+        Protocol, persistence, adapters, broker bridge, GUI, tests, and release builds are implemented. The local Windows RTX 4060 host contains the native TurboOCR worker and pinned PP-OCR models; the committed Evidence broker built both TensorRT engines and passed real typed PageOcr inference. Final package/doctor evidence remains open because there is no assembled Lege OCR distributable directory with the expected lege-ocr.exe/tensorrt layout and no exported SigLIP, YOLO, Whisper, or Qwen TensorRT model packs; real document/audio/video package smoke and DPI review remain to be run.
+        """
+    acceptance {
+        check brokered-document {
+            statement """
+                Lege document intake reaches TensorRT OCR through the Evidence broker and retains DocIR artifacts.
+                """
+            method command
+            command "cargo test -p evidence-document -p evidence-trt"
+            verified_by [
+                @evidence-intake-project.evidence.gui-intake-broker-bridge-20260822/1
+            ]
+        }
+        check protocol-and-persistence {
+            statement """
+                Adapter protocol, job lifecycle, atomic import, source relink and restart recovery tests pass.
+                """
+            method command
+            command "cargo test --workspace"
+            verified_by [ @evidence-intake-project.evidence.gui-intake-persistence-20260822/1 ]
+        }
+        check three-gui-modalities {
+            statement """
+                The WinSafe build exposes separate document, audio and video intake flows plus a persistent processing queue.
+                """
+            method command
+            command "cargo test -p evidence-intake --features gui-winsafe"
+            verified_by [ @evidence-intake-project.evidence.gui-intake-winsafe-20260822/1 ]
+        }
+        check windows-package {
+            statement """
+                The Windows package contains the GUI, adapters, broker bridge and one checksummed OCR payload and passes its doctors.
+                """
+            method command
+            command "powershell -File scripts/package_windows_tensorrt.ps1 -SkipBuild"
+        }
+        check workspace-tests {
+            statement """
+                Workspace tests and static checks pass.
+                """
+            method command
+            command "cargo test --workspace --no-fail-fast"
+            verified_by [
+                @evidence-intake-project.evidence.gui-intake-persistence-20260822/1,
+                @evidence-intake-project.evidence.gui-intake-static-20260822/1
+            ]
+        }
+    }
+    part_of [ @evidence-intake-project.inference.universal-tensorrt-integration ]
+    supersedes [ @evidence-intake-project.inference.gui-intake-orchestration/2 ]
     author "GitHub Uploader"
 }
 
