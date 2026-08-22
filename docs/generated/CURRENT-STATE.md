@@ -62,6 +62,8 @@ On the RTX 4060 Linux workstation, the TurboOCR lean CUDA/TensorRT text pipeline
 
 **supersedes** `@evidence-intake-project.inference.linux-tensorrt-ocr-build/1` · **verified_by** `@evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/1`
 
+> **Stale** — `watches "Cargo.toml"` was matched by `8218ede4`, which touched `Cargo.toml`. See [REVIEW-REQUIRED.md](REVIEW-REQUIRED.md#linux-builds-and-runs-the-real-tensorrt-ocr-path).
+
 ### cuda-local-vlm-video-captioning is a useful benchmark reference, not a drop-in adapter
 
 `verified` · `@evidence-intake-project.video.cuda-local-vlm-captioning-fit/2`
@@ -69,6 +71,8 @@ On the RTX 4060 Linux workstation, the TurboOCR lean CUDA/TensorRT text pipeline
 Inspection of ssheld/cuda-local-vlm-video-captioning at its sole initial public commit 3a354b5c5e44a55817f53a95182006b508ddeaff found a useful MIT-licensed alpha reference for load-once CUDA VLM runtimes, model-family adapters, browser smoke gates, structured JSONL provenance, and latency/peak-VRAM comparison. It is not a drop-in video intake module: its batch CLI uniformly samples a fixed count over the whole MP4 with OpenCV, deletes temporary frames, records a local path rather than an original hash and interval locator, follows unpinned model ids by default with trust_remote_code, and its animal-oriented schema asks for behavior, interaction and count fields that do not fit the project's point-never-assert contract. Reuse the runtime and benchmark patterns while retaining this project's bounded scene sampler, original-timeline locators, conservative suggested captions and pinned offline artifacts.
 
 **depends_on** `@evidence-intake-project.decision.video-intake-points-never-asserts/1` · **supersedes** `@evidence-intake-project.video.cuda-local-vlm-captioning-fit/1` · **derived_from** `@evidence-intake-project.video.real-embedding-benchmark/1`
+
+> **Stale** — `watches "adapters/video/**"` was matched by `8218ede4`, which touched `adapters/video/Cargo.toml`. See [REVIEW-REQUIRED.md](REVIEW-REQUIRED.md#cuda-local-vlm-video-captioning-is-a-useful-benchmark-reference-not-a-drop-in-adapter).
 
 ### lege-gpu is a useful native GPU foundation but not a drop-in SigLIP2 runtime
 
@@ -81,6 +85,8 @@ Inspection of the clean lege-gpu source tree at sibling repository HEAD 3f520cc0
 
 **supersedes** `@evidence-intake-project.video.lege-gpu-siglip2-fit/1` · **derived_from** `@evidence-intake-project.video.real-embedding-benchmark/1`
 
+> **Stale** — `watches "adapters/video/src/embed.rs"` was matched by `8218ede4`, which touched `adapters/video/src/embed.rs`. See [REVIEW-REQUIRED.md](REVIEW-REQUIRED.md#lege-gpu-is-a-useful-native-gpu-foundation-but-not-a-drop-in-siglip2-runtime).
+
 ### Pinned Qwen2-VL supports a conservative load-once visual skim index
 
 `verified` · `@evidence-intake-project.video.qwen2-vl-donetsk-caption-smoke/3`
@@ -88,6 +94,8 @@ Inspection of the clean lege-gpu source tree at sibling repository HEAD 3f520cc0
 The replacement evidence sample jaf69w.mp4 (SHA-256 E92C56F7BD9E53B98866D1D79BC61358F0257C62409E29477D3A23D751B41140) fully decoded as 13:54.781 of 1280x720 H.264 at 25 fps with AAC audio. In an isolated Transformers 5.7.0 environment sharing torch 2.13.0+cu132, the Apache-2.0 Qwen/Qwen2-VL-2B-Instruct checkpoint pinned at 895c3a49bc3fa70a340399125c650a463535e71c loaded from two verified local weight shards totaling 4.13 GiB. A four-frame joint request completed in 44.6 seconds but peaked at 7469.5 MiB CUDA allocation on the 8 GiB RTX 4060; keeping the model resident and captioning 24 frames independently completed in 75.998 seconds and peaked at 4568.8 MiB. The integrated project-owned Rust-to-Python batch backend then processed 26 scene windows across the first 02:00.040 in one load-once process. It stored 26 suggested observations using only a deterministic bounded visible-feature vocabulary, stamped every caption with the pinned model revision, retained no free-form model prose, and produced zero matches for military, police, officer, firefighter, patient, riot, protest, attack, explosion, guilty or innocent. The 00:39.480-00:44.480 window is indexed as multiple people, camouflage clothing, vehicle, building and road, preserving directly visible appearance without assigning a military role. The adapter supports explicit null abstention, although this sample produced none. Qwen2-VL is therefore usable as a suggested visual skim index when run sequentially with a resident offline model, deterministic output reduction and human review; it is not a factual narrator and must not provide identity, role, event or legal conclusions.
 
 **depends_on** `@evidence-intake-project.decision.video-intake-points-never-asserts/1` · **supersedes** `@evidence-intake-project.video.qwen2-vl-donetsk-caption-smoke/2` · **derived_from** `@evidence-intake-project.video.real-embedding-benchmark/1`
+
+> **Stale** — `watches "adapters/video/**"` was matched by `8218ede4`, which touched `adapters/video/Cargo.toml`. See [REVIEW-REQUIRED.md](REVIEW-REQUIRED.md#pinned-qwen2-vl-supports-a-conservative-load-once-visual-skim-index).
 
 ### Scene-only sampling leaves long unrepresented spans in the local video sample
 
@@ -105,6 +113,8 @@ The local google/siglip2-base-patch16-384 checkpoint embedded 254 hybrid-sampled
 
 **supersedes** `@evidence-intake-project.video.siglip2-cut-distribution/3` · **resolves** `@evidence-intake-project.video.keyframe-candidate-selection-question/2` · **derived_from** `@evidence-intake-project.video.real-embedding-benchmark/1`
 
+> **Stale** — `watches "src/store.rs"` was matched by `8218ede4`, which touched `src/store.rs`. See [REVIEW-REQUIRED.md](REVIEW-REQUIRED.md#the-synthetic-020-cosine-cut-returns-no-siglip-2-candidates-on-the-local-sample).
+
 ### SigLIP2 abstains on standalone labels for the first two minutes of DVIDS 966833
 
 `verified` · `@evidence-intake-project.video.siglip2-standalone-label-abstention-dvids-966833/3`
@@ -112,6 +122,8 @@ The local google/siglip2-base-patch16-384 checkpoint embedded 254 hybrid-sampled
 The highest-quality official DVIDS 966833 rendition (SHA-256 97F3FA71E8AC5572081837E7F778D2DD8AFB22B8E694C313F0D0B39578A925F0) was fully decoded and hybrid-sampled into 26 frames in [0,120000) ms. With the local google/siglip2-base-patch16-384 checkpoint, five neutral label groups, three paraphrases per label, the checkpoint's learned cosine scale and bias, and an availability rule requiring every paraphrase both to clear the native 0.5 sigmoid threshold and choose the same label, zero labels were available in every group on all 26 frames. Only five added-text prompt decisions and one vehicle prompt decision individually cleared 0.5; setting, people and view-quality had none. A forced-choice comparison had only 0-19.2% paraphrase agreement and zero vehicle agreement. This checkpoint therefore did not produce responsible standalone text identifications for this window and vocabulary, although the result does not disqualify it as a relative text-to-frame retrieval encoder.
 
 **supersedes** `@evidence-intake-project.video.siglip2-standalone-label-abstention-dvids-966833/2` · **derived_from** `@evidence-intake-project.video.real-embedding-benchmark/1`
+
+> **Stale** — `watches "adapters/video/**"` was matched by `8218ede4`, which touched `adapters/video/Cargo.toml`. See [REVIEW-REQUIRED.md](REVIEW-REQUIRED.md#siglip2-abstains-on-standalone-labels-for-the-first-two-minutes-of-dvids-966833).
 
 ## Assessments
 
