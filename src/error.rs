@@ -26,6 +26,9 @@ pub enum Error {
     /// An authored proposition or relationship was malformed.
     #[error("invalid authoring: {0}")]
     InvalidAuthoring(String),
+    /// An interpretation, source profile, or content grouping was malformed.
+    #[error("invalid interpretation: {0}")]
+    InvalidInterpretation(String),
     /// A search query was empty or could not be parsed as full-text syntax.
     #[error("invalid search: {0}")]
     InvalidSearch(String),
@@ -116,4 +119,7 @@ pub enum Error {
     /// JSON output could not be produced.
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// A generated factual sentence was not backed by an exact locator.
+    #[error("unsupported factual sentence: {0}")]
+    UnsupportedSentence(String),
 }

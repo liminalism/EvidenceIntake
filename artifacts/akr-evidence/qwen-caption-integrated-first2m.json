@@ -1,0 +1,3243 @@
+{
+  "case_id": "benchmark-case",
+  "sources": [
+    {
+      "id": "donetsk-first2m-working",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4",
+      "media_type": "video/mp4",
+      "source_kind": "video",
+      "temporal_relation": "unknown",
+      "sha256": "1232008dd50ce5928b2c0aac7eecb8fff03e67de16626c716d7fda872842ad2d",
+      "byte_length": 24832637,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-scene-0001",
+          "locator": "scene 1, 00:00:00.000–00:00:04.960",
+          "page": null,
+          "start_ms": 0,
+          "end_ms": 4960,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0001",
+              "kind": "observation",
+              "text": "Scene 1 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0002",
+          "locator": "scene 2, 00:00:04.960–00:00:09.920",
+          "page": null,
+          "start_ms": 4960,
+          "end_ms": 9920,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0002",
+              "kind": "observation",
+              "text": "Scene 2 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0003",
+          "locator": "scene 3, 00:00:09.920–00:00:12.600",
+          "page": null,
+          "start_ms": 9920,
+          "end_ms": 12600,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0003",
+              "kind": "observation",
+              "text": "Scene 3 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0004",
+          "locator": "scene 4, 00:00:12.600–00:00:17.600",
+          "page": null,
+          "start_ms": 12600,
+          "end_ms": 17600,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0004",
+              "kind": "observation",
+              "text": "Scene 4 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0005",
+          "locator": "scene 5, 00:00:17.600–00:00:22.600",
+          "page": null,
+          "start_ms": 17600,
+          "end_ms": 22600,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0005",
+              "kind": "observation",
+              "text": "Scene 5 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0006",
+          "locator": "scene 6, 00:00:22.600–00:00:24.520",
+          "page": null,
+          "start_ms": 22600,
+          "end_ms": 24520,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0006",
+              "kind": "observation",
+              "text": "Scene 6 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0007",
+          "locator": "scene 7, 00:00:24.520–00:00:29.480",
+          "page": null,
+          "start_ms": 24520,
+          "end_ms": 29480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0007",
+              "kind": "observation",
+              "text": "Scene 7 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0008",
+          "locator": "scene 8, 00:00:29.480–00:00:34.480",
+          "page": null,
+          "start_ms": 29480,
+          "end_ms": 34480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0008",
+              "kind": "observation",
+              "text": "Scene 8 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0009",
+          "locator": "scene 9, 00:00:34.480–00:00:39.480",
+          "page": null,
+          "start_ms": 34480,
+          "end_ms": 39480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0009",
+              "kind": "observation",
+              "text": "Scene 9 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0010",
+          "locator": "scene 10, 00:00:39.480–00:00:44.480",
+          "page": null,
+          "start_ms": 39480,
+          "end_ms": 44480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0010",
+              "kind": "observation",
+              "text": "Scene 10 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0011",
+          "locator": "scene 11, 00:00:44.480–00:00:49.480",
+          "page": null,
+          "start_ms": 44480,
+          "end_ms": 49480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0011",
+              "kind": "observation",
+              "text": "Scene 11 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0012",
+          "locator": "scene 12, 00:00:49.480–00:00:54.480",
+          "page": null,
+          "start_ms": 49480,
+          "end_ms": 54480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0012",
+              "kind": "observation",
+              "text": "Scene 12 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0013",
+          "locator": "scene 13, 00:00:54.480–00:00:59.480",
+          "page": null,
+          "start_ms": 54480,
+          "end_ms": 59480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0013",
+              "kind": "observation",
+              "text": "Scene 13 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0014",
+          "locator": "scene 14, 00:00:59.480–00:01:04.480",
+          "page": null,
+          "start_ms": 59480,
+          "end_ms": 64480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0014",
+              "kind": "observation",
+              "text": "Scene 14 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0015",
+          "locator": "scene 15, 00:01:04.480–00:01:09.480",
+          "page": null,
+          "start_ms": 64480,
+          "end_ms": 69480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0015",
+              "kind": "observation",
+              "text": "Scene 15 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0016",
+          "locator": "scene 16, 00:01:09.480–00:01:14.480",
+          "page": null,
+          "start_ms": 69480,
+          "end_ms": 74480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0016",
+              "kind": "observation",
+              "text": "Scene 16 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0017",
+          "locator": "scene 17, 00:01:14.480–00:01:19.480",
+          "page": null,
+          "start_ms": 74480,
+          "end_ms": 79480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0017",
+              "kind": "observation",
+              "text": "Scene 17 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0018",
+          "locator": "scene 18, 00:01:19.480–00:01:24.480",
+          "page": null,
+          "start_ms": 79480,
+          "end_ms": 84480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0018",
+              "kind": "observation",
+              "text": "Scene 18 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0019",
+          "locator": "scene 19, 00:01:24.480–00:01:29.480",
+          "page": null,
+          "start_ms": 84480,
+          "end_ms": 89480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0019",
+              "kind": "observation",
+              "text": "Scene 19 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0020",
+          "locator": "scene 20, 00:01:29.480–00:01:34.480",
+          "page": null,
+          "start_ms": 89480,
+          "end_ms": 94480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0020",
+              "kind": "observation",
+              "text": "Scene 20 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0021",
+          "locator": "scene 21, 00:01:34.480–00:01:39.480",
+          "page": null,
+          "start_ms": 94480,
+          "end_ms": 99480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0021",
+              "kind": "observation",
+              "text": "Scene 21 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0022",
+          "locator": "scene 22, 00:01:39.480–00:01:44.480",
+          "page": null,
+          "start_ms": 99480,
+          "end_ms": 104480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0022",
+              "kind": "observation",
+              "text": "Scene 22 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0023",
+          "locator": "scene 23, 00:01:44.480–00:01:49.480",
+          "page": null,
+          "start_ms": 104480,
+          "end_ms": 109480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0023",
+              "kind": "observation",
+              "text": "Scene 23 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0024",
+          "locator": "scene 24, 00:01:49.480–00:01:53.240",
+          "page": null,
+          "start_ms": 109480,
+          "end_ms": 113240,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0024",
+              "kind": "observation",
+              "text": "Scene 24 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0025",
+          "locator": "scene 25, 00:01:53.240–00:01:58.240",
+          "page": null,
+          "start_ms": 113240,
+          "end_ms": 118240,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0025",
+              "kind": "observation",
+              "text": "Scene 25 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-scene-0026",
+          "locator": "scene 26, 00:01:58.240–00:02:00.040",
+          "page": null,
+          "start_ms": 118240,
+          "end_ms": 120040,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-scenec-0026",
+              "kind": "observation",
+              "text": "Scene 26 on the original timeline. A working-copy keyframe was extracted; verify against the original frame.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_scene",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0000",
+          "locator": "scene 1, 00:00:00.000–00:00:04.960; scene description",
+          "page": null,
+          "start_ms": 0,
+          "end_ms": 4960,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0000",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet, building. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0001",
+          "locator": "scene 2, 00:00:04.960–00:00:09.920; scene description",
+          "page": null,
+          "start_ms": 4960,
+          "end_ms": 9920,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0001",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet, building. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0002",
+          "locator": "scene 3, 00:00:09.920–00:00:12.600; scene description",
+          "page": null,
+          "start_ms": 9920,
+          "end_ms": 12600,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0002",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet, blurred view. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0003",
+          "locator": "scene 4, 00:00:12.600–00:00:17.600; scene description",
+          "page": null,
+          "start_ms": 12600,
+          "end_ms": 17600,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0003",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet, road. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0004",
+          "locator": "scene 5, 00:00:17.600–00:00:22.600; scene description",
+          "page": null,
+          "start_ms": 17600,
+          "end_ms": 22600,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0004",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet, building. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0005",
+          "locator": "scene 6, 00:00:22.600–00:00:24.520; scene description",
+          "page": null,
+          "start_ms": 22600,
+          "end_ms": 24520,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0005",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet, blurred view. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0006",
+          "locator": "scene 7, 00:00:24.520–00:00:29.480; scene description",
+          "page": null,
+          "start_ms": 24520,
+          "end_ms": 29480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0006",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: road, sidewalk, snow. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0007",
+          "locator": "scene 8, 00:00:29.480–00:00:34.480; scene description",
+          "page": null,
+          "start_ms": 29480,
+          "end_ms": 34480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0007",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: vehicle, road, snow. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0008",
+          "locator": "scene 9, 00:00:34.480–00:00:39.480; scene description",
+          "page": null,
+          "start_ms": 34480,
+          "end_ms": 39480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0008",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, vehicle, road. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0009",
+          "locator": "scene 10, 00:00:39.480–00:00:44.480; scene description",
+          "page": null,
+          "start_ms": 39480,
+          "end_ms": 44480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0009",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: multiple people, camouflage clothing, vehicle, building, road. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0010",
+          "locator": "scene 11, 00:00:44.480–00:00:49.480; scene description",
+          "page": null,
+          "start_ms": 44480,
+          "end_ms": 49480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0010",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: ambulance, fire truck. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0011",
+          "locator": "scene 12, 00:00:49.480–00:00:54.480; scene description",
+          "page": null,
+          "start_ms": 49480,
+          "end_ms": 54480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0011",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: multiple people, ambulance. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0012",
+          "locator": "scene 13, 00:00:54.480–00:00:59.480; scene description",
+          "page": null,
+          "start_ms": 54480,
+          "end_ms": 59480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0012",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: multiple people, stretcher, ambulance. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0013",
+          "locator": "scene 14, 00:00:59.480–00:01:04.480; scene description",
+          "page": null,
+          "start_ms": 59480,
+          "end_ms": 64480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0013",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, stretcher, ambulance. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0014",
+          "locator": "scene 15, 00:01:04.480–00:01:09.480; scene description",
+          "page": null,
+          "start_ms": 64480,
+          "end_ms": 69480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0014",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, stretcher, ambulance. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0015",
+          "locator": "scene 16, 00:01:09.480–00:01:14.480; scene description",
+          "page": null,
+          "start_ms": 69480,
+          "end_ms": 74480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0015",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, vehicle, blurred view. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0016",
+          "locator": "scene 17, 00:01:14.480–00:01:19.480; scene description",
+          "page": null,
+          "start_ms": 74480,
+          "end_ms": 79480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0016",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, ambulance. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0017",
+          "locator": "scene 18, 00:01:19.480–00:01:24.480; scene description",
+          "page": null,
+          "start_ms": 79480,
+          "end_ms": 84480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0017",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0018",
+          "locator": "scene 19, 00:01:24.480–00:01:29.480; scene description",
+          "page": null,
+          "start_ms": 84480,
+          "end_ms": 89480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0018",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet, road. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0019",
+          "locator": "scene 20, 00:01:29.480–00:01:34.480; scene description",
+          "page": null,
+          "start_ms": 89480,
+          "end_ms": 94480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0019",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet, vehicle. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0020",
+          "locator": "scene 21, 00:01:34.480–00:01:39.480; scene description",
+          "page": null,
+          "start_ms": 94480,
+          "end_ms": 99480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0020",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: fire truck, road, smoke. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0021",
+          "locator": "scene 22, 00:01:39.480–00:01:44.480; scene description",
+          "page": null,
+          "start_ms": 99480,
+          "end_ms": 104480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0021",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, road, smoke. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0022",
+          "locator": "scene 23, 00:01:44.480–00:01:49.480; scene description",
+          "page": null,
+          "start_ms": 104480,
+          "end_ms": 109480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0022",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: smoke, hose, debris. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0023",
+          "locator": "scene 24, 00:01:49.480–00:01:53.240; scene description",
+          "page": null,
+          "start_ms": 109480,
+          "end_ms": 113240,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0023",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: road, smoke, hose, debris. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0024",
+          "locator": "scene 25, 00:01:53.240–00:01:58.240; scene description",
+          "page": null,
+          "start_ms": 113240,
+          "end_ms": 118240,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0024",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet, fire truck, building. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        },
+        {
+          "id": "donetsk-first2m-working-cap-0025",
+          "locator": "scene 26, 00:01:58.240–00:02:00.040; scene description",
+          "page": null,
+          "start_ms": 118240,
+          "end_ms": 120040,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-capc-0025",
+              "kind": "observation",
+              "text": "Scene description (machine): Visible navigation terms: person, helmet, fire truck, road, blurred view. Suggested; open the original at this locator.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "vlm_scene",
+                "version": "Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0001",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:00.000",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "8005d75148fda5b39e537c0c6ada979a5c2f1c67696385fa9a779ca5448b217e",
+      "byte_length": 74738,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0001",
+          "locator": "scene 1, 00:00:00.000–00:00:04.960",
+          "page": null,
+          "start_ms": 0,
+          "end_ms": 0,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0001",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:00.000. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0002",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:04.960",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "b39a4bbbfbaad7afc3059b575d88f399d28d484d14852a38ca42bce088489a97",
+      "byte_length": 68377,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0002",
+          "locator": "scene 2, 00:00:04.960–00:00:09.920",
+          "page": null,
+          "start_ms": 4960,
+          "end_ms": 4960,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0002",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:04.960. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0003",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:09.920",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "19d186fc941039b35254cdfae279fcb440a9e52fefbfb40de539692fb0f16ddd",
+      "byte_length": 62261,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0003",
+          "locator": "scene 3, 00:00:09.920–00:00:12.600",
+          "page": null,
+          "start_ms": 9920,
+          "end_ms": 9920,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0003",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:09.920. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0004",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:12.600",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "1799ebbc551489deffd9ad96f562359bf115c500ec76ab58dc19ac2b02762b6b",
+      "byte_length": 71336,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0004",
+          "locator": "scene 4, 00:00:12.600–00:00:17.600",
+          "page": null,
+          "start_ms": 12600,
+          "end_ms": 12600,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0004",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:12.600. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0005",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:17.600",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "98d46b654a7008a5026b2980534e008ea14cd2a8c48388f792034d4358a21bc9",
+      "byte_length": 66835,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0005",
+          "locator": "scene 5, 00:00:17.600–00:00:22.600",
+          "page": null,
+          "start_ms": 17600,
+          "end_ms": 17600,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0005",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:17.600. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0006",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:22.600",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "ffd912aa1bb3dbdcb2257a577187b28ae4077942c7537b0da0818d088e6ffd6b",
+      "byte_length": 57419,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0006",
+          "locator": "scene 6, 00:00:22.600–00:00:24.520",
+          "page": null,
+          "start_ms": 22600,
+          "end_ms": 22600,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0006",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:22.600. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0007",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:24.520",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "731bb68922b318caf1ddba754bddd2138b45fdf90c6a59bc1fed1223e0f89bf1",
+      "byte_length": 61598,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0007",
+          "locator": "scene 7, 00:00:24.520–00:00:29.480",
+          "page": null,
+          "start_ms": 24520,
+          "end_ms": 24520,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0007",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:24.520. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0008",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:29.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "f923382ffd3840f3ac3a7b9a50f55e12b3def7def4d5a421b6764f4a2de06640",
+      "byte_length": 95591,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0008",
+          "locator": "scene 8, 00:00:29.480–00:00:34.480",
+          "page": null,
+          "start_ms": 29480,
+          "end_ms": 29480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0008",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:29.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0009",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:34.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "12c09768a89fccdba7ee42b98d30c3a09ee7ef0e96a4ba7758d565892197d7d4",
+      "byte_length": 59942,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0009",
+          "locator": "scene 9, 00:00:34.480–00:00:39.480",
+          "page": null,
+          "start_ms": 34480,
+          "end_ms": 34480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0009",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:34.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0010",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:39.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "d5537d8112ca927c7218a21c44e5cbc03b8a072678d2d485d5338636881ed785",
+      "byte_length": 90107,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0010",
+          "locator": "scene 10, 00:00:39.480–00:00:44.480",
+          "page": null,
+          "start_ms": 39480,
+          "end_ms": 39480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0010",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:39.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0011",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:44.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "0830f96815786b5e98d09e2af715f87a59c559bf2f61dadf3db2e158f6d17a41",
+      "byte_length": 92722,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0011",
+          "locator": "scene 11, 00:00:44.480–00:00:49.480",
+          "page": null,
+          "start_ms": 44480,
+          "end_ms": 44480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0011",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:44.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0012",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:49.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "a71ef6b5251e189375e428a290a707257736c307ce87f3871787d8e3328442ee",
+      "byte_length": 102775,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0012",
+          "locator": "scene 12, 00:00:49.480–00:00:54.480",
+          "page": null,
+          "start_ms": 49480,
+          "end_ms": 49480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0012",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:49.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0013",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:54.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "ae092ca3a2edc30647e118222b67a0837689a767615f6438fcf42eef5898cf60",
+      "byte_length": 123367,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0013",
+          "locator": "scene 13, 00:00:54.480–00:00:59.480",
+          "page": null,
+          "start_ms": 54480,
+          "end_ms": 54480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0013",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:54.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0014",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:00:59.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "1e72cb3568e76b58d3f2e26b50705ea7a72ff99bd67325c621c058a6061ab275",
+      "byte_length": 84361,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0014",
+          "locator": "scene 14, 00:00:59.480–00:01:04.480",
+          "page": null,
+          "start_ms": 59480,
+          "end_ms": 59480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0014",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:00:59.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0015",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:04.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "7c66dea092810a8a07211a1c94b5091bab3dcca8d4fbbb9100a2912edf031522",
+      "byte_length": 79639,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0015",
+          "locator": "scene 15, 00:01:04.480–00:01:09.480",
+          "page": null,
+          "start_ms": 64480,
+          "end_ms": 64480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0015",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:04.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0016",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:09.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "9599a9fc41bcca199320b56038dcc85522b5bc4ead08d0ab46887be91277d59a",
+      "byte_length": 60159,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0016",
+          "locator": "scene 16, 00:01:09.480–00:01:14.480",
+          "page": null,
+          "start_ms": 69480,
+          "end_ms": 69480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0016",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:09.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0017",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:14.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "7bf87606417614f3bb1c7f5fb333342f6adbc257d7fd12152ad716b6d270620a",
+      "byte_length": 98287,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0017",
+          "locator": "scene 17, 00:01:14.480–00:01:19.480",
+          "page": null,
+          "start_ms": 74480,
+          "end_ms": 74480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0017",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:14.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0018",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:19.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "5c657bf93a2e435003ced456486a45ba477143eb2ac858bcf266dba1e67a900f",
+      "byte_length": 87859,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0018",
+          "locator": "scene 18, 00:01:19.480–00:01:24.480",
+          "page": null,
+          "start_ms": 79480,
+          "end_ms": 79480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0018",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:19.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0019",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:24.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "57b43839ac6490d9961cc6004ef1040cf90edba82dda3bb43b8eb54d51a68a2f",
+      "byte_length": 74852,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0019",
+          "locator": "scene 19, 00:01:24.480–00:01:29.480",
+          "page": null,
+          "start_ms": 84480,
+          "end_ms": 84480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0019",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:24.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0020",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:29.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "83be2e2933a5c97ad1a0179d88503eef7a45c918a0eea1b28952b60d31ebe79f",
+      "byte_length": 58252,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0020",
+          "locator": "scene 20, 00:01:29.480–00:01:34.480",
+          "page": null,
+          "start_ms": 89480,
+          "end_ms": 89480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0020",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:29.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0021",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:34.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "12e002d806e63a2d2b960266c62f79878523accc66fc64321017dceca6861942",
+      "byte_length": 94411,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0021",
+          "locator": "scene 21, 00:01:34.480–00:01:39.480",
+          "page": null,
+          "start_ms": 94480,
+          "end_ms": 94480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0021",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:34.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0022",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:39.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "1099bedc77290eefb7dcb2fa196e219bdb312db8b6721a28b91aff380e5c9627",
+      "byte_length": 84215,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0022",
+          "locator": "scene 22, 00:01:39.480–00:01:44.480",
+          "page": null,
+          "start_ms": 99480,
+          "end_ms": 99480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0022",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:39.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0023",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:44.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "fe1260da7a3aa2175e04d57e0b7805133af552ad79ff7778d6b9672cfeaed808",
+      "byte_length": 44795,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0023",
+          "locator": "scene 23, 00:01:44.480–00:01:49.480",
+          "page": null,
+          "start_ms": 104480,
+          "end_ms": 104480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0023",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:44.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0024",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:49.480",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "61d8852546c2481a72493fc59844fb67126a459757e663eb5ac2f1fe0f0a2f27",
+      "byte_length": 40703,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0024",
+          "locator": "scene 24, 00:01:49.480–00:01:53.240",
+          "page": null,
+          "start_ms": 109480,
+          "end_ms": 109480,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0024",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:49.480. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0025",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:53.240",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "11fcdb036dd903cb3315c97c560770baf1d183c33d9a55fbc0d2873ac03ca6e5",
+      "byte_length": 68977,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0025",
+          "locator": "scene 25, 00:01:53.240–00:01:58.240",
+          "page": null,
+          "start_ms": 113240,
+          "end_ms": 113240,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0025",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:53.240. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donetsk-first2m-working-still-0026",
+      "production_id": "donetsk-jaf69w",
+      "logical_name": "first-2m-working.mp4 @ 00:01:58.240",
+      "media_type": "image/jpeg",
+      "source_kind": "other",
+      "temporal_relation": "unknown",
+      "sha256": "6cd93fe91335312a3a6edf0a880e8315fdacbebb01d6726c790c3355280028ab",
+      "byte_length": 65530,
+      "segments": [
+        {
+          "id": "donetsk-first2m-working-stillseg-0026",
+          "locator": "scene 26, 00:01:58.240–00:02:00.040",
+          "page": null,
+          "start_ms": 118240,
+          "end_ms": 118240,
+          "bounding_box": null,
+          "content": [
+            {
+              "id": "donetsk-first2m-working-stillc-0026",
+              "kind": "observation",
+              "text": "Keyframe from `first-2m-working.mp4` at 00:01:58.240. Derived working copy — not the original.",
+              "speaker_entity_id": null,
+              "attributed_to_entity_id": null,
+              "parent_content_id": null,
+              "raw_time": null,
+              "content_created_at": null,
+              "asserted_time": null,
+              "normalized_start": null,
+              "normalized_end": null,
+              "time_basis": null,
+              "location_text": null,
+              "extraction": {
+                "extractor": "ffmpeg_keyframe",
+                "version": "0.1.0",
+                "machine_generated": true,
+                "confidence": null,
+                "review_state": "suggested"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "donetsk-first2m-working-stilledge-0001",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0001",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:00.000 (scene 1); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0002",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0002",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:04.960 (scene 2); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0003",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0003",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:09.920 (scene 3); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0004",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0004",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:12.600 (scene 4); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0005",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0005",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:17.600 (scene 5); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0006",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0006",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:22.600 (scene 6); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0007",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0007",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:24.520 (scene 7); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0008",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0008",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:29.480 (scene 8); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0009",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0009",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:34.480 (scene 9); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0010",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0010",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:39.480 (scene 10); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0011",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0011",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:44.480 (scene 11); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0012",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0012",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:49.480 (scene 12); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0013",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0013",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:54.480 (scene 13); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0014",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0014",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:00:59.480 (scene 14); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0015",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0015",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:04.480 (scene 15); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0016",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0016",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:09.480 (scene 16); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0017",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0017",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:14.480 (scene 17); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0018",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0018",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:19.480 (scene 18); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0019",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0019",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:24.480 (scene 19); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0020",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0020",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:29.480 (scene 20); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0021",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0021",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:34.480 (scene 21); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0022",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0022",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:39.480 (scene 22); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0023",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0023",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:44.480 (scene 23); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0024",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0024",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:49.480 (scene 24); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0025",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0025",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:53.240 (scene 25); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    },
+    {
+      "id": "donetsk-first2m-working-stilledge-0026",
+      "from_kind": "source",
+      "from_id": "donetsk-first2m-working-still-0026",
+      "relation": "derived_from",
+      "to_kind": "source",
+      "to_id": "donetsk-first2m-working",
+      "rationale": "Keyframe extracted by ffmpeg from `first-2m-working.mp4` at 00:01:58.240 (scene 26); a derived working copy,              not the original.",
+      "extraction": {
+        "extractor": "ffmpeg_keyframe",
+        "version": "0.1.0",
+        "machine_generated": true,
+        "confidence": null,
+        "review_state": "suggested"
+      }
+    }
+  ]
+}

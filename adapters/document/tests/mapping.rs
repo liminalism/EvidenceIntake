@@ -184,7 +184,7 @@ fn synthetic_document_collates_reviews_and_exports_in_page_order() {
     let index = store.collation_index(&request.case_id).unwrap();
     assert!(index.by_date.is_empty());
     assert!(index.by_location.is_empty());
-    assert!(index.possibly_related.is_empty());
+    assert!(index.shared_anchor_unconfirmed.is_empty());
     assert_eq!(index.without_normalized_date, 3);
     assert_eq!(index.without_location, 3);
     assert_eq!(

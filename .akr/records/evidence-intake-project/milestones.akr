@@ -1,6 +1,99 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.assembly.case-assembly/1 : milestone {
+    title "Case assembly: the missing middle between extraction and digest"
+    state proposed
+    scope [
+        path "adapters/**",
+        path "docs/case-assembly-plan.md",
+        path "fixtures/**",
+        path "migrations/**",
+        path "src/**",
+        path "tests/**"
+    ]
+    intent """
+        Build the layer the external review found missing: reviewed, append-only semantic interpretation over immutable content; descriptive provenance edges and lineage; occurrence candidates; proposition packets as the primary workspace; and a deterministic, template-rendered, source-linked layered digest. The binding constraint is manual entry: most semantic fields cannot be detected without a language model, which the project declines, so the enrichment workflow is designed around a measured keystroke budget (inherit from a source profile, sweep one field across passages, one key to accept or refuse a deterministic candidate). No scoring, no merging, no occurrence or independence declared by a machine. The full plan is docs/case-assembly-plan.md.
+        """
+    note """
+        Origin: AKR source collation-gap-review-2026-08-23. Resolves the open append-to-identical-source question (one immutable original, many append-only passes) when the interpretation schema lands; the soundtrack PTS-offset question blocks only the synchronized audio/video view.
+        """
+    acceptance {
+        check honest-views {
+            statement """
+                The time/place index and the analyzer button are renamed, every displayed time carries its semantic label with 'Alignment: not set' where unset, every rendered passage carries a provenance badge, no-speech intervals are never recording_gap, and no count is labelled as sources or corroboration.
+                """
+            method command
+            command "cargo test --all-features --test collation"
+        }
+        check keystroke-budget {
+            statement """
+                The scripted enrichment harness classifies every material passage of the raw-file report fixture (form, speaker, stance) in at most 1.6 keystrokes per passage, with reporting parents and attributed persons in at most 4 each, through the Workspace API alone.
+                """
+            method command
+            command "cargo test --all-features --test enrichment"
+        }
+        check no-machine-conclusions {
+            statement """
+                Zero occurrence declarations exist without a reviewed candidate_same_occurrence or account_of edge; zero independently_corroborates edges exist between nodes sharing a lineage; the packet and digest views pass the no-scoring-vocabulary serialization test.
+                """
+            method command
+            command "cargo test --all-features --test assembly"
+        }
+        check raw-file-workflow {
+            statement """
+                The hit-and-run proposition packets and digest are produced from synthetic raw files through the real adapters, an InterpretationBatch and the authoring API, with no SQL seeding, and every adversarial scenario in the plan's section 9 has a passing test.
+                """
+            method command
+            command "cargo test --all-features --test assembly"
+        }
+        check source-linked-digest {
+            statement """
+                A saved digest contains zero factual sentences without an exact locator, validate_digest refuses any other digest, a factual brief paragraph without references is refused, and the disclosable audience never reads the privileged tables.
+                """
+            method command
+            command "cargo test --all-features --test export"
+        }
+        check workspace-green {
+            statement """
+                cargo fmt --check, clippy with warnings denied over all targets and features, and the full test suite pass; debug-release and release-final profiles build.
+                """
+            method command
+            command "cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
+        }
+    }
+    depends_on [
+        @evidence-intake-project.decision.adapters-may-propose-structural-edges,
+        @evidence-intake-project.decision.structure-not-verdict
+    ]
+    source {
+        kind external
+        role origin
+        document "collation-gap-review-2026-08-23"
+        start_byte 27821
+        end_byte 28834
+        start_line 817
+        end_line 827
+        excerpt_hash "sha256:553491f848543e652e3a474a258d43f9d8658866dca3c7c6720e244e4216b5bf"
+        use """
+            The diagnosis of the missing middle and the order of the five stages.
+            """
+    }
+    source {
+        kind external
+        role constraint
+        document "collation-gap-review-2026-08-23"
+        start_byte 26794
+        end_byte 27820
+        start_line 803
+        end_line 815
+        excerpt_hash "sha256:c0cf73f85cd789ec1bf9f5056d5b2af1eb7447f93cca46f8ee1e9561a46ee40d"
+        use """
+            The acceptance criteria, adopted verbatim as the milestone checks.
+            """
+    }
+}
+
 record evidence-intake-project.inference.universal-tensorrt-integration/1 : milestone {
     title "Document intake and universal TensorRT runtime"
     state active

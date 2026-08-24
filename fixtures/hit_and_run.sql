@@ -168,8 +168,8 @@ INSERT INTO edges
 VALUES
   ('hr-edge-report-collision', 'case-hit-run-001', 'content', 'hr-content-report-collision', 'supports', 'proposition', 'hr-prop-collision', 'After-the-fact police summary; verify reporting chain.', 'suggested', 'fixture-attorney'),
   ('hr-edge-victim-collision', 'case-hit-run-001', 'content', 'hr-content-victim-impact', 'supports', 'proposition', 'hr-prop-collision', 'First-person account.', 'suggested', 'fixture-attorney'),
-  ('hr-edge-video-collision', 'case-hit-run-001', 'content', 'hr-content-video-impact', 'corroborates', 'proposition', 'hr-prop-collision', 'Scene-model observation requires frame verification.', 'suggested', 'fixture-attorney'),
-  ('hr-edge-damage-collision', 'case-hit-run-001', 'content', 'hr-content-damage-match', 'corroborates', 'proposition', 'hr-prop-collision', 'Damage geometry is consistent but not unique.', 'suggested', 'fixture-attorney'),
+  ('hr-edge-video-collision', 'case-hit-run-001', 'content', 'hr-content-video-impact', 'consistent_with', 'proposition', 'hr-prop-collision', 'Scene-model observation requires frame verification.', 'suggested', 'fixture-attorney'),
+  ('hr-edge-damage-collision', 'case-hit-run-001', 'content', 'hr-content-damage-match', 'consistent_with', 'proposition', 'hr-prop-collision', 'Damage geometry is consistent but not unique.', 'suggested', 'fixture-attorney'),
   ('hr-edge-photo-car', 'case-hit-run-001', 'content', 'hr-content-photo-damage', 'supports', 'proposition', 'hr-prop-client-car', 'Damage and transfer warrant comparison.', 'suggested', 'fixture-attorney'),
   ('hr-edge-damage-car', 'case-hit-run-001', 'content', 'hr-content-damage-match', 'supports', 'proposition', 'hr-prop-client-car', 'Mutually consistent damage.', 'suggested', 'fixture-attorney'),
   ('hr-edge-damage-limit', 'case-hit-run-001', 'content', 'hr-content-damage-limit', 'qualifies', 'proposition', 'hr-prop-client-car', 'Assessment expressly cannot uniquely identify the vehicle.', 'suggested', 'fixture-attorney'),

@@ -148,6 +148,8 @@ pub struct CollationEntry {
     pub source: String,
     /// Broad original-source category.
     pub source_kind: String,
+    /// Coarse immutable intake category retained for provenance badges.
+    pub content_kind: String,
     /// Exact locator in the original source.
     pub locator: String,
     /// Exact extracted or human-authored text.
@@ -182,7 +184,7 @@ pub struct CollationGroup {
     /// Conservatively matched location text, when applicable.
     pub location: Option<String>,
     /// Number of distinct immutable sources represented in this group.
-    pub distinct_sources: u32,
+    pub distinct_originals: u32,
     /// Exact structural reason the entries appear together.
     pub rationale: String,
     /// Chronologically ordered source-grounded entries.
@@ -233,7 +235,7 @@ pub struct CollationIndex {
     /// Multi-source groups sharing both a normalized date and location key.
     ///
     /// These are navigation groups, not stored relationships or event claims.
-    pub possibly_related: Vec<CollationGroup>,
+    pub shared_anchor_unconfirmed: Vec<CollationGroup>,
     /// Per-original inventory of which placement anchors intake supplied.
     pub source_coverage: Vec<SourceAnchorCoverage>,
     /// Active passages missing a normalized date, location, or both.

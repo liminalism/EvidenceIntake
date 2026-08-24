@@ -12,7 +12,7 @@ use evidence_audio::{
 };
 use evidence_audio::{MediaClass, classify, ffmpeg_available, media_type, open_media};
 use evidence_intake::{
-    CaseId, ContentKind, DemoFixture, ReviewState, SourceKind, Store, TemporalRelation,
+    CaseId, ContentKind, DemoFixture, EdgeKind, ReviewState, SourceKind, Store, TemporalRelation,
 };
 use hound::{SampleFormat, WavSpec, WavWriter};
 
@@ -94,6 +94,13 @@ fn a_transcript_line_enters_suggested_and_names_whisperx() {
     assert!(statement.speaker_entity_id.is_none());
     assert!(statement.normalized_start.is_none());
     assert!(statement.time_basis.is_none());
+
+    let speaker = batch.edges.first().expect("diarization relationship");
+    assert_eq!(speaker.relation, EdgeKind::SpeakerCandidate);
+    assert_eq!(speaker.from_id, "adapter-911-stmt-0001");
+    assert_eq!(speaker.to_id, "adapter-911-spk-0001");
+    assert_eq!(speaker.extraction.review_state, ReviewState::Suggested);
+    assert!(speaker.rationale.contains("not a person identification"));
 
     store.import_normalized(&batch).expect("import");
     let hits = store
@@ -186,7 +193,7 @@ fn machine_audio_cannot_arrive_verified() {
 }
 
 #[test]
-fn a_dropout_is_a_recording_gap() {
+fn an_unaligned_interval_is_not_a_recording_gap() {
     let (_, case_id) = seeded();
     let batch = transcript_to_batch(
         &identity(case_id),
@@ -194,18 +201,32 @@ fn a_dropout_is_a_recording_gap() {
         &MappingOptions::new("whisperx@test"),
     )
     .expect("map");
-    let gap = batch.sources[0]
+    let interval = batch.sources[0]
         .segments
         .iter()
         .find(|segment| {
             segment
                 .content
                 .iter()
-                .any(|item| item.kind == ContentKind::RecordingGap)
+                .any(|item| item.extraction.extractor == "asr-no-speech")
         })
-        .expect("gap between 31.6s and 34.0s");
-    assert_eq!(gap.start_ms, Some(31_600));
-    assert_eq!(gap.end_ms, Some(34_000));
+        .expect("unaligned interval between 31.6s and 34.0s");
+    assert_eq!(interval.start_ms, Some(31_600));
+    assert_eq!(interval.end_ms, Some(34_000));
+    let observation = &interval.content[0];
+    assert_eq!(observation.kind, ContentKind::Observation);
+    assert!(
+        observation
+            .text
+            .contains("does not establish recording loss")
+    );
+    assert!(
+        batch.sources[0]
+            .segments
+            .iter()
+            .flat_map(|segment| &segment.content)
+            .all(|item| item.kind != ContentKind::RecordingGap)
+    );
 }
 
 #[test]

@@ -1,6 +1,302 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.assembly.candidate-rules/1 : work {
+    title "Deterministic cue rules that propose interpretations and provenance edges"
+    state proposed
+    scope [ path "src/**", path "tests/**" ]
+    intent """
+        Versioned analyzers in the existing suggest:<rule>@<version> contract, no model, no score, no tolerance, never touching a human-written row or re-proposing a rejected one: inherit-profile, reported-statement (stated that / advised / told), quoted-statement (balanced quotes, sub-span), measured-result (number plus unit), official-characterization (statute shapes), evidence-reference (BWC, exhibit, recording, plus a refers_to edge when a case source matches by name), asserted-clock, header-date, diarization-speaker, cross-document-echo (a shared exact token run between a later document and an earlier transcript proposes summarizes or quotes), and shared-anchor (turns today's date-plus-location grouping into a candidate_same_occurrence proposal). Each rule ships with a true positive, a true negative and its most likely adversarial miss. Plan section 5.4.
+        """
+    depends_on [
+        @evidence-intake-project.assembly.interpretation-schema,
+        @evidence-intake-project.assisted.deterministic-analyzers
+    ]
+    part_of [ @evidence-intake-project.assembly.case-assembly ]
+    source {
+        kind external
+        role constraint
+        document "collation-gap-review-2026-08-23"
+        start_byte 20677
+        end_byte 21439
+        start_line 646
+        end_line 668
+        excerpt_hash "sha256:ead8848480c8d088b837334855d6f2153c57633ff8b0c5c873915ea23e800557"
+        use """
+            A model may only propose, never write reviewed state; factual output stays deterministic. The cue rules are the project's non-LLM reading of that boundary.
+            """
+    }
+}
+
+record evidence-intake-project.assembly.deterministic-digest/1 : work {
+    title "Deterministic, template-rendered, source-linked layered digest"
+    state proposed
+    scope [ path "src/**", path "tests/export.rs" ]
+    intent """
+        Store::case_digest renders nine layered sections (posture and elements; recorded sequence in separate lanes where unaligned; contemporaneous accounts; later accounts; official narrative; proposition packets; dependencies and conflicts; missing and unreviewed; privileged issues for the work-file audience only, structurally excluded from the disclosable one as export_case already does). Every factual sentence comes from a typed Template; a template whose slots cannot all be filled from reviewed records is not emitted and the header counts the omission. validate_digest fails with Error::UnsupportedSentence on any sentence without a locator and the CLI and GUI refuse to save it. record_brief refuses a factual brief_paragraphs row with no references. No language model participates; a later compressor may only reorder or shorten emitted sentences with ids and locators intact and the validator run on its output. Plan section 8.
+        """
+    depends_on [
+        @evidence-intake-project.assembly.proposition-packets,
+        @evidence-intake-project.workspace.source-linked-export
+    ]
+    part_of [ @evidence-intake-project.assembly.case-assembly ]
+    source {
+        kind external
+        role origin
+        document "collation-gap-review-2026-08-23"
+        start_byte 17197
+        end_byte 18687
+        start_line 534
+        end_line 579
+        excerpt_hash "sha256:1e7dff7bcb09b861f3bd0144844175e74993b77f2767f9b5878900a24ba1ea84"
+        use """
+            The nine digest sections.
+            """
+    }
+    source {
+        kind external
+        role constraint
+        document "collation-gap-review-2026-08-23"
+        start_byte 20677
+        end_byte 22640
+        start_line 646
+        end_line 692
+        excerpt_hash "sha256:964d26a68a615bc9036a5b12aec93cc6182e567e578f34e201aca3c1734d4b87"
+        use """
+            Deterministic renderer first; unsupported output fails validation; the controlled templates.
+            """
+    }
+}
+
+record evidence-intake-project.assembly.edge-vocabulary-and-lineage/1 : work {
+    title "Descriptive provenance edges, lineage, and occurrence assembly"
+    state proposed
+    scope [
+        path "migrations/**",
+        path "src/gui/**",
+        path "src/ingest.rs",
+        path "src/model.rs",
+        path "src/store.rs",
+        path "src/views.rs",
+        path "tests/**"
+    ]
+    intent """
+        Migration 0012 rebuilds edges (the CHECK on a STRICT table cannot be altered) with the descriptive relations quotes, reports, summarizes, transcribes, depicts, records_utterance, measures, based_on, account_of, created_after, recorded_during, candidate_same_occurrence, speaker_candidate and the evaluative consistent_with and independently_corroborates; corroborates is retired and rewritten to consistent_with; the unique-claim index is recreated and asserted. Adapters may propose the descriptive set; the evaluative set stays human-only. Store::lineage walks reviewed descriptive edges to roots; every count becomes 'N original files, M reporting lineages, K without a reviewed dependency'; link_evidence refuses independently_corroborates between nodes sharing a lineage and names the shared root. Occurrences are reviewed candidate_same_occurrence and account_of edges onto events in a lane, never a new node table and never automatic. An Assembly view renders chains with the same accept/reject keys. The soundtrack PTS-offset question must be resolved before any view puts soundtrack utterances and visual intervals on one axis. Plan sections 3.4-3.6, 6.
+        """
+    depends_on [
+        @evidence-intake-project.assembly.interpretation-schema,
+        @evidence-intake-project.decision.adapters-may-propose-structural-edges,
+        @evidence-intake-project.ingest.structural-edges
+    ]
+    part_of [ @evidence-intake-project.assembly.case-assembly ]
+    source {
+        kind external
+        role origin
+        document "collation-gap-review-2026-08-23"
+        start_byte 12543
+        end_byte 13932
+        start_line 378
+        end_line 437
+        excerpt_hash "sha256:757e78241397af3af4fa725769f1886a5885e76266fffcf7768521ca7306291c"
+        use """
+            The provenance and evaluative vocabularies and the corroboration split.
+            """
+    }
+    source {
+        kind external
+        role rationale
+        document "collation-gap-review-2026-08-23"
+        start_byte 24122
+        end_byte 24621
+        start_line 733
+        end_line 745
+        excerpt_hash "sha256:50e558ad3d1168884098c7bb8e010932f4edb81c3eb22bb4ec269b2f0bf3446b"
+        use """
+            Priority 2 list and the PTS-offset prerequisite.
+            """
+    }
+}
+
+record evidence-intake-project.assembly.enrichment-workspace/1 : work {
+    title "Keyboard-driven enrichment workspace with a measured keystroke budget"
+    state active
+    scope [ path "src/gui/**", path "tests/**" ]
+    intent """
+        The throughput design: a grid-first WinSafe view with the original always rendered beside it; decide once per source in a profile and inherit everywhere; sweep one field across passages with single-key values, Enter to accept a candidate, x to reject it, '.' to repeat, Shift-letter and visual ranges to apply to a run, s to split a sub-span, g to group rows, p to set the reporting parent to the nearest preceding same-author passage, @ entity autocomplete with create-new and possibly-same-person, t for time entry with a sticky basis, n for boilerplate, u to supersede. Every keystroke that changes a value writes one interpretation row under the named actor. Workspace navigation moves to Ctrl-digit accelerators because the Alt namespace is full, and the accelerator-uniqueness test is extended. Just-in-time prompts use the same grammar when a passage is attached to a proposition. A scripted harness in tests/enrichment.rs drives the Workspace API and ratchets the budget: at most 1.6 keystrokes per material passage for form, speaker and stance; at most 4 per reported statement for parent and attributed person. Plan sections 5.1-5.7.
+        """
+    note """
+        2026-08-24: the window is built and runs. Landed: the source picker with per-source counts, the profile screen writing a version that supersedes rather than overwrites, the grid with the sweep field's value, its provenance and a fixed badge, the full key grammar routed from LVN_KEYDOWN through Workspace::enrichment_key, entity autocomplete with create-new and possibly-same-person, time entry with a sticky basis, sub-span marking by verbatim text, the always-visible key sheet, F8 for the perception-basis sweep the grammar had no key for, Ctrl accelerators for all twelve views and Ctrl+E for the sweep, and the keystroke harness. Two pieces of this record's intent are not built and are carried by assembly.sweep-remaining-surfaces: the original is named and opened in the system viewer rather than rendered inside the window, and the just-in-time prompt from the packet workspace (plan 5.7) waits on the packet workspace itself.
+        """
+    depends_on [
+        @evidence-intake-project.assembly.interpretation-schema,
+        @evidence-intake-project.constraint.distinct-alt-keys,
+        @evidence-intake-project.constraint.window-fits-the-screen
+    ]
+    part_of [ @evidence-intake-project.assembly.case-assembly ]
+    source {
+        kind external
+        role origin
+        document "collation-gap-review-2026-08-23"
+        start_byte 23249
+        end_byte 23858
+        start_line 707
+        end_line 722
+        excerpt_hash "sha256:8359781dceea95dacdd4ad773d9388d7b0a2840e2b8ee9e7f020efa8af7ca5b2"
+        use """
+            The list of enrichment operations the UI must offer; the keystroke design and budget are the project's addition.
+            """
+    }
+}
+
+record evidence-intake-project.assembly.interpretation-schema/1 : work {
+    title "Append-only semantic interpretation layer over immutable content"
+    state proposed
+    scope [
+        path "migrations/**",
+        path "src/authoring.rs",
+        path "src/ingest.rs",
+        path "src/model.rs",
+        path "src/store.rs",
+        path "tests/**"
+    ]
+    intent """
+        Migration 0011 (bump SCHEMA_VERSION): content_interpretations (form, perception basis, temporal stance, speaker, attributed person, reporting parent, created/asserted/normalized times with a required alignment basis, location, materiality, per-field provenance, review state, named author, supersedes), source_profiles (source role, author, creation claim, inheritable defaults, clock offset with basis), content_groups for reviewer-defined units, and brief_paragraphs with typed references. New enums ContentForm, PerceptionBasis, TemporalStance, SourceRole in model.rs with as_str and CHECK mirrors. content.kind is not widened and content is not rebuilt. Store writers plus InterpretationBatch, the human counterpart to NormalizedBatch, imported atomically and refusing suggest: authors. Resolve the append-to-identical-source question: import_normalized accepts a batch whose source matches on id, production, sha256 and byte_length exactly when every segment and content id is new, never touching the source row. Plan sections 3.1-3.3, 5.8, 5.9.
+        """
+    after [ @evidence-intake-project.assembly.p0-honest-views ]
+    derived_from [ @evidence-intake-project.mutation-api.versioned-work-product ]
+    part_of [ @evidence-intake-project.assembly.case-assembly ]
+    resolves [ @evidence-intake-project.ingest.append-to-identical-source-question ]
+    source {
+        kind external
+        role origin
+        document "collation-gap-review-2026-08-23"
+        start_byte 10737
+        end_byte 11638
+        start_line 286
+        end_line 329
+        excerpt_hash "sha256:a044dbb84c31e9a4236e526be2bae53f15290be4991024981f0c07cac53c1ee7"
+        use """
+            The ContentInterpretation object and its controlled vocabularies.
+            """
+    }
+    source {
+        kind external
+        role rationale
+        document "collation-gap-review-2026-08-23"
+        start_byte 23249
+        end_byte 24121
+        start_line 707
+        end_line 731
+        excerpt_hash "sha256:b7a74f5ecb28edd9e1046eedd7d724b0a81e405fa9fec421ae0b5dc740e21895"
+        use """
+            Priority 1 list and the one-original-many-passes model.
+            """
+    }
+}
+
+record evidence-intake-project.assembly.p0-honest-views/1 : work {
+    title "Stop the current views from overstating collation"
+    state proposed
+    scope [
+        path "adapters/audio/**",
+        path "docs/collation.md",
+        path "src/gui/**",
+        path "src/store.rs",
+        path "src/views.rs"
+    ]
+    intent """
+        No schema change. Rename Collation Groups to Time & Place Index and Run Collation to Find Tensions and Gaps (keeping the existing Alt letters; the window has 25 of 26 claimed); rename possibly_related to shared_anchor_unconfirmed with the non-conclusive header; replace the first-available time in write_collation_entry with a TimeLabels renderer that prints every present time under its own label and 'Alignment: not set'; add a fixed provenance badge to every rendered passage; make the audio adapter emit Observation + asr-no-speech instead of RecordingGap for unaligned intervals and a per-utterance speaker candidate edge to a placeholder 'Speaker N' entity; rename distinct_sources to distinct_originals and label it 'original files' everywhere. Plan section 4.
+        """
+    note """
+        Ships alone, first. Lowers present reviewer risk before any of the assembly layer exists.
+        """
+    derived_from [ @evidence-intake-project.collation.time-location-index ]
+    part_of [ @evidence-intake-project.assembly.case-assembly ]
+    source {
+        kind external
+        role origin
+        document "collation-gap-review-2026-08-23"
+        start_byte 22677
+        end_byte 23248
+        start_line 696
+        end_line 705
+        excerpt_hash "sha256:afd1f88928ff8b13e45ffa93f788d5264f431ac1777ddf1ba5c3f0b16a83991c"
+        use """
+            The six Priority 0 corrections.
+            """
+    }
+}
+
+record evidence-intake-project.assembly.proposition-packets/1 : work {
+    title "Proposition packets as the primary defender workspace"
+    state proposed
+    scope [ path "src/gui/**", path "src/store.rs", path "src/views.rs", path "tests/**" ]
+    intent """
+        PropositionPacket read model and Store::proposition_packet: neutral text and contested status; directly captured material (contemporaneous_capture, reviewed or verified); contemporaneous accounts; later first-person accounts with both times labelled; official assertions; reporting and derivation chains as lineage groups; evaluative relations with rationale and review state; raw temporal and location conflicts, unresolved; missing and unreviewed material including expected_but_missing, unresolved speaker candidates and unset alignment; an exact locator on every item; the three-way count on every section. Attaching a passage from search or the index is one command plus the just-in-time enrichment prompt, written unreviewed with a required rationale. The no-scoring serialization test is extended to packets, and a test asserts the fixture's impairment packet derives its 'no reviewed source directly records the 21:07 condition' section from the graph. Plan section 7.
+        """
+    depends_on [
+        @evidence-intake-project.assembly.edge-vocabulary-and-lineage,
+        @evidence-intake-project.assembly.interpretation-schema,
+        @evidence-intake-project.decision.structure-not-verdict
+    ]
+    part_of [ @evidence-intake-project.assembly.case-assembly ]
+    source {
+        kind external
+        role origin
+        document "collation-gap-review-2026-08-23"
+        start_byte 13933
+        end_byte 17155
+        start_line 439
+        end_line 530
+        excerpt_hash "sha256:ff17cf475d1d7db4b9f487fe26f527a9c1a42df623aaf9e667ff1ffd5eb7a98f"
+        use """
+            The packet's ten sections and the worked impairment example.
+            """
+    }
+}
+
+record evidence-intake-project.assembly.raw-file-fixtures/1 : work {
+    title "Synthetic raw-file fixtures and adversarial end-to-end tests"
+    state proposed
+    scope [ path "fixtures/**", path "tests/**" ]
+    intent """
+        A fixture family of small synthetic originals (PDFs with text layers and scanned-style pages, scripted WAVs, short MP4s) standing in for a police report, witness statement, CAD log, 911 audio, body-camera and surveillance video, later interview, lab report, and a document referring to a missing recording. One scenario and one test per adversarial case: report paraphrases the 911 call; report summarizes bodycam; ASR creates a false contradiction; no speech detected despite audible speech; event outside the field of view; two unrelated incidents share date and location; a supplemental report changes an account; bodycam and dispatch clocks disagree; a witness gives two accounts; a report references video never produced; retrospective interview beside contemporaneous 911. The hit-and-run packets and digest must be reachable from these files through the real adapters, an InterpretationBatch and the authoring API with no SQL seeding. Starts alongside the P0 work and grows with every later item. Plan section 9.
+        """
+    after [ @evidence-intake-project.assembly.p0-honest-views ]
+    part_of [ @evidence-intake-project.assembly.case-assembly ]
+    source {
+        kind external
+        role origin
+        document "collation-gap-review-2026-08-23"
+        start_byte 25536
+        end_byte 26793
+        start_line 769
+        end_line 801
+        excerpt_hash "sha256:4e3bcabc8481799d127bc68c8e0599a7f9134d41186a204c1f935f59771d2dfa"
+        use """
+            The raw-file test set and the required adversarial cases.
+            """
+    }
+}
+
+record evidence-intake-project.assembly.sweep-remaining-surfaces/1 : work {
+    title "Render the original inside the sweep, and ask for a missing field where it is needed"
+    state proposed
+    scope [ path "src/gui/mod.rs", path "src/gui/winsafe.rs", path "tests/enrichment.rs" ]
+    intent """
+        The two parts of the enrichment sweep that are named rather than shown. First, draw the original beside the grid instead of describing it: the rendered page with the region box, the waveform with the interval, the frame strip around the selected segment. The preview descriptor already carries the retained paths; what is missing is the painting, and the crate forbids unsafe, so a GDI path through raw buffers is not available and the drawing has to go through what WinSafe exposes safely. Until then the panel names the locator, the page or interval, and whether the file still matches its intake hash, and hands the file to the system viewer. Second, plan section 5.7: when a passage is attached to a proposition in the packet workspace, ask for the field that packet needs in a three-line prompt using the same single-key grammar, so the long tail is classified where somebody actually needs it rather than swept in full. This waits on the packet workspace being built as a surface.
+        """
+    note """
+        Split out of assembly.enrichment-workspace on 2026-08-24, which shipped everything else in its intent.
+        """
+    depends_on [
+        @evidence-intake-project.assembly.enrichment-workspace,
+        @evidence-intake-project.assembly.proposition-packets
+    ]
+    part_of [ @evidence-intake-project.assembly.case-assembly ]
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.assisted.deterministic-analyzers/1 : work {
     title "Deterministic assisted collation"
     state completed

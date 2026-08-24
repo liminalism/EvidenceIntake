@@ -203,7 +203,7 @@ fn nothing_may_stand_in_a_relationship_to_itself() {
     let (mut store, case_id) = hit_and_run();
     let proposal = link(
         content("hr-content-911-injury"),
-        EdgeKind::Corroborates,
+        EdgeKind::ConsistentWith,
         content("hr-content-911-injury"),
     );
 

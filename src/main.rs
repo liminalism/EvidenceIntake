@@ -465,6 +465,7 @@ impl From<AssessmentArg> for ElementAssessment {
 enum NodeKindArg {
     Content,
     Source,
+    ContentGroup,
     Proposition,
     Event,
     Edge,
@@ -477,6 +478,7 @@ impl From<NodeKindArg> for NodeKind {
         match value {
             NodeKindArg::Content => Self::Content,
             NodeKindArg::Source => Self::Source,
+            NodeKindArg::ContentGroup => Self::ContentGroup,
             NodeKindArg::Proposition => Self::Proposition,
             NodeKindArg::Event => Self::Event,
             NodeKindArg::Edge => Self::Edge,
@@ -490,7 +492,8 @@ impl From<NodeKindArg> for NodeKind {
 enum RelationArg {
     Supports,
     Contradicts,
-    Corroborates,
+    ConsistentWith,
+    IndependentlyCorroborates,
     Impeaches,
     Qualifies,
     Explains,
@@ -501,6 +504,19 @@ enum RelationArg {
     ExpectedButMissing,
     RequiresFollowUp,
     RelevantTo,
+    Quotes,
+    Reports,
+    Summarizes,
+    Transcribes,
+    Depicts,
+    RecordsUtterance,
+    Measures,
+    BasedOn,
+    AccountOf,
+    CreatedAfter,
+    RecordedDuring,
+    CandidateSameOccurrence,
+    SpeakerCandidate,
 }
 
 impl From<RelationArg> for EdgeKind {
@@ -508,7 +524,8 @@ impl From<RelationArg> for EdgeKind {
         match value {
             RelationArg::Supports => Self::Supports,
             RelationArg::Contradicts => Self::Contradicts,
-            RelationArg::Corroborates => Self::Corroborates,
+            RelationArg::ConsistentWith => Self::ConsistentWith,
+            RelationArg::IndependentlyCorroborates => Self::IndependentlyCorroborates,
             RelationArg::Impeaches => Self::Impeaches,
             RelationArg::Qualifies => Self::Qualifies,
             RelationArg::Explains => Self::Explains,
@@ -519,6 +536,19 @@ impl From<RelationArg> for EdgeKind {
             RelationArg::ExpectedButMissing => Self::ExpectedButMissing,
             RelationArg::RequiresFollowUp => Self::RequiresFollowUp,
             RelationArg::RelevantTo => Self::RelevantTo,
+            RelationArg::Quotes => Self::Quotes,
+            RelationArg::Reports => Self::Reports,
+            RelationArg::Summarizes => Self::Summarizes,
+            RelationArg::Transcribes => Self::Transcribes,
+            RelationArg::Depicts => Self::Depicts,
+            RelationArg::RecordsUtterance => Self::RecordsUtterance,
+            RelationArg::Measures => Self::Measures,
+            RelationArg::BasedOn => Self::BasedOn,
+            RelationArg::AccountOf => Self::AccountOf,
+            RelationArg::CreatedAfter => Self::CreatedAfter,
+            RelationArg::RecordedDuring => Self::RecordedDuring,
+            RelationArg::CandidateSameOccurrence => Self::CandidateSameOccurrence,
+            RelationArg::SpeakerCandidate => Self::SpeakerCandidate,
         }
     }
 }

@@ -13,20 +13,26 @@ use uuid::Uuid;
 
 use crate::{
     AnalyzerReport, AuthoredCharge, AuthoredElement, AuthoredElementMapping, AuthoredEntity,
-    AuthoredLink, AuthoredProposition, CaseExport, CaseId, CaseStanding, CaseSummary,
-    ChargeStanding, CollationEntry, CollationGroup, CollationIndex, DecisionBrief, DiscoveryItem,
-    EdgeKind, ElementAssessment, ElementCoverage, ElementRow, ElementStanding, Error,
-    ExportAudience, ExportedProposition, ExportedWorkProduct, IndexedKeyframe, IntakeArtifact,
-    IntakeJob, IntakeJobState, IssueWorkspace, KeyframeHit, KeyframeIndex, LiveDispute,
-    LoadBearingSource, NewIntakeJob, NodeKind, NodeRef, NormalizedBatch, OffenseComparison,
-    OpenGap, OpenedCase, OpenedProduction, Overview, PlacementGap, ProposedAdvocacyItem,
-    ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge, ProposedElementMapping,
-    ProposedEntity, ProposedLink, ProposedProduction, ProposedProposition, PropositionEvidence,
-    Result, ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewState, ReviewTarget, SearchHit,
-    SourceAnchorCoverage, SourceLocation, SuggestionKind, SuggestionRun, TimelineEntry,
-    UnsupportedProposition, WitnessStatement, WorkProductVersion, review::transition_allowed,
-    suggest::Finding,
+    AuthoredLink, AuthoredProposition, BriefParagraphKind, CaseExport, CaseId, CaseStanding,
+    CaseSummary, ChargeStanding, CollationEntry, CollationGroup, CollationIndex, DecisionBrief,
+    DiscoveryItem, EdgeKind, ElementAssessment, ElementCoverage, ElementRow, ElementStanding,
+    Error, ExportAudience, ExportedProposition, ExportedWorkProduct, IndexedKeyframe,
+    IntakeArtifact, IntakeJob, IntakeJobState, IssueWorkspace, KeyframeHit, KeyframeIndex,
+    LiveDispute, LoadBearingSource, NewIntakeJob, NodeKind, NodeRef, NormalizedBatch,
+    OffenseComparison, OpenGap, OpenedCase, OpenedProduction, Overview, PlacementGap,
+    ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedBriefParagraph, ProposedCase,
+    ProposedCharge, ProposedElementMapping, ProposedEntity, ProposedLink, ProposedProduction,
+    ProposedProposition, PropositionEvidence, Result, ReviewDecision, ReviewEvent, ReviewQueueItem,
+    ReviewState, ReviewTarget, SearchHit, SourceAnchorCoverage, SourceLocation, SuggestionKind,
+    SuggestionRun, TimelineEntry, UnsupportedProposition, WitnessStatement, WorkProductVersion,
+    review::transition_allowed, suggest::Finding,
 };
+
+mod assembly;
+mod digest;
+mod enrichment_rules;
+mod interpretation;
+mod packet;
 
 /// Number of migrations applied by [`Store::migrate`].
 ///
@@ -35,7 +41,7 @@ use crate::{
 /// migrations stay additive and re-runnable regardless: a database at any
 /// earlier version — including one written before this stamp existed, which
 /// reads as zero — runs all of them again.
-const SCHEMA_VERSION: i64 = 10;
+const SCHEMA_VERSION: i64 = 12;
 
 /// Distinct prepared statements kept compiled per connection.
 ///
@@ -136,6 +142,8 @@ impl Store {
         connection.execute_batch(include_str!("../migrations/0008_case_isolation.sql"))?;
         connection.execute_batch(include_str!("../migrations/0009_keyframe_embeddings.sql"))?;
         connection.execute_batch(include_str!("../migrations/0010_intake_jobs.sql"))?;
+        connection.execute_batch(include_str!("../migrations/0011_interpretation.sql"))?;
+        connection.execute_batch(include_str!("../migrations/0012_edge_vocabulary.sql"))?;
         Ok(())
     }
 
@@ -896,6 +904,13 @@ impl Store {
                (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
                 ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
         )?;
+        let mut existing_source = transaction.prepare_cached(
+            "SELECT case_id, production_id, sha256, byte_length FROM sources WHERE id = ?1",
+        )?;
+        let mut existing_segment =
+            transaction.prepare_cached("SELECT 1 FROM source_segments WHERE id = ?1")?;
+        let mut existing_content =
+            transaction.prepare_cached("SELECT 1 FROM content WHERE id = ?1")?;
 
         for source in &batch.sources {
             let owned = owning_production
@@ -909,19 +924,55 @@ impl Store {
                 )));
             }
 
-            insert_source.execute(params![
-                source.id,
-                batch.case_id.0,
-                source.production_id,
-                source.logical_name,
-                source.media_type,
-                source.source_kind.as_str(),
-                source.temporal_relation.as_str(),
-                source.sha256,
-                to_sql_integer(source.byte_length, "source byte length")?
-            ])?;
+            let byte_length = to_sql_integer(source.byte_length, "source byte length")?;
+            let held = existing_source
+                .query_row([&source.id], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                })
+                .optional()?;
+            match held {
+                Some((held_case, held_production, held_hash, held_length))
+                    if held_case == batch.case_id.0
+                        && held_production == source.production_id
+                        && held_hash.eq_ignore_ascii_case(&source.sha256)
+                        && held_length == byte_length => {}
+                Some(_) => {
+                    return Err(Error::InvalidFixture(format!(
+                        "existing source `{}` does not exactly match case, production, SHA-256, and byte length",
+                        source.id
+                    )));
+                }
+                None => {
+                    insert_source.execute(params![
+                        source.id,
+                        batch.case_id.0,
+                        source.production_id,
+                        source.logical_name,
+                        source.media_type,
+                        source.source_kind.as_str(),
+                        source.temporal_relation.as_str(),
+                        source.sha256,
+                        byte_length
+                    ])?;
+                }
+            }
 
             for segment in &source.segments {
+                if existing_segment
+                    .query_row([&segment.id], |_| Ok(()))
+                    .optional()?
+                    .is_some()
+                {
+                    return Err(Error::AlreadyExists {
+                        kind: "source segment",
+                        id: segment.id.clone(),
+                    });
+                }
                 let bounding_box = segment
                     .bounding_box
                     .map(|value| serde_json::to_string(&value))
@@ -943,6 +994,16 @@ impl Store {
                 ])?;
 
                 for content in &segment.content {
+                    if existing_content
+                        .query_row([&content.id], |_| Ok(()))
+                        .optional()?
+                        .is_some()
+                    {
+                        return Err(Error::AlreadyExists {
+                            kind: "content",
+                            id: content.id.clone(),
+                        });
+                    }
                     insert_content.execute(params![
                         content.id,
                         batch.case_id.0,
@@ -971,6 +1032,9 @@ impl Store {
         drop(insert_content);
         drop(insert_segment);
         drop(insert_source);
+        drop(existing_content);
+        drop(existing_segment);
+        drop(existing_source);
         drop(owning_production);
 
         if !batch.edges.is_empty() {
@@ -1258,7 +1322,7 @@ impl Store {
             "SELECT relation || ': ' || COALESCE(rationale, target_kind || ' ' || target_id)
              FROM edges
              WHERE case_id = ?1 AND source_kind = 'content' AND source_id = ?2
-               AND relation IN ('contradicts','corroborates','impeaches','qualifies','explains')
+               AND relation IN ('contradicts','consistent_with','independently_corroborates','impeaches','qualifies','explains')
              ORDER BY relation, id",
         )?;
         base.into_iter()
@@ -1307,7 +1371,7 @@ impl Store {
     pub fn collation_index(&self, case_id: &CaseId) -> Result<CollationIndex> {
         self.require_case(case_id)?;
         let mut statement = self.connection.prepare_cached(
-            "SELECT c.id, src.id, src.logical_name, src.source_kind, seg.locator, c.text,
+            "SELECT c.id, src.id, src.logical_name, src.source_kind, c.kind, seg.locator, c.text,
                     c.raw_time, c.content_created_at, c.asserted_time, c.normalized_start,
                     c.normalized_end, c.time_basis, c.location_text, c.machine_generated,
                     c.extractor, c.review_state
@@ -1328,18 +1392,19 @@ impl Store {
                     source_id: row.get(1)?,
                     source: row.get(2)?,
                     source_kind: row.get(3)?,
-                    locator: row.get(4)?,
-                    text: row.get(5)?,
-                    raw_time: row.get(6)?,
-                    content_created_at: row.get(7)?,
-                    asserted_time: row.get(8)?,
-                    normalized_start: row.get(9)?,
-                    normalized_end: row.get(10)?,
-                    time_basis: row.get(11)?,
-                    location: row.get(12)?,
-                    machine_generated: row.get::<_, i64>(13)? != 0,
-                    extractor: row.get(14)?,
-                    review_state: row.get(15)?,
+                    content_kind: row.get(4)?,
+                    locator: row.get(5)?,
+                    text: row.get(6)?,
+                    raw_time: row.get(7)?,
+                    content_created_at: row.get(8)?,
+                    asserted_time: row.get(9)?,
+                    normalized_start: row.get(10)?,
+                    normalized_end: row.get(11)?,
+                    time_basis: row.get(12)?,
+                    location: row.get(13)?,
+                    machine_generated: row.get::<_, i64>(14)? != 0,
+                    extractor: row.get(15)?,
+                    review_state: row.get(16)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -1435,7 +1500,7 @@ impl Store {
         let by_date = by_date
             .into_iter()
             .map(|(date, entries)| CollationGroup {
-                distinct_sources: distinct_sources(&entries),
+                distinct_originals: distinct_originals(&entries),
                 rationale: format!(
                     "Grouped by normalized date `{date}` only; entries remain separate records."
                 ),
@@ -1447,7 +1512,7 @@ impl Store {
         let by_location = by_location
             .into_values()
             .map(|(location, entries)| CollationGroup {
-                distinct_sources: distinct_sources(&entries),
+                distinct_originals: distinct_originals(&entries),
                 rationale: format!(
                     "Grouped by exact case-insensitive location text `{location}` only; no address or geospatial inference was performed."
                 ),
@@ -1456,16 +1521,16 @@ impl Store {
                 entries,
             })
             .collect();
-        let possibly_related = possible
+        let shared_anchor_unconfirmed = possible
             .into_iter()
             .filter_map(|((date, _), (location, entries))| {
-                let distinct_sources = distinct_sources(&entries);
-                (distinct_sources >= 2).then(|| CollationGroup {
+                let distinct_originals = distinct_originals(&entries);
+                (distinct_originals >= 2).then(|| CollationGroup {
                     normalized_date: Some(date.clone()),
                     location: Some(location.clone()),
-                    distinct_sources,
+                    distinct_originals,
                     rationale: format!(
-                        "Shared collation keys only: normalized date `{date}` and exact case-insensitive location text `{location}` across {distinct_sources} immutable sources. The records remain separate; this does not assert a common event."
+                        "Shared reviewed date/location anchor only: normalized date `{date}` and exact case-insensitive location text `{location}` across {distinct_originals} original files. Relationship not established; the records remain separate."
                     ),
                     entries,
                 })
@@ -1482,7 +1547,7 @@ impl Store {
             case_id: case_id.0.clone(),
             by_date,
             by_location,
-            possibly_related,
+            shared_anchor_unconfirmed,
             source_coverage,
             needs_placement,
             without_normalized_date,
@@ -2215,7 +2280,7 @@ impl Store {
                       WHERE e.case_id = prop.case_id AND e.target_kind = 'proposition'
                         AND e.target_id = prop.id AND e.source_kind = 'content'
                         AND e.review_state <> 'rejected'
-                        AND e.relation IN ('supports','corroborates')
+                        AND e.relation IN ('supports','consistent_with','independently_corroborates')
                         AND c.review_state IN ('reviewed','verified'))
              FROM element_links link
              JOIN elements el ON el.id = link.element_id
@@ -2280,7 +2345,7 @@ impl Store {
              JOIN edges e ON e.case_id = prop.case_id AND e.target_kind = 'proposition'
                          AND e.target_id = prop.id AND e.source_kind = 'content'
                          AND e.review_state <> 'rejected'
-                         AND e.relation IN ('supports','corroborates')
+                         AND e.relation IN ('supports','consistent_with','independently_corroborates')
              JOIN content c ON c.id = e.source_id
              JOIN source_segments seg ON seg.id = c.segment_id
              JOIN sources src ON src.id = seg.source_id
@@ -2363,7 +2428,7 @@ impl Store {
     ) -> Result<Vec<LiveDispute>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT p.id, p.text,
-                    sum(CASE WHEN e.relation IN ('supports','corroborates') THEN 1 ELSE 0 END),
+                    sum(CASE WHEN e.relation IN ('supports','consistent_with','independently_corroborates') THEN 1 ELSE 0 END),
                     sum(CASE WHEN e.relation IN ('contradicts','impeaches') THEN 1 ELSE 0 END)
              FROM propositions p
              JOIN edges e ON e.case_id = p.case_id AND e.target_kind = 'proposition'
@@ -2371,7 +2436,7 @@ impl Store {
                          AND e.review_state <> 'rejected'
              WHERE p.case_id = ?1
              GROUP BY p.id
-             HAVING sum(CASE WHEN e.relation IN ('supports','corroborates') THEN 1 ELSE 0 END) > 0
+             HAVING sum(CASE WHEN e.relation IN ('supports','consistent_with','independently_corroborates') THEN 1 ELSE 0 END) > 0
                 AND sum(CASE WHEN e.relation IN ('contradicts','impeaches') THEN 1 ELSE 0 END) > 0
              ORDER BY p.text, p.id",
         )?;
@@ -2405,7 +2470,7 @@ impl Store {
     ) -> Result<Vec<OpenGap>> {
         let mut gaps = Vec::new();
         for kind in SuggestionKind::ALL {
-            if kind.proposes_relationships() {
+            if !kind.reports_findings() {
                 continue;
             }
             for finding in self.findings(case_id, kind)? {
@@ -2458,10 +2523,25 @@ impl Store {
         for kind in kinds {
             let attribution = kind.attribution();
             let mut written = Vec::new();
+            let mut proposed_interpretations = Vec::new();
+            let mut proposed_profiles = Vec::new();
             let mut skipped = 0_u32;
             let mut reported = Vec::new();
 
-            if kind.proposes_relationships() {
+            if kind.proposes_interpretations() {
+                let enrichment = self.enrichment_rule(case_id, *kind)?;
+                proposed_interpretations = enrichment.interpretations;
+                proposed_profiles = enrichment.profiles;
+                skipped = enrichment.already_recorded;
+                if matches!(kind, SuggestionKind::EvidenceReference) {
+                    for candidate in self.evidence_reference_edge_candidates(case_id)? {
+                        match self.propose(case_id, &candidate, &attribution)? {
+                            Some(link) => written.push(link),
+                            None => skipped = skipped.saturating_add(1),
+                        }
+                    }
+                }
+            } else if kind.proposes_relationships() {
                 for candidate in self.candidates(case_id, *kind)? {
                     match self.propose(case_id, &candidate, &attribution)? {
                         Some(link) => written.push(link),
@@ -2472,12 +2552,19 @@ impl Store {
                 reported = self.findings(case_id, *kind)?;
             }
 
-            proposed += u32::try_from(written.len()).unwrap_or(u32::MAX);
+            proposed = proposed.saturating_add(
+                u32::try_from(
+                    written.len() + proposed_interpretations.len() + proposed_profiles.len(),
+                )
+                .unwrap_or(u32::MAX),
+            );
             already_recorded += skipped;
             findings += u32::try_from(reported.len()).unwrap_or(u32::MAX);
             analyzers.push(AnalyzerReport {
                 analyzer: attribution,
                 proposed: written,
+                proposed_interpretations,
+                proposed_profiles,
                 already_recorded: skipped,
                 findings: reported,
             });
@@ -2613,14 +2700,16 @@ impl Store {
         let held = self.exists(
             "SELECT 1 FROM edges
              WHERE case_id = ?1 AND relation = ?2
-               AND source_kind = ?3 AND target_kind = ?3
-               AND ((source_id = ?4 AND target_id = ?5)
-                 OR (source_id = ?5 AND target_id = ?4))",
+               AND ((source_kind = ?3 AND source_id = ?4
+                     AND target_kind = ?5 AND target_id = ?6)
+                 OR (source_kind = ?5 AND source_id = ?6
+                     AND target_kind = ?3 AND target_id = ?4))",
             params![
                 case_id.0,
                 candidate.relation.as_str(),
-                candidate.kind.as_str(),
+                candidate.from_kind.as_str(),
                 candidate.from,
+                candidate.to_kind.as_str(),
                 candidate.to
             ],
         )?;
@@ -2642,10 +2731,10 @@ impl Store {
             .execute(params![
                 id,
                 case_id.0,
-                candidate.kind.as_str(),
+                candidate.from_kind.as_str(),
                 candidate.from,
                 candidate.relation.as_str(),
-                candidate.kind.as_str(),
+                candidate.to_kind.as_str(),
                 candidate.to,
                 candidate.rationale,
                 attribution
@@ -2655,10 +2744,10 @@ impl Store {
         }
         Ok(Some(AuthoredLink {
             id,
-            from_kind: candidate.kind.as_str().to_owned(),
+            from_kind: candidate.from_kind.as_str().to_owned(),
             from_id: candidate.from.clone(),
             relation: candidate.relation.as_str().to_owned(),
-            to_kind: candidate.kind.as_str().to_owned(),
+            to_kind: candidate.to_kind.as_str().to_owned(),
             to_id: candidate.to.clone(),
             rationale: candidate.rationale.clone(),
             review_state: ReviewState::Suggested.as_str().to_owned(),
@@ -2674,6 +2763,14 @@ impl Store {
     fn candidates(&self, case_id: &CaseId, kind: SuggestionKind) -> Result<Vec<Candidate>> {
         if matches!(kind, SuggestionKind::DuplicateEntity) {
             return self.duplicate_people(case_id);
+        }
+        if matches!(
+            kind,
+            SuggestionKind::DiarizationSpeaker
+                | SuggestionKind::CrossDocumentEcho
+                | SuggestionKind::SharedAnchor
+        ) {
+            return self.enrichment_edge_candidates(case_id, kind);
         }
         let (node_kind, relation, sql) = match kind {
             // Two lanes describing overlapping time. Half-open intervals: an
@@ -2721,7 +2818,7 @@ impl Store {
                  JOIN content a ON a.id = pro.source_id
                  JOIN content b ON b.id = con.source_id
                  WHERE pro.case_id = ?1
-                   AND pro.relation IN ('supports','corroborates')
+                   AND pro.relation IN ('supports','consistent_with','independently_corroborates')
                    AND con.relation IN ('contradicts','impeaches')
                    AND pro.review_state <> 'rejected' AND con.review_state <> 'rejected'
                    AND (a.attributed_to_entity_id IS NULL
@@ -2751,7 +2848,7 @@ impl Store {
                  JOIN content b ON b.id = con.source_id
                  JOIN entities entity ON entity.id = a.attributed_to_entity_id
                  WHERE pro.case_id = ?1
-                   AND pro.relation IN ('supports','corroborates')
+                   AND pro.relation IN ('supports','consistent_with','independently_corroborates')
                    AND con.relation IN ('contradicts','impeaches')
                    AND pro.review_state <> 'rejected' AND con.review_state <> 'rejected'
                    AND a.attributed_to_entity_id = b.attributed_to_entity_id
@@ -2768,7 +2865,8 @@ impl Store {
         let mut statement = self.connection.prepare_cached(sql)?;
         let rows = statement.query_map([&case_id.0], |row| {
             Ok(Candidate {
-                kind: node_kind,
+                from_kind: node_kind,
+                to_kind: node_kind,
                 relation,
                 from: row.get(0)?,
                 to: row.get(1)?,
@@ -3226,6 +3324,16 @@ impl Store {
             self.require_node(case_id, endpoint)?;
         }
 
+        if proposal.relation == EdgeKind::IndependentlyCorroborates {
+            let from = self.lineage(case_id, &proposal.from)?;
+            let to = self.lineage(case_id, &proposal.to)?;
+            if let Some(shared) = from.roots.iter().find(|root| to.roots.contains(root)) {
+                return Err(Error::InvalidAuthoring(format!(
+                    "cannot claim independent corroboration: both endpoints share reviewed lineage root {shared}"
+                )));
+            }
+        }
+
         let id = match proposal.id.as_deref().map(str::trim) {
             Some(supplied) if !supplied.is_empty() => {
                 self.refuse_existing_id(NodeKind::Edge, supplied)?;
@@ -3547,16 +3655,40 @@ impl Store {
         case_id: &CaseId,
         proposal: &ProposedBrief,
     ) -> Result<WorkProductVersion> {
+        self.record_brief_document(case_id, proposal, &[])
+    }
+
+    /// Atomically writes a decision brief and its typed, source-linked paragraphs.
+    ///
+    /// Factual paragraphs without references are refused before the brief row is
+    /// inserted. The database trigger repeats that boundary as defense in depth.
+    pub fn record_brief_document(
+        &mut self,
+        case_id: &CaseId,
+        proposal: &ProposedBrief,
+        paragraphs: &[ProposedBriefParagraph],
+    ) -> Result<WorkProductVersion> {
         self.require_case(case_id)?;
         let author = require_named_person(&proposal.author)?;
         let summary = require_text(&proposal.summary, "a brief must say something")?;
 
-        let next: u32 = self.connection.query_row(
-            "SELECT COALESCE(MAX(version), 0) + 1 FROM decision_briefs
-             WHERE case_id = ?1 AND posture = ?2",
-            params![case_id.0, proposal.posture],
-            |row| row.get(0),
-        )?;
+        let mut paragraph_rows = Vec::with_capacity(paragraphs.len());
+        for paragraph in paragraphs {
+            let body = require_text(&paragraph.body, "a brief paragraph must say something")?;
+            if paragraph.kind == BriefParagraphKind::Factual && paragraph.references.is_empty() {
+                return Err(Error::UnsupportedSentence(
+                    "a factual brief paragraph requires at least one source reference".to_owned(),
+                ));
+            }
+            for reference in &paragraph.references {
+                self.require_node(case_id, reference)?;
+            }
+            paragraph_rows.push((
+                paragraph.kind,
+                body.clone(),
+                serde_json::to_string(&paragraph.references)?,
+            ));
+        }
 
         let id = match proposal.id.as_deref().map(str::trim) {
             Some(supplied) if !supplied.is_empty() => {
@@ -3566,7 +3698,14 @@ impl Store {
             _ => Uuid::now_v7().to_string(),
         };
 
-        self.connection.execute(
+        let transaction = self.connection.transaction()?;
+        let next: u32 = transaction.query_row(
+            "SELECT COALESCE(MAX(version), 0) + 1 FROM decision_briefs
+             WHERE case_id = ?1 AND posture = ?2",
+            params![case_id.0, proposal.posture],
+            |row| row.get(0),
+        )?;
+        transaction.execute(
             "INSERT INTO decision_briefs
                (id, case_id, posture, summary, strengths, risks, unresolved_questions,
                 client_topics, version, author, privileged)
@@ -3584,6 +3723,24 @@ impl Store {
                 author
             ],
         )?;
+        for (ordinal, (kind, body, references)) in paragraph_rows.iter().enumerate() {
+            let ordinal = i64::try_from(ordinal)
+                .map_err(|_| Error::InvalidAuthoring("brief has too many paragraphs".to_owned()))?;
+            transaction.execute(
+                "INSERT INTO brief_paragraphs
+                   (id, brief_id, ordinal, kind, body, references_json)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    Uuid::now_v7().to_string(),
+                    id,
+                    ordinal,
+                    kind.as_str(),
+                    body,
+                    references
+                ],
+            )?;
+        }
+        transaction.commit()?;
 
         Ok(WorkProductVersion {
             id,
@@ -4174,7 +4331,8 @@ impl Store {
                     continue;
                 }
                 candidates.push(Candidate {
-                    kind: NodeKind::Entity,
+                    from_kind: NodeKind::Entity,
+                    to_kind: NodeKind::Entity,
                     relation: EdgeKind::PossiblySamePerson,
                     from: id.clone(),
                     to: other_id.clone(),
@@ -4205,13 +4363,15 @@ fn name_tokens(name: &str) -> Vec<String> {
 
 /// One pair an analyzer found, before anything is written.
 struct Candidate {
-    /// Node type of both endpoints; analyzers relate like to like.
-    kind: NodeKind,
+    /// Node type of the originating endpoint.
+    from_kind: NodeKind,
+    /// Node type of the target endpoint.
+    to_kind: NodeKind,
     /// The relationship being proposed.
     relation: EdgeKind,
-    /// Lower identifier of the pair, so a rerun proposes the same direction.
+    /// Originating identifier, deterministically selected by the analyzer.
     from: String,
-    /// Higher identifier of the pair.
+    /// Target identifier, deterministically selected by the analyzer.
     to: String,
     /// The deterministic reason, stated in full so a defender can argue with it.
     rationale: String,
@@ -4266,7 +4426,7 @@ fn has_text(value: Option<&str>) -> bool {
     value.is_some_and(|text| !text.trim().is_empty())
 }
 
-fn distinct_sources(entries: &[CollationEntry]) -> u32 {
+fn distinct_originals(entries: &[CollationEntry]) -> u32 {
     entries
         .iter()
         .map(|entry| entry.source_id.as_str())
@@ -4539,13 +4699,10 @@ fn validate_edges(batch: &NormalizedBatch) -> Result<()> {
                 id: edge.id.clone(),
             });
         }
-        if !matches!(
-            edge.relation,
-            EdgeKind::TemporallyOverlaps | EdgeKind::DerivedFrom | EdgeKind::RefersTo
-        ) {
+        if !edge.relation.is_descriptive() {
             return Err(Error::InvalidFixture(format!(
-                "edge `{}` proposes `{}`; import admits only the structural relations \
-                 temporally_overlaps, derived_from and refers_to. An adapter may say how \
+                "edge `{}` proposes `{}`; import admits only descriptive structural relations. \
+                 An adapter may say how \
                  records sit relative to each other, never what they establish",
                 edge.id,
                 edge.relation.as_str()

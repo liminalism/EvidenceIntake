@@ -47,13 +47,15 @@ impl fmt::Display for NodeRef {
 /// a case-scoped table, which is what lets a link be checked against the case
 /// it claims to belong to. Charges and elements are deliberately absent:
 /// elements reach propositions through `element_links`, not through `edges`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeKind {
     /// An extracted or hand-entered evidentiary content item.
     Content,
     /// An immutable source record.
     Source,
+    /// A reviewer-defined ordered group of immutable content rows.
+    ContentGroup,
     /// A contested proposition.
     Proposition,
     /// A timeline event.
@@ -72,6 +74,7 @@ impl NodeKind {
         match self {
             Self::Content => "content",
             Self::Source => "source",
+            Self::ContentGroup => "content_group",
             Self::Proposition => "proposition",
             Self::Event => "event",
             Self::Edge => "edge",
@@ -85,11 +88,26 @@ impl NodeKind {
         match self {
             Self::Content => "content",
             Self::Source => "sources",
+            Self::ContentGroup => "content_groups",
             Self::Proposition => "propositions",
             Self::Event => "events",
             Self::Edge => "edges",
             Self::Entity => "entities",
             Self::Advocacy => "advocacy_items",
+        }
+    }
+
+    pub(crate) fn from_db(value: &str) -> Option<Self> {
+        match value {
+            "content" => Some(Self::Content),
+            "source" => Some(Self::Source),
+            "content_group" => Some(Self::ContentGroup),
+            "proposition" => Some(Self::Proposition),
+            "event" => Some(Self::Event),
+            "edge" => Some(Self::Edge),
+            "entity" => Some(Self::Entity),
+            "advocacy" => Some(Self::Advocacy),
+            _ => None,
         }
     }
 }
@@ -189,8 +207,10 @@ pub enum EdgeKind {
     Supports,
     /// The source is inconsistent with the target.
     Contradicts,
-    /// Independent evidence tends to confirm the target.
-    Corroborates,
+    /// Material is consistent with the target without claiming independence.
+    ConsistentWith,
+    /// A person says independent material corroborates the target.
+    IndependentlyCorroborates,
     /// The source may undermine a witness or account.
     Impeaches,
     /// The source narrows or conditions the target.
@@ -211,6 +231,32 @@ pub enum EdgeKind {
     RequiresFollowUp,
     /// An element or issue relies on a proposition.
     RelevantTo,
+    /// Directly quotes the target.
+    Quotes,
+    /// Reports another account.
+    Reports,
+    /// Summarizes another source or passage.
+    Summarizes,
+    /// Transcribes a recording.
+    Transcribes,
+    /// Depicts the target.
+    Depicts,
+    /// Preserves the target utterance.
+    RecordsUtterance,
+    /// Measures the target.
+    Measures,
+    /// Depends structurally on the target.
+    BasedOn,
+    /// Is an account of an occurrence event.
+    AccountOf,
+    /// Was created after the target.
+    CreatedAfter,
+    /// Was recorded during the target.
+    RecordedDuring,
+    /// May concern the same occurrence, pending human review.
+    CandidateSameOccurrence,
+    /// Diarization label proposes a speaker entity.
+    SpeakerCandidate,
 }
 
 impl EdgeKind {
@@ -219,7 +265,8 @@ impl EdgeKind {
         match self {
             Self::Supports => "supports",
             Self::Contradicts => "contradicts",
-            Self::Corroborates => "corroborates",
+            Self::ConsistentWith => "consistent_with",
+            Self::IndependentlyCorroborates => "independently_corroborates",
             Self::Impeaches => "impeaches",
             Self::Qualifies => "qualifies",
             Self::Explains => "explains",
@@ -230,7 +277,75 @@ impl EdgeKind {
             Self::ExpectedButMissing => "expected_but_missing",
             Self::RequiresFollowUp => "requires_follow_up",
             Self::RelevantTo => "relevant_to",
+            Self::Quotes => "quotes",
+            Self::Reports => "reports",
+            Self::Summarizes => "summarizes",
+            Self::Transcribes => "transcribes",
+            Self::Depicts => "depicts",
+            Self::RecordsUtterance => "records_utterance",
+            Self::Measures => "measures",
+            Self::BasedOn => "based_on",
+            Self::AccountOf => "account_of",
+            Self::CreatedAfter => "created_after",
+            Self::RecordedDuring => "recorded_during",
+            Self::CandidateSameOccurrence => "candidate_same_occurrence",
+            Self::SpeakerCandidate => "speaker_candidate",
         }
+    }
+
+    /// Whether an adapter or deterministic rule may propose this structural relation.
+    pub const fn is_descriptive(self) -> bool {
+        matches!(
+            self,
+            Self::Quotes
+                | Self::Reports
+                | Self::Summarizes
+                | Self::Transcribes
+                | Self::Depicts
+                | Self::RecordsUtterance
+                | Self::Measures
+                | Self::BasedOn
+                | Self::AccountOf
+                | Self::CreatedAfter
+                | Self::RecordedDuring
+                | Self::CandidateSameOccurrence
+                | Self::SpeakerCandidate
+                | Self::DerivedFrom
+                | Self::RefersTo
+                | Self::TemporallyOverlaps
+                | Self::PossiblySamePerson
+                | Self::ExpectedButMissing
+                | Self::RequiresFollowUp
+                | Self::RelevantTo
+        )
+    }
+
+    /// Whether this edge participates in reporting/derivation lineage.
+    pub const fn is_lineage(self) -> bool {
+        matches!(
+            self,
+            Self::Quotes
+                | Self::Reports
+                | Self::Summarizes
+                | Self::Transcribes
+                | Self::BasedOn
+                | Self::DerivedFrom
+                | Self::RecordsUtterance
+        )
+    }
+
+    /// Whether the relation states a human evaluative judgment.
+    pub const fn is_evaluative(self) -> bool {
+        matches!(
+            self,
+            Self::Supports
+                | Self::Contradicts
+                | Self::Qualifies
+                | Self::Explains
+                | Self::Impeaches
+                | Self::ConsistentWith
+                | Self::IndependentlyCorroborates
+        )
     }
 }
 

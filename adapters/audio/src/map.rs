@@ -1,8 +1,9 @@
 //! Pure mapping from a WhisperX transcript plus speaker hypotheses to a batch.
 
 use evidence_intake::{
-    CaseId, ContentKind, ExtractionProvenance, NormalizedBatch, NormalizedContent,
-    NormalizedSegment, NormalizedSource, ReviewState, SourceKind, TemporalRelation,
+    CaseId, ContentKind, EdgeKind, ExtractionProvenance, NodeKind, NormalizedBatch,
+    NormalizedContent, NormalizedEdge, NormalizedSegment, NormalizedSource, ReviewState,
+    SourceKind, TemporalRelation,
 };
 
 use crate::channel::{ChannelSide, ChannelSplit, LevelSplit};
@@ -17,8 +18,8 @@ pub const EXTRACTOR_CHANNEL: &str = "audio_channel_split";
 pub const EXTRACTOR_LEVEL: &str = "audio_level_split";
 /// Adapter name written on a diarization-label observation.
 pub const EXTRACTOR_DIARIZE: &str = "whisperx_diarize";
-/// Adapter name written on a detected dropout.
-pub const EXTRACTOR_GAP: &str = "audio_gap";
+/// Adapter name written on an interval where ASR aligned no speech.
+pub const EXTRACTOR_NO_SPEECH: &str = "asr-no-speech";
 
 /// Version stamped on channel, level, and gap observations.
 pub const ANALYSIS_VERSION: &str = "0.1.0";
@@ -91,6 +92,7 @@ pub fn transcript_to_batch(
     }
 
     let mut segments = Vec::new();
+    let mut edges = Vec::new();
     let mut previous_end: Option<u64> = None;
 
     for (index, item) in transcript.segments.iter().enumerate() {
@@ -111,7 +113,7 @@ pub fn transcript_to_batch(
             && options.gap_ms > 0
             && start_ms.saturating_sub(previous) >= options.gap_ms
         {
-            segments.push(gap_segment(
+            segments.push(no_speech_segment(
                 &identity.source_id,
                 segments.len(),
                 previous,
@@ -159,6 +161,18 @@ pub fn transcript_to_batch(
             .filter(|s| !s.is_empty())
         {
             content.push(diarize_observation(&identity.source_id, index, label));
+            edges.push(NormalizedEdge {
+                id: format!("{}-speaker-candidate-{index:04}", identity.source_id),
+                from_kind: NodeKind::Content,
+                from_id: format!("{}-stmt-{index:04}", identity.source_id),
+                relation: EdgeKind::SpeakerCandidate,
+                to_kind: NodeKind::Content,
+                to_id: format!("{}-spk-{index:04}", identity.source_id),
+                rationale: format!(
+                    "WhisperX aligned diarization label `{label}` to this exact transcript segment. The label is a speaker candidate, not a person identification."
+                ),
+                extraction: machine(EXTRACTOR_DIARIZE, ANALYSIS_VERSION, None),
+            });
         }
 
         segments.push(NormalizedSegment {
@@ -174,7 +188,7 @@ pub fn transcript_to_batch(
 
     Ok(NormalizedBatch {
         case_id: identity.case_id.clone(),
-        edges: Vec::new(),
+        edges,
         sources: vec![NormalizedSource {
             id: identity.source_id.clone(),
             production_id: identity.production_id.clone(),
@@ -318,7 +332,12 @@ fn diarize_observation(source_id: &str, index: usize, label: &str) -> Normalized
     }
 }
 
-fn gap_segment(source_id: &str, ordinal: usize, start_ms: u64, end_ms: u64) -> NormalizedSegment {
+fn no_speech_segment(
+    source_id: &str,
+    ordinal: usize,
+    start_ms: u64,
+    end_ms: u64,
+) -> NormalizedSegment {
     NormalizedSegment {
         id: format!("{source_id}-gap-{ordinal:04}"),
         locator: format_locator(start_ms, end_ms),
@@ -328,9 +347,9 @@ fn gap_segment(source_id: &str, ordinal: usize, start_ms: u64, end_ms: u64) -> N
         bounding_box: None,
         content: vec![NormalizedContent {
             id: format!("{source_id}-gapc-{ordinal:04}"),
-            kind: ContentKind::RecordingGap,
+            kind: ContentKind::Observation,
             text: format!(
-                "No speech was aligned between {} and {}.",
+                "No speech was aligned between {} and {}; this does not establish recording loss.",
                 format_clock(start_ms),
                 format_clock(end_ms)
             ),
@@ -344,7 +363,7 @@ fn gap_segment(source_id: &str, ordinal: usize, start_ms: u64, end_ms: u64) -> N
             normalized_end: None,
             time_basis: None,
             location_text: None,
-            extraction: machine(EXTRACTOR_GAP, ANALYSIS_VERSION, None),
+            extraction: machine(EXTRACTOR_NO_SPEECH, ANALYSIS_VERSION, None),
         }],
     }
 }

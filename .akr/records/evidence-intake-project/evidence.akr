@@ -95,6 +95,19 @@ record evidence-intake-project.evidence.analyzer-suite/1 : evidence {
         """
 }
 
+record evidence-intake-project.evidence.assembly-occurrence-authoring-20260824/1 : evidence {
+    title "Occurrence assembly writes one event and unreviewed account links, and refuses a grouping a reviewer has already separated."
+    state verified
+    result pass
+    method command
+    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    command "cargo test --all-features --test assembly"
+    summary """
+        Four tests over the vehicle-stop fixture: the event and every account_of edge enter unreviewed under the named author, an occurrence needs at least two accounts and a written reason, a normalized occurrence time requires its alignment basis, and a rejected candidate_same_occurrence edge between two chosen passages blocks the grouping. ProposedOccurrence and AuthoredOccurrence were exported but unimplemented before this.
+        """
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.evidence.audio-channel-is-observation/1 : evidence {
     title "2 passed: a stereo energy split is an observation with no speaker entity; dual-mono invents no speakers."
     state verified
@@ -369,7 +382,7 @@ record evidence-intake-project.evidence.gui-intake-winsafe-20260822/1 : evidence
 
 record evidence-intake-project.evidence.gui-native-smoke/1 : evidence {
     title "The seeded WinSafe workspace launched and remained responsive at 150% DPI; the full mnemonic navigation, case selector, structured overview, review fields, authoring and normalized-intake payload, collation, and export actions were visible without clipping."
-    state verified
+    state superseded
     result pass
     method observation
     observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
@@ -378,6 +391,19 @@ record evidence-intake-project.evidence.gui-native-smoke/1 : evidence {
         The seeded WinSafe workspace launched and remained responsive at 150% DPI; the full mnemonic navigation, case selector, structured overview, review fields, authoring and normalized-intake payload, collation, and export actions were visible without clipping.
         """
     author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-native-smoke/2 : evidence {
+    title "The seeded WinSafe workspace launched and remained responsive at 150% DPI; the full mnemonic navigation, case selector, structured overview, review fields, authoring and normalized-intake payload, collation, and export actions were visible without clipping."
+    state verified
+    result pass
+    method observation
+    observed_at git:a346f4cfdef94e0f0874cb937583c0e064468c0b
+    artifact "artifacts/akr-evidence/gui-native-smoke.png"
+    summary """
+        The seeded WinSafe workspace launched and remained responsive at 150% DPI; the full mnemonic navigation, case selector, structured overview, review fields, authoring and normalized-intake payload, collation, and export actions were visible without clipping.
+        """
+    supersedes [ @evidence-intake-project.evidence.gui-native-smoke/1 ]
 }
 
 record evidence-intake-project.evidence.gui-platform-boundary/1 : evidence {
@@ -403,6 +429,58 @@ record evidence-intake-project.evidence.gui-platform-boundary-after-chrome-pass/
     summary """
         cargo check --all-targets finished clean on the default feature set, and `cargo tree -e normal` lists winsafe zero times, so the Win32 dependency remains reachable only through the optional gui-winsafe feature and its cfg(windows) target table. src/gui/mod.rs compiles without the feature; only the src/gui/winsafe.rs module and the evidence-gui binary are gated behind it.
         """
+}
+
+record evidence-intake-project.evidence.gui-sweep-keystroke-budget-20260824/1 : evidence {
+    title "The keystroke harness held its budget through the Workspace API alone, over the SQL-seeded fixture rather than a raw-file one."
+    state verified
+    result pass
+    method command
+    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    command "cargo test --all-features --test enrichment"
+    summary """
+        Eleven tests: inherited profile values classify every passage at no more than 1.6 keystrokes each and an attributed person with a reporting parent costs no more than four; the source picker's counts, entity autocomplete ordering, separate-record entity creation, profile superseding, the grid's value and provenance columns, one-key candidate acceptance, and cursor selection all hold. The budget is measured over the vehicle-stop fixture; the raw-file fixture of the plan's section 9 does not exist yet, so the milestone's keystroke-budget check is not satisfied by this.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-sweep-live-smoke-20260824/1 : evidence {
+    title "The real Windows window ran the sweep end to end: Ctrl+E opened it, and one keystroke on a grid row wrote a reading under the named reviewer."
+    state verified
+    result pass
+    method observation
+    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    artifact "artifacts/akr-evidence/gui-sweep-one-key-entry.png"
+    summary """
+        Ran on Windows 11 against a seeded vehicle-stop database. The main window rendered twelve view controls above the action rail; Ctrl+E opened the sweep; the picker showed the report as three passages, three awaiting a person, one candidate; the deterministic evidence-reference rule's candidate rendered as MACHINE SUGGESTION carrying suggest:evidence-reference@1; pressing r on a grid row wrote reported_statement with provenance entered, repainted the badge as REPORT OF STATEMENT, advanced the cursor and dropped the outstanding count by one. The preview named the locator and refused to claim verified context for a fixture whose original is not on disk. Screenshots: artifacts/akr-evidence/gui-sweep-main-window.png, gui-sweep-workspace.png, gui-sweep-one-key-entry.png.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-sweep-static-20260824/1 : evidence {
+    title "Formatting and strict Clippy passed over every target and feature, including the WinSafe frontend."
+    state verified
+    result pass
+    method command
+    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    command "cargo fmt --all --check && cargo clippy --all-targets --all-features -- -D warnings"
+    summary """
+        Observed on the working tree at this commit. Formatting is clean and Clippy reports nothing with warnings denied across all targets and all features, after clearing the nine warnings the interrupted session left behind (a panicking packet lookup, a needless clone, a by-value template, collapsible conditions, an item after statements).
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.gui-sweep-workspace-tests-20260824/1 : evidence {
+    title "The whole Evidence workspace passed: 177 tests across 19 binaries, including the enrichment, interpretation and occurrence suites."
+    state verified
+    result pass
+    method command
+    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    command "cargo test --all-features"
+    summary """
+        Observed on the working tree at this commit. The run also repaired the analyzer classification the interrupted session left broken: case_standing walked every analyzer and asked the eight interpretation rules for findings they do not report, which failed all eight tests in tests/standing.rs until the three analyzer classes were made disjoint.
+        """
+    author "GitHub Uploader"
 }
 
 record evidence-intake-project.evidence.gui-winsafe-build-after-chrome-pass/1 : evidence {
@@ -1097,7 +1175,7 @@ record evidence-intake-project.video.evidence.siglip-load-once-batch-20260820/1 
 
 record evidence-intake-project.video.qwen-caption-integrated-first2m/1 : evidence {
     title "The project-owned Rust/Python load-once path produced 26 suggested captions over 00:00.000-02:00.040; every caption used the pinned model revision and bounded visible-term format, with zero forbidden role/event terms and zero malformed wrappers."
-    state verified
+    state superseded
     result pass
     method command
     observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
@@ -1107,4 +1185,20 @@ record evidence-intake-project.video.qwen-caption-integrated-first2m/1 : evidenc
         The project-owned Rust/Python load-once path produced 26 suggested captions over 00:00.000-02:00.040; every caption used the pinned model revision and bounded visible-term format, with zero forbidden role/event terms and zero malformed wrappers.
         """
     author "GitHub Uploader"
+}
+
+record evidence-intake-project.video.qwen-caption-integrated-first2m/2 : evidence {
+    title "The project-owned Rust/Python load-once path produced 26 suggested captions over 00:00.000-02:00.040; every caption used the pinned model revision and bounded visible-term format, with zero forbidden role/event terms and zero malformed wrappers."
+    state verified
+    result pass
+    method command
+    observed_at git:0a17a5d442e4980045b2c220208df090f77a937f
+    command """
+        target/debug/evidence-video.exe describe --file .agent/scratch/donetsk-jaf69w/first-2m-working.mp4 --sample-gap-ms 5000 --sample-dedup-ms 250 --vlm adapters/video/python/caption_cli.py --model-dir .agent/scratch/models/Qwen2-VL-2B-Instruct-895c3a49 --model Qwen/Qwen2-VL-2B-Instruct@895c3a49bc3fa70a340399125c650a463535e71c --vlm-device cuda --vlm-dtype float16 --vlm-max-new-tokens 64
+        """
+    artifact "artifacts/akr-evidence/qwen-caption-integrated-first2m.json"
+    summary """
+        The project-owned Rust/Python load-once path produced 26 suggested captions over 00:00.000-02:00.040; every caption used the pinned model revision and bounded visible-term format, with zero forbidden role/event terms and zero malformed wrappers.
+        """
+    supersedes [ @evidence-intake-project.video.qwen-caption-integrated-first2m/1 ]
 }

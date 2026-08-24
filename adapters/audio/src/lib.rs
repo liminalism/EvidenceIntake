@@ -24,7 +24,7 @@ pub use clean::{PHONE_HIGH_HZ, PHONE_LOW_HZ, WORKING_RATE, prepare_working_copy,
 pub use decode::{DecodedAudio, decode_wav, write_wav};
 pub use error::{Error, Result};
 pub use map::{
-    ANALYSIS_VERSION, EXTRACTOR_CHANNEL, EXTRACTOR_DIARIZE, EXTRACTOR_GAP, EXTRACTOR_LEVEL,
+    ANALYSIS_VERSION, EXTRACTOR_CHANNEL, EXTRACTOR_DIARIZE, EXTRACTOR_LEVEL, EXTRACTOR_NO_SPEECH,
     EXTRACTOR_WHISPERX, MappingOptions, SourceIdentity, format_clock, format_locator,
     transcript_to_batch,
 };

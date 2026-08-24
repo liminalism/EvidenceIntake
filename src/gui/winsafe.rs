@@ -2,6 +2,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -15,8 +16,15 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 use winsafe::{self as w, co, gui, prelude::*};
 
-use super::{AuthorKind, GuiError, GuiResult, Workspace, WorkspaceView, review_target};
-use crate::{ExportAudience, IntakeCoordinator, IntakeJobState, ReviewState};
+use super::{
+    AuthorKind, COMMAND_SHEET, EnrichmentRow, GuiError, GuiResult, Workspace, WorkspaceView,
+    key_sheet, review_target,
+};
+use crate::{
+    ContentForm, EnrichmentField, EntityKind, ExportAudience, IntakeCoordinator, IntakeJobState,
+    PerceptionBasis, PreviewDescriptor, ProposedSourceProfile, ReviewState, SourceRole,
+    TemporalStance,
+};
 
 /// Design size of the client area, in logical units. `gui::dpi` scales every
 /// coordinate below by the system DPI, so at 200% scaling this window wants
@@ -28,10 +36,11 @@ const HEIGHT: i32 = 700;
 /// Smallest logical client area the layout survives. Below `MIN_WIDTH` the
 /// right-anchored authoring pair collides with `Reject` on the bottom row.
 /// `MIN_HEIGHT` is set by the rail rather than by the output pane: the rail is
-/// anchored and does not move, so its last button's lower edge — 578 — is the
+/// anchored and does not move, so its last button's lower edge — 600 — is the
 /// floor, and anything less hides the export commands off the bottom.
+/// `the_rail_fits_above_the_minimum_height` is what keeps the two in step.
 const MIN_WIDTH: i32 = 940;
-const MIN_HEIGHT: i32 = 600;
+const MIN_HEIGHT: i32 = 620;
 
 /// Left navigation rail: fixed width, fixed position, one button per row.
 const RAIL_X: i32 = 20;
@@ -47,15 +56,19 @@ const PANE_WIDTH: i32 = PANE_RIGHT - PANE_X;
 
 /// Action buttons use the roomier standard height.
 const BUTTON_HEIGHT: i32 = 28;
-/// Read-view controls are slightly denser so ten views fit above the action rail.
-const VIEW_BUTTON_HEIGHT: i32 = 25;
-const VIEW_RAIL_TOP: i32 = 162;
-const VIEW_RAIL_PITCH: i32 = 28;
-const ACTION_RAIL_TOP: i32 = 454;
+/// Intake commands, which are few, keep the roomier pitch.
+const INTAKE_RAIL_TOP: i32 = 78;
+const INTAKE_RAIL_PITCH: i32 = 30;
+/// Read-view controls are denser so twelve views fit above the action rail.
+const VIEW_BUTTON_HEIGHT: i32 = 22;
+const VIEW_RAIL_TOP: i32 = 182;
+const VIEW_RAIL_PITCH: i32 = 24;
+const ACTION_RAIL_TOP: i32 = 482;
+const ACTION_RAIL_PITCH: i32 = 30;
 
 /// Rail rules. The rules are the only thing that groups the rail's commands —
 /// a heading over each group was tried and read as clutter.
-const RAIL_RULES: [i32; 2] = [150, 442];
+const RAIL_RULES: [i32; 2] = [174, 474];
 
 /// Offset and colour of each drop-shadow band, outermost first: the darker
 /// band is painted last so it lands against the button's own edge. Both bands
@@ -74,7 +87,8 @@ const OPEN_DATABASE: &str = "Open Data&base";
 const NEW_CASE: &str = "&Untitled Case";
 const INTAKE_EVIDENCE: &str = "Intake E&vidence";
 const PROCESSING_QUEUE: &str = "P&rocessing Queue";
-const RUN_COLLATION: &str = "Run Co&llation";
+const ENRICHMENT_SWEEP: &str = "Enrichment Sweep (&X)";
+const RUN_COLLATION: &str = "Find Tensions and Gaps (&L)";
 const DISCLOSABLE_EXPORT: &str = "Disclosable &Export";
 const WORK_FILE_EXPORT: &str = "&Privileged Work File";
 const SAVE_EXPORT: &str = "Save Export to Dis&k";
@@ -87,20 +101,60 @@ const SAVE_AUTHORED: &str = "Save Ne&w Record";
 const IMPORT_BATCH: &str = "Import Normali&zed Batch";
 
 /// Workspace navigation, in the order a case is usually read.
-const VIEW_BUTTONS: [(&str, WorkspaceView); 10] = [
+///
+/// The Alt namespace is full — twenty-five of the twenty-six letters are
+/// claimed — so the two views added with the assembly layer carry no mnemonic
+/// of their own. Every view is reachable by `Ctrl` accelerator instead, and
+/// `every_command_has_its_own_accelerator` is what keeps both namespaces
+/// unambiguous.
+const VIEW_BUTTONS: [(&str, WorkspaceView); 12] = [
     ("&Overview", WorkspaceView::Overview),
     ("Case &Standing", WorkspaceView::Standing),
     ("&Discovery Ledger", WorkspaceView::Discovery),
     ("Element &Matrix", WorkspaceView::Elements),
     ("Contested &Timeline", WorkspaceView::Timeline),
-    ("Collation &Groups", WorkspaceView::Collation),
+    ("Time && Place Index (&G)", WorkspaceView::Collation),
     ("&Issue Workspaces", WorkspaceView::Issues),
     ("Offense &Comparison", WorkspaceView::Offenses),
     ("Review &Queue", WorkspaceView::ReviewQueue),
     ("Review &History", WorkspaceView::ReviewHistory),
+    ("Proposition Packets", WorkspaceView::Packets),
+    ("Case Digest", WorkspaceView::Digest),
 ];
 
-const STATUS_HINT: &str = "Alt + the underlined letter runs a command. All derived material must be checked against the original.";
+/// `Ctrl` accelerators, which is how a command with no free Alt letter is
+/// still reachable from the keyboard. The identifiers are far from `WinSafe`'s
+/// automatic control identifiers, which count down from `0xdfff`.
+///
+const ACCEL_FIRST_VIEW: u16 = 0x0200;
+const ACCEL_ENRICHMENT: u16 = 0x0220;
+
+/// The `Ctrl` chord that reaches one view: the first ten take the digit row,
+/// and later views take `Ctrl+Shift` over the same digits.
+fn view_accelerator(index: usize) -> (bool, char) {
+    match index {
+        0..=8 => (
+            false,
+            char::from_digit(u32::try_from(index).unwrap_or(0) + 1, 10).unwrap_or('1'),
+        ),
+        9 => (false, '0'),
+        other => (
+            true,
+            char::from_digit(u32::try_from(other).unwrap_or(10) - 9, 10).unwrap_or('1'),
+        ),
+    }
+}
+
+/// The chord as a reader sees it in the status line and the tests.
+fn accelerator_label(shift: bool, key: char) -> String {
+    if shift {
+        format!("Ctrl+Shift+{key}")
+    } else {
+        format!("Ctrl+{key}")
+    }
+}
+
+const STATUS_HINT: &str = "Alt + the underlined letter runs a command; Ctrl + a digit opens a view. All derived material must be checked against the original.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum IntakeModality {
@@ -165,6 +219,7 @@ struct MainWindow {
     new_case_button: gui::Button,
     intake_button: gui::Button,
     queue_button: gui::Button,
+    enrichment_button: gui::Button,
     view_buttons: Vec<(WorkspaceView, gui::Button)>,
     suggest_button: gui::Button,
     safe_export_button: gui::Button,
@@ -200,9 +255,30 @@ impl MainWindow {
                 .and_then(|path| IntakeCoordinator::start(path).ok()),
         ));
 
+        let mut accelerators = Vec::with_capacity(VIEW_BUTTONS.len() + 1);
+        for index in 0..VIEW_BUTTONS.len() {
+            let (shift, key) = view_accelerator(index);
+            let mut modifiers = co::ACCELF::VIRTKEY | co::ACCELF::CONTROL;
+            if shift {
+                modifiers |= co::ACCELF::SHIFT;
+            }
+            accelerators.push(w::ACCEL {
+                fVirt: modifiers,
+                key: digit_key(key),
+                cmd: ACCEL_FIRST_VIEW + u16::try_from(index).unwrap_or(0),
+            });
+        }
+        accelerators.push(w::ACCEL {
+            fVirt: co::ACCELF::VIRTKEY | co::ACCELF::CONTROL,
+            key: co::VK::CHAR_E,
+            cmd: ACCEL_ENRICHMENT,
+        });
+        let accel_table = w::HACCEL::CreateAcceleratorTable(&accelerators).ok();
+
         let wnd = gui::WindowMain::new(gui::WindowMainOpts {
             title: "Evidence Intake — Local Case Workspace",
             size: gui::dpi(WIDTH, HEIGHT),
+            accel_table,
             // HREDRAW/VREDRAW repaint the whole client area on a resize, so the
             // shadows and rules follow the controls the layout has just moved.
             class_style: co::CS::DBLCLKS | co::CS::HREDRAW | co::CS::VREDRAW,
@@ -263,16 +339,38 @@ impl MainWindow {
         );
         let new_case_button = button(&wnd, NEW_CASE, 948, 34, 132, SLIDE_X);
 
-        // --- Rail group 1: put evidence in the workspace ---------------------
-        let intake_button = button(&wnd, INTAKE_EVIDENCE, RAIL_X, 78, RAIL_WIDTH, ANCHOR);
-        let queue_button = button(&wnd, PROCESSING_QUEUE, RAIL_X, 110, RAIL_WIDTH, ANCHOR);
+        // --- Rail group 1: put evidence in the workspace, and read it --------
+        let intake_button = button(
+            &wnd,
+            INTAKE_EVIDENCE,
+            RAIL_X,
+            INTAKE_RAIL_TOP,
+            RAIL_WIDTH,
+            ANCHOR,
+        );
+        let queue_button = button(
+            &wnd,
+            PROCESSING_QUEUE,
+            RAIL_X,
+            INTAKE_RAIL_TOP + INTAKE_RAIL_PITCH,
+            RAIL_WIDTH,
+            ANCHOR,
+        );
+        let enrichment_button = button(
+            &wnd,
+            ENRICHMENT_SWEEP,
+            RAIL_X,
+            INTAKE_RAIL_TOP + 2 * INTAKE_RAIL_PITCH,
+            RAIL_WIDTH,
+            ANCHOR,
+        );
 
         // --- Rail group 2: read the case -------------------------------------
         let view_buttons = VIEW_BUTTONS
             .iter()
             .enumerate()
             .map(|(index, (caption, view))| {
-                let row = i32::try_from(index).expect("navigation has only ten rows");
+                let row = i32::try_from(index).expect("navigation has a small, fixed row count");
                 (
                     *view,
                     view_button(
@@ -300,7 +398,7 @@ impl MainWindow {
             &wnd,
             DISCLOSABLE_EXPORT,
             RAIL_X,
-            ACTION_RAIL_TOP + 32,
+            ACTION_RAIL_TOP + ACTION_RAIL_PITCH,
             RAIL_WIDTH,
             ANCHOR,
         );
@@ -308,7 +406,7 @@ impl MainWindow {
             &wnd,
             WORK_FILE_EXPORT,
             RAIL_X,
-            ACTION_RAIL_TOP + 64,
+            ACTION_RAIL_TOP + 2 * ACTION_RAIL_PITCH,
             RAIL_WIDTH,
             ANCHOR,
         );
@@ -316,7 +414,7 @@ impl MainWindow {
             &wnd,
             SAVE_EXPORT,
             RAIL_X,
-            ACTION_RAIL_TOP + 96,
+            ACTION_RAIL_TOP + 3 * ACTION_RAIL_PITCH,
             RAIL_WIDTH,
             ANCHOR,
         );
@@ -486,6 +584,7 @@ impl MainWindow {
             new_case_button,
             intake_button,
             queue_button,
+            enrichment_button,
             view_buttons,
             suggest_button,
             safe_export_button,
@@ -518,6 +617,7 @@ impl MainWindow {
             &self.new_case_button,
             &self.intake_button,
             &self.queue_button,
+            &self.enrichment_button,
         ];
         all.extend(self.view_buttons.iter().map(|(_, control)| control));
         all.extend([
@@ -602,6 +702,32 @@ impl MainWindow {
                 Ok(())
             });
         }
+
+        // The same views again, reached by their `Ctrl` accelerators. A view
+        // whose caption has no free Alt letter has nothing else.
+        for (index, (_, view)) in VIEW_BUTTONS.iter().enumerate() {
+            let me = self.clone();
+            let view = *view;
+            let command = ACCEL_FIRST_VIEW + u16::try_from(index).unwrap_or(0);
+            self.wnd.on().wm_command_acc_menu(command, move || {
+                me.show_view(view)?;
+                Ok(())
+            });
+        }
+
+        let me = self.clone();
+        self.enrichment_button.on().bn_clicked(move || {
+            me.show_enrichment()?;
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.wnd
+            .on()
+            .wm_command_acc_menu(ACCEL_ENRICHMENT, move || {
+                me.show_enrichment()?;
+                Ok(())
+            });
 
         let me = self.clone();
         self.intake_button.on().bn_clicked(move || {
@@ -1177,6 +1303,12 @@ impl MainWindow {
         serde_json::to_string_pretty(&rendered).map_err(GuiError::from)
     }
 
+    /// Opens the keyboard enrichment sweep over one of the case's originals.
+    fn show_enrichment(&self) -> w::SysResult<()> {
+        let actor = self.actor_edit.text()?;
+        SweepWindow::show(self, actor.trim())
+    }
+
     fn show_processing_queue(&self) -> w::SysResult<()> {
         let modal = gui::WindowModal::new(gui::WindowModalOpts {
             title: "Processing Queue",
@@ -1358,59 +1490,77 @@ impl MainWindow {
     /// screen; the layout itself is unchanged, since the resize behaviours
     /// already handle a smaller window.
     fn fit_to_work_area(&self) -> w::SysResult<()> {
-        let hwnd = self.wnd.hwnd();
-        let work = hwnd
-            .MonitorFromWindow(co::MONITOR::DEFAULTTONEAREST)
-            .GetMonitorInfo()?
-            .rcWork;
-        let window = hwnd.GetWindowRect()?;
-        let available = (work.right - work.left, work.bottom - work.top);
-        let wanted = (window.right - window.left, window.bottom - window.top);
-        if wanted.0 <= available.0 && wanted.1 <= available.1 {
-            return Ok(());
-        }
-
-        // Never clamp below the minimum: on a screen too small for the layout
-        // even at its floor, a window that overflows can still be moved to
-        // reach the rest of it, whereas one shrunk past the floor has commands
-        // that overlap and cannot be separated again.
-        let floor = self.frame_margins().unwrap_or((0, 0));
-        let size = (
-            wanted
-                .0
-                .min(available.0)
-                .max(gui::dpi_x(MIN_WIDTH) + floor.0),
-            wanted
-                .1
-                .min(available.1)
-                .max(gui::dpi_y(MIN_HEIGHT) + floor.1),
-        );
-        hwnd.SetWindowPos(
-            w::HwndPlace::None,
-            w::POINT::with(
-                work.left + (available.0 - size.0) / 2,
-                work.top + (available.1 - size.1) / 2,
-            ),
-            w::SIZE::with(size.0, size.1),
-            co::SWP::NOZORDER | co::SWP::NOACTIVATE,
-        )
+        fit_window_to_work_area(self.wnd.hwnd(), MIN_WIDTH, MIN_HEIGHT)
     }
 
     /// Device pixels the frame adds around the client area, or `None` before
-    /// the window has one — `WM_GETMINMAXINFO` arrives during creation, when
-    /// the client area can still be empty.
+    /// the window has one.
     fn frame_margins(&self) -> Option<(i32, i32)> {
-        let hwnd = self.wnd.hwnd();
-        let window = hwnd.GetWindowRect().ok()?;
-        let client = hwnd.GetClientRect().ok()?;
-        (client.right > 0 && client.bottom > 0).then(|| {
-            (
-                (window.right - window.left) - client.right,
-                (window.bottom - window.top) - client.bottom,
-            )
-        })
+        frame_margins(self.wnd.hwnd())
+    }
+}
+
+/// Shrinks one window onto the monitor it opened on.
+///
+/// The layout is written in logical units and `gui::dpi` scales it by the
+/// system DPI, so a window grows with the user's display scaling: at 200% the
+/// workspace wants roughly 2216x1466 device pixels, which does not fit a
+/// laptop panel. Windows will happily create a window larger than the screen,
+/// and the commands along the bottom would then sit past the edge with no way
+/// to reach them.
+fn fit_window_to_work_area(hwnd: &w::HWND, min_width: i32, min_height: i32) -> w::SysResult<()> {
+    let work = hwnd
+        .MonitorFromWindow(co::MONITOR::DEFAULTTONEAREST)
+        .GetMonitorInfo()?
+        .rcWork;
+    let window = hwnd.GetWindowRect()?;
+    let available = (work.right - work.left, work.bottom - work.top);
+    let wanted = (window.right - window.left, window.bottom - window.top);
+    if wanted.0 <= available.0 && wanted.1 <= available.1 {
+        return Ok(());
     }
 
+    // Never clamp below the minimum: on a screen too small for the layout even
+    // at its floor, a window that overflows can still be moved to reach the
+    // rest of it, whereas one shrunk past the floor has commands that overlap
+    // and cannot be separated again.
+    let floor = frame_margins(hwnd).unwrap_or((0, 0));
+    let size = (
+        wanted
+            .0
+            .min(available.0)
+            .max(gui::dpi_x(min_width) + floor.0),
+        wanted
+            .1
+            .min(available.1)
+            .max(gui::dpi_y(min_height) + floor.1),
+    );
+    hwnd.SetWindowPos(
+        w::HwndPlace::None,
+        w::POINT::with(
+            work.left + (available.0 - size.0) / 2,
+            work.top + (available.1 - size.1) / 2,
+        ),
+        w::SIZE::with(size.0, size.1),
+        co::SWP::NOZORDER | co::SWP::NOACTIVATE,
+    )
+}
+
+/// Device pixels the frame adds around the client area, or `None` before the
+/// window has one — `WM_GETMINMAXINFO` arrives during creation, when the
+/// client area can still be empty.
+fn frame_margins(hwnd: &w::HWND) -> Option<(i32, i32)> {
+    let window = hwnd.GetWindowRect().ok()?;
+    let client = hwnd.GetClientRect().ok()?;
+    (client.right > 0 && client.bottom > 0).then(|| {
+        (
+            (window.right - window.left) - client.right,
+            (window.bottom - window.top) - client.bottom,
+        )
+    })
+}
+
+impl MainWindow {
     /// Paints the window's own chrome: a drop shadow under every button, and
     /// the etched rules that separate the command groups.
     ///
@@ -1546,7 +1696,19 @@ impl MainWindow {
 
     fn show_view(&self, view: WorkspaceView) -> w::SysResult<()> {
         let result = self.workspace.borrow().render(view);
-        self.present(result, view.label())
+        // Naming the chord is how the two views without an Alt letter teach
+        // their own keyboard path.
+        let caption = VIEW_BUTTONS
+            .iter()
+            .position(|(_, candidate)| *candidate == view)
+            .map_or_else(
+                || view.label().to_owned(),
+                |index| {
+                    let (shift, key) = view_accelerator(index);
+                    format!("{}  ({})", view.label(), accelerator_label(shift, key))
+                },
+            );
+        self.present(result, &caption)
     }
 
     fn apply_review(&self, state: ReviewState) -> w::SysResult<()> {
@@ -1903,9 +2065,1464 @@ pub fn run(database: &Path) {
     }
 }
 
+/// Sweep columns in the order their function keys select them.
+///
+/// One field at a time down the page is the throughput shape: attention stays
+/// on a single question ("who is speaking here?") and the rhythm is one key
+/// per row, instead of a form per passage.
+const SWEEP_FIELDS: [(&str, EnrichmentField, &str); 7] = [
+    ("F2  Form", EnrichmentField::ContentForm, "F2"),
+    ("F3  Speaker", EnrichmentField::Speaker, "F3"),
+    (
+        "F4  Attributed person",
+        EnrichmentField::AttributedPerson,
+        "F4",
+    ),
+    ("F5  Temporal stance", EnrichmentField::TemporalStance, "F5"),
+    ("F6  Time", EnrichmentField::Time, "F6"),
+    ("F7  Location", EnrichmentField::Location, "F7"),
+    (
+        "F8  Perception basis",
+        EnrichmentField::PerceptionBasis,
+        "F8",
+    ),
+];
+
+/// Grid columns, in logical units before DPI scaling.
+const GRID_COLUMNS: [(&str, i32); 6] = [
+    ("#", 44),
+    ("Locator", 128),
+    ("Passage", 470),
+    ("Value", 150),
+    ("Provenance", 176),
+    ("Badge", 168),
+];
+
+/// Design size and floor of the enrichment window.
+const SWEEP_WIDTH: i32 = 1180;
+const SWEEP_HEIGHT: i32 = 740;
+const SWEEP_MIN_WIDTH: i32 = 900;
+const SWEEP_MIN_HEIGHT: i32 = 600;
+
+/// Grid geometry. The grid is the window: everything above it decides once,
+/// everything below it shows what the row under the cursor rests on.
+///
+/// A row is about twenty logical units tall and a caption twenty more, which
+/// is what `the_sweep_window_fits_its_own_floor` measures the layout against.
+const GRID_ROW_HEIGHT: i32 = 20;
+const CAPTION_HEIGHT: i32 = 20;
+const SWEEP_GRID_TOP: i32 = 122;
+const SWEEP_GRID_HEIGHT: i32 = 276;
+/// Distance from the window's bottom edge to each anchored row below the grid.
+const SWEEP_PREVIEW_FROM_BOTTOM: i32 = 316;
+const SWEEP_KEYS_FROM_BOTTOM: i32 = 196;
+const SWEEP_STATUS_FROM_BOTTOM: i32 = 40;
+
+/// The grid resizes with the window and everything below it is anchored to the
+/// bottom edge, so these clearances hold at every height the window can take.
+const _: () = assert!(
+    SWEEP_GRID_TOP + SWEEP_GRID_HEIGHT <= SWEEP_HEIGHT - SWEEP_PREVIEW_FROM_BOTTOM - CAPTION_HEIGHT,
+    "the grid overlaps the caption above the original"
+);
+const _: () = assert!(
+    SWEEP_PREVIEW_FROM_BOTTOM > SWEEP_KEYS_FROM_BOTTOM,
+    "the preview must sit above the key sheet"
+);
+const _: () = assert!(
+    SWEEP_KEYS_FROM_BOTTOM > SWEEP_STATUS_FROM_BOTTOM,
+    "the key sheet must sit above the status line"
+);
+/// Shrunk to its floor the grid still shows six rows, which is the least a
+/// sweep can work with: the row under the cursor, and the run around it.
+const _: () = assert!(
+    SWEEP_GRID_HEIGHT - (SWEEP_HEIGHT - SWEEP_MIN_HEIGHT) >= 6 * GRID_ROW_HEIGHT,
+    "at the floor the grid has no rows left"
+);
+
+/// The keyboard workspace over one source: grid on the left of the decision,
+/// the original beside it, and one key per passage.
+#[derive(Clone)]
+struct SweepWindow {
+    wnd: gui::WindowModal,
+    workspace: Rc<RefCell<Workspace>>,
+    sources: Rc<RefCell<Vec<crate::EnrichmentSource>>>,
+    authors: Rc<RefCell<Vec<crate::EntityCandidate>>>,
+    preview: Rc<RefCell<Option<PreviewDescriptor>>>,
+    _labels: Vec<gui::Label>,
+    actor_edit: gui::Edit,
+    source_combo: gui::ComboBox,
+    open_button: gui::Button,
+    candidates_button: gui::Button,
+    role_combo: gui::ComboBox,
+    author_combo: gui::ComboBox,
+    created_edit: gui::Edit,
+    form_combo: gui::ComboBox,
+    stance_combo: gui::ComboBox,
+    basis_combo: gui::ComboBox,
+    profile_button: gui::Button,
+    field_combo: gui::ComboBox,
+    counts_label: gui::Label,
+    grid: gui::ListView,
+    preview_edit: gui::Edit,
+    original_button: gui::Button,
+    context_button: gui::Button,
+    accept_button: gui::Button,
+    reject_button: gui::Button,
+    keys_edit: gui::Edit,
+    status_label: gui::Label,
+    close_button: gui::Button,
+}
+
+impl SweepWindow {
+    fn show(parent: &MainWindow, actor: &str) -> w::SysResult<()> {
+        let wnd = gui::WindowModal::new(gui::WindowModalOpts {
+            title: "Enrichment Sweep — decide once, then one key per passage",
+            size: gui::dpi(SWEEP_WIDTH, SWEEP_HEIGHT),
+            style: co::WS::CAPTION
+                | co::WS::SYSMENU
+                | co::WS::THICKFRAME
+                | co::WS::CLIPCHILDREN
+                | co::WS::VISIBLE
+                | co::WS::BORDER,
+            ..Default::default()
+        });
+
+        let mut labels = vec![label(&wnd, "Source", 20, 22, 50, ANCHOR)];
+        let source_combo = gui::ComboBox::new(
+            &wnd,
+            gui::ComboBoxOpts {
+                position: gui::dpi(74, 18),
+                width: gui::dpi_x(486),
+                items: &[],
+                resize_behavior: ANCHOR,
+                ..Default::default()
+            },
+        );
+        labels.push(label(&wnd, "Reviewer", 576, 22, 62, ANCHOR));
+        let actor_edit = gui::Edit::new(
+            &wnd,
+            gui::EditOpts {
+                text: actor,
+                position: gui::dpi(642, 18),
+                width: gui::dpi_x(170),
+                ..Default::default()
+            },
+        );
+        let open_button = button(&wnd, "&Open Sweep", 824, 16, 116, ANCHOR);
+        let candidates_button = button(&wnd, "Propose &Candidates", 950, 16, 160, SLIDE_X);
+
+        labels.push(label(&wnd, "Role", 20, 58, 34, ANCHOR));
+        let role_combo = gui::ComboBox::new(
+            &wnd,
+            gui::ComboBoxOpts {
+                position: gui::dpi(58, 54),
+                width: gui::dpi_x(190),
+                items: &[],
+                ..Default::default()
+            },
+        );
+        labels.push(label(&wnd, "Author", 260, 58, 46, ANCHOR));
+        let author_combo = gui::ComboBox::new(
+            &wnd,
+            gui::ComboBoxOpts {
+                position: gui::dpi(310, 54),
+                width: gui::dpi_x(180),
+                items: &[],
+                ..Default::default()
+            },
+        );
+        labels.push(label(&wnd, "Created", 502, 58, 52, ANCHOR));
+        let created_edit = edit(&wnd, 556, 54, 120, ANCHOR);
+        labels.push(label(&wnd, "Defaults", 688, 58, 56, ANCHOR));
+        let form_combo = gui::ComboBox::new(
+            &wnd,
+            gui::ComboBoxOpts {
+                position: gui::dpi(748, 54),
+                width: gui::dpi_x(174),
+                items: &[],
+                ..Default::default()
+            },
+        );
+        let stance_combo = gui::ComboBox::new(
+            &wnd,
+            gui::ComboBoxOpts {
+                position: gui::dpi(20, 88),
+                width: gui::dpi_x(228),
+                items: &[],
+                ..Default::default()
+            },
+        );
+        let basis_combo = gui::ComboBox::new(
+            &wnd,
+            gui::ComboBoxOpts {
+                position: gui::dpi(260, 88),
+                width: gui::dpi_x(230),
+                items: &[],
+                ..Default::default()
+            },
+        );
+        let profile_button = button(&wnd, "&Save Profile", 932, 52, 178, SLIDE_X);
+
+        labels.push(label(&wnd, "Sweep field", 502, 92, 74, ANCHOR));
+        let field_combo = gui::ComboBox::new(
+            &wnd,
+            gui::ComboBoxOpts {
+                position: gui::dpi(580, 88),
+                width: gui::dpi_x(200),
+                items: &SWEEP_FIELDS.map(|(caption, _, _)| caption),
+                selected_item: Some(0),
+                ..Default::default()
+            },
+        );
+        let counts_label = label(&wnd, "No source is open.", 790, 92, 320, SLIDE_X);
+
+        let columns = GRID_COLUMNS
+            .map(|(caption, width)| (caption, gui::dpi_x(width)))
+            .to_vec();
+        let grid = gui::ListView::<()>::new(
+            &wnd,
+            gui::ListViewOpts {
+                position: gui::dpi(20, SWEEP_GRID_TOP),
+                size: gui::dpi(SWEEP_WIDTH - 40, SWEEP_GRID_HEIGHT),
+                columns: &columns,
+                control_ex_style: co::LVS_EX::FULLROWSELECT | co::LVS_EX::GRIDLINES,
+                resize_behavior: (gui::Horz::Resize, gui::Vert::Resize),
+                ..Default::default()
+            },
+        );
+
+        let preview_top = SWEEP_HEIGHT - SWEEP_PREVIEW_FROM_BOTTOM;
+        labels.push(label(
+            &wnd,
+            "The original under the cursor — check derived text against it before verifying",
+            20,
+            preview_top - 20,
+            700,
+            SLIDE_Y,
+        ));
+        let preview_edit = gui::Edit::new(
+            &wnd,
+            gui::EditOpts {
+                text: "",
+                position: gui::dpi(20, preview_top),
+                width: gui::dpi_x(800),
+                height: gui::dpi_y(96),
+                control_style: co::ES::MULTILINE
+                    | co::ES::AUTOVSCROLL
+                    | co::ES::AUTOHSCROLL
+                    | co::ES::READONLY,
+                window_style: co::WS::CHILD
+                    | co::WS::VISIBLE
+                    | co::WS::BORDER
+                    | co::WS::VSCROLL
+                    | co::WS::TABSTOP,
+                resize_behavior: STRETCH_X_SLIDE_Y,
+                ..Default::default()
+            },
+        );
+        let original_button = button(&wnd, "Open Ori&ginal", 836, preview_top, 150, SLIDE_XY);
+        let context_button = button(&wnd, "Open Conte&xt", 996, preview_top, 150, SLIDE_XY);
+        let accept_button = button(
+            &wnd,
+            "&Accept (Enter)",
+            836,
+            preview_top + 34,
+            150,
+            SLIDE_XY,
+        );
+        let reject_button = button(&wnd, "&Reject (x)", 996, preview_top + 34, 150, SLIDE_XY);
+
+        let keys_top = SWEEP_HEIGHT - SWEEP_KEYS_FROM_BOTTOM;
+        let keys_edit = gui::Edit::new(
+            &wnd,
+            gui::EditOpts {
+                text: "",
+                position: gui::dpi(20, keys_top),
+                width: gui::dpi_x(SWEEP_WIDTH - 40),
+                height: gui::dpi_y(136),
+                control_style: co::ES::MULTILINE
+                    | co::ES::AUTOVSCROLL
+                    | co::ES::AUTOHSCROLL
+                    | co::ES::READONLY,
+                window_style: co::WS::CHILD
+                    | co::WS::VISIBLE
+                    | co::WS::BORDER
+                    | co::WS::VSCROLL
+                    | co::WS::TABSTOP,
+                resize_behavior: STRETCH_X_SLIDE_Y,
+                ..Default::default()
+            },
+        );
+
+        let status_top = SWEEP_HEIGHT - SWEEP_STATUS_FROM_BOTTOM;
+        let status_label = label(
+            &wnd,
+            "Choose a source and press Open Sweep. Every key you press is written under your name.",
+            20,
+            status_top,
+            940,
+            STRETCH_X_SLIDE_Y,
+        );
+        let close_button = button(
+            &wnd,
+            "Close",
+            SWEEP_WIDTH - 140,
+            status_top - 6,
+            120,
+            SLIDE_XY,
+        );
+
+        let window = Self {
+            wnd,
+            workspace: parent.workspace.clone(),
+            sources: Rc::new(RefCell::new(Vec::new())),
+            authors: Rc::new(RefCell::new(Vec::new())),
+            preview: Rc::new(RefCell::new(None)),
+            _labels: labels,
+            actor_edit,
+            source_combo,
+            open_button,
+            candidates_button,
+            role_combo,
+            author_combo,
+            created_edit,
+            form_combo,
+            stance_combo,
+            basis_combo,
+            profile_button,
+            field_combo,
+            counts_label,
+            grid,
+            preview_edit,
+            original_button,
+            context_button,
+            accept_button,
+            reject_button,
+            keys_edit,
+            status_label,
+            close_button,
+        };
+        window.events();
+        window
+            .wnd
+            .show_modal(&parent.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)
+    }
+
+    fn events(&self) {
+        let me = self.clone();
+        self.wnd.on().wm_create(move |_| {
+            fit_window_to_work_area(me.wnd.hwnd(), SWEEP_MIN_WIDTH, SWEEP_MIN_HEIGHT)?;
+            me.fill_vocabularies()?;
+            me.reload_sources()?;
+            me.refresh_keys()?;
+            Ok(0)
+        });
+
+        let me = self.clone();
+        self.wnd.on().wm_get_min_max_info(move |info| {
+            if let Some((frame_width, frame_height)) = frame_margins(me.wnd.hwnd()) {
+                info.info.ptMinTrackSize = w::POINT::with(
+                    gui::dpi_x(SWEEP_MIN_WIDTH) + frame_width,
+                    gui::dpi_y(SWEEP_MIN_HEIGHT) + frame_height,
+                );
+            }
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.open_button.on().bn_clicked(move || {
+            me.open_selected_source()?;
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.source_combo.on().cbn_sel_change(move || {
+            me.show_profile_of_selected_source()?;
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.profile_button.on().bn_clicked(move || {
+            me.save_profile()?;
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.candidates_button.on().bn_clicked(move || {
+            let outcome = me.workspace.borrow_mut().suggest_enrichment();
+            match outcome {
+                Ok(_) => {
+                    me.reload_sources()?;
+                    me.refresh_grid()?;
+                    me.set_status(
+                        "Deterministic rules proposed candidates; Enter accepts one, x refuses it.",
+                    )?;
+                }
+                Err(error) => me.set_status(&format!("ERROR  {error}"))?,
+            }
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.field_combo.on().cbn_sel_change(move || {
+            if let Some(index) = me.field_combo.items().selected_index() {
+                let token = SWEEP_FIELDS
+                    .get(index as usize)
+                    .map_or("F2", |(_, _, token)| *token);
+                me.send_key(token)?;
+            }
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.grid.on().lvn_key_down(move |key| {
+            me.on_grid_key(key.wVKey)?;
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.grid.on().nm_click(move |clicked| {
+            if clicked.iItem >= 0 {
+                let index = usize::try_from(clicked.iItem).unwrap_or(0);
+                let outcome = me.workspace.borrow_mut().enrichment_select(index);
+                me.after_command(outcome)?;
+            }
+            Ok(())
+        });
+
+        // `IsDialogMessage` turns Escape into `IDCANCEL` before the grid ever
+        // sees it, so command mode is claimed here rather than in the grid's
+        // key handler.
+        let me = self.clone();
+        self.wnd
+            .on()
+            .wm_command(co::DLGID::CANCEL, co::CMD::Menu, move || {
+                me.send_key("Esc")?;
+                Ok(())
+            });
+
+        let me = self.clone();
+        self.accept_button.on().bn_clicked(move || {
+            me.send_key("Enter")?;
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.reject_button.on().bn_clicked(move || {
+            me.send_key("x")?;
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.original_button.on().bn_clicked(move || {
+            me.open_preview_path(false)?;
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.context_button.on().bn_clicked(move || {
+            me.open_preview_path(true)?;
+            Ok(())
+        });
+
+        let me = self.clone();
+        self.close_button.on().bn_clicked(move || {
+            me.wnd.close();
+            Ok(())
+        });
+    }
+
+    /// Fills the controlled vocabularies. Every value a person can enter comes
+    /// from the kernel's own enums, so a frontend cannot invent a role.
+    fn fill_vocabularies(&self) -> w::SysResult<()> {
+        self.role_combo.items().delete_all();
+        self.role_combo.items().add(
+            &SourceRole::ALL
+                .iter()
+                .map(|role| role.as_str())
+                .collect::<Vec<_>>(),
+        )?;
+        self.role_combo.items().select(Some(0));
+
+        self.form_combo.items().delete_all();
+        let mut forms = vec!["default form: none"];
+        forms.extend(ContentForm::ALL.iter().map(|form| form.as_str()));
+        self.form_combo.items().add(&forms)?;
+        self.form_combo.items().select(Some(0));
+
+        self.stance_combo.items().delete_all();
+        let mut stances = vec!["default stance: none"];
+        stances.extend(TemporalStance::ALL.iter().map(|stance| stance.as_str()));
+        self.stance_combo.items().add(&stances)?;
+        self.stance_combo.items().select(Some(0));
+
+        self.basis_combo.items().delete_all();
+        let mut bases = vec!["default basis: none"];
+        bases.extend(PerceptionBasis::ALL.iter().map(|basis| basis.as_str()));
+        self.basis_combo.items().add(&bases)?;
+        self.basis_combo.items().select(Some(0));
+        Ok(())
+    }
+
+    fn reload_sources(&self) -> w::SysResult<()> {
+        let (sources, authors) = {
+            let workspace = self.workspace.borrow();
+            (
+                workspace.enrichment_sources().unwrap_or_default(),
+                workspace.entity_candidates("", 200).unwrap_or_default(),
+            )
+        };
+        let captions = sources
+            .iter()
+            .map(|source| {
+                format!(
+                    "{}  [{}]  {} passages · {} awaiting a person · {} candidates{}",
+                    source.name,
+                    source.kind,
+                    source.passages,
+                    source.outstanding(),
+                    source.candidates,
+                    if source.has_profile() {
+                        String::new()
+                    } else {
+                        "  · no profile".to_owned()
+                    }
+                )
+            })
+            .collect::<Vec<_>>();
+        let selected = self.source_combo.items().selected_index();
+        self.source_combo.items().delete_all();
+        if !captions.is_empty() {
+            self.source_combo.items().add(&captions)?;
+            let index = selected
+                .filter(|index| (*index as usize) < captions.len())
+                .unwrap_or(0);
+            self.source_combo.items().select(Some(index));
+        }
+
+        let author_captions = std::iter::once("author: not recorded".to_owned())
+            .chain(
+                authors
+                    .iter()
+                    .map(|entity| format!("{} ({})", entity.display_name, entity.kind)),
+            )
+            .collect::<Vec<_>>();
+        self.author_combo.items().delete_all();
+        self.author_combo.items().add(&author_captions)?;
+        self.author_combo.items().select(Some(0));
+
+        *self.sources.borrow_mut() = sources;
+        *self.authors.borrow_mut() = authors;
+        self.show_profile_of_selected_source()
+    }
+
+    fn selected_source(&self) -> Option<crate::EnrichmentSource> {
+        let index = self.source_combo.items().selected_index()? as usize;
+        self.sources.borrow().get(index).cloned()
+    }
+
+    /// Shows the current profile of the selected source, so the screen always
+    /// reads as "the profile of this file" rather than a blank form.
+    fn show_profile_of_selected_source(&self) -> w::SysResult<()> {
+        let Some(source) = self.selected_source() else {
+            return Ok(());
+        };
+        let profile = self
+            .workspace
+            .borrow()
+            .source_profile(&source.source_id)
+            .unwrap_or_default();
+        let Some(profile) = profile else {
+            self.created_edit.set_text("")?;
+            return Ok(());
+        };
+        if let Some(index) = SourceRole::ALL
+            .iter()
+            .position(|role| *role == profile.source_role)
+        {
+            self.role_combo.items().select(u32::try_from(index).ok());
+        }
+        self.created_edit
+            .set_text(profile.created_at_claim.as_deref().unwrap_or(""))?;
+        let author_index = profile.author_entity_id.as_deref().and_then(|id| {
+            self.authors
+                .borrow()
+                .iter()
+                .position(|entity| entity.id == id)
+        });
+        self.author_combo.items().select(Some(
+            author_index.map_or(0, |index| u32::try_from(index + 1).unwrap_or(0)),
+        ));
+        select_optional(
+            &self.form_combo,
+            ContentForm::ALL,
+            profile.default_content_form,
+        );
+        select_optional(
+            &self.stance_combo,
+            TemporalStance::ALL,
+            profile.default_temporal_stance,
+        );
+        select_optional(
+            &self.basis_combo,
+            PerceptionBasis::ALL,
+            profile.default_perception_basis,
+        );
+        Ok(())
+    }
+
+    fn actor(&self) -> String {
+        self.actor_edit.text().unwrap_or_default().trim().to_owned()
+    }
+
+    fn save_profile(&self) -> w::SysResult<()> {
+        let Some(source) = self.selected_source() else {
+            return self.set_status("Choose a source first.");
+        };
+        let role = self
+            .role_combo
+            .items()
+            .selected_index()
+            .and_then(|index| SourceRole::ALL.get(index as usize).copied())
+            .unwrap_or(SourceRole::Other);
+        let author_entity_id = self
+            .author_combo
+            .items()
+            .selected_index()
+            .filter(|index| *index > 0)
+            .and_then(|index| {
+                self.authors
+                    .borrow()
+                    .get(index as usize - 1)
+                    .map(|entity| entity.id.clone())
+            });
+        let created = self.created_edit.text()?.trim().to_owned();
+        let profile = ProposedSourceProfile {
+            id: None,
+            source_id: source.source_id.clone(),
+            source_role: role,
+            author_entity_id,
+            created_at_claim: optional_text(&created),
+            default_content_form: selected_optional(&self.form_combo, ContentForm::ALL),
+            default_temporal_stance: selected_optional(&self.stance_combo, TemporalStance::ALL),
+            default_perception_basis: selected_optional(&self.basis_combo, PerceptionBasis::ALL),
+            clock_offset_ms: None,
+            clock_offset_basis: None,
+            review_state: ReviewState::Reviewed,
+            created_by: self.actor(),
+            supersedes_profile_id: None,
+        };
+        let outcome = self.workspace.borrow_mut().save_source_profile(&profile);
+        match outcome {
+            Ok(_) => {
+                self.reload_sources()?;
+                self.refresh_grid()?;
+                self.set_status(
+                    "Profile saved. Every passage in this source inherits it until a reading overrides it.",
+                )
+            }
+            Err(error) => self.set_status(&format!("ERROR  {error}")),
+        }
+    }
+
+    fn open_selected_source(&self) -> w::SysResult<()> {
+        let Some(source) = self.selected_source() else {
+            return self.set_status("This case has no extracted passages to read yet.");
+        };
+        let actor = self.actor();
+        let outcome = self
+            .workspace
+            .borrow_mut()
+            .open_enrichment(&source.source_id, &actor);
+        match outcome {
+            Ok(()) => {
+                self.refresh_grid()?;
+                self.grid.focus()?;
+                self.set_status(&format!(
+                    "{} open under {actor}. j and k move; one key per row enters a value.",
+                    source.name
+                ))
+            }
+            Err(error) => self.set_status(&format!("ERROR  {error}")),
+        }
+    }
+
+    /// Turns one physical key into a token of the sweep grammar.
+    ///
+    /// The frontend owns the physical keyboard and the kernel owns the
+    /// grammar, so a layout that puts `@` somewhere else changes this function
+    /// and nothing else.
+    fn on_grid_key(&self, vkey: co::VK) -> w::SysResult<()> {
+        let shift = w::GetAsyncKeyState(co::VK::SHIFT);
+        let token = match vkey {
+            co::VK::UP => Some(if shift { "K" } else { "k" }.to_owned()),
+            co::VK::DOWN => Some(if shift { "J" } else { "j" }.to_owned()),
+            co::VK::RETURN => Some("Enter".to_owned()),
+            co::VK::OEM_PERIOD if !shift => Some(".".to_owned()),
+            co::VK::OEM_2 => Some(if shift { "?" } else { "/" }.to_owned()),
+            co::VK::CHAR_2 if shift => Some("@".to_owned()),
+            other => function_key(other)
+                .map(str::to_owned)
+                .or_else(|| letter_key(other, shift)),
+        };
+        let Some(token) = token else {
+            return Ok(());
+        };
+        match token.as_str() {
+            "@" => self.enter_entity(),
+            "t" => self.enter_time_or_location(),
+            "s" => self.enter_span(),
+            "?" => self.refresh_keys(),
+            _ => self.send_key(&token),
+        }
+    }
+
+    fn send_key(&self, token: &str) -> w::SysResult<()> {
+        let outcome = self.workspace.borrow_mut().enrichment_key(token);
+        self.after_command(outcome)
+    }
+
+    /// `@`: choose a person the case already knows, or write down a new one.
+    fn enter_entity(&self) -> w::SysResult<()> {
+        if let Err(error) = self.workspace.borrow_mut().enrichment_key("@") {
+            return self.set_status(&format!("ERROR  {error}"));
+        }
+        let Some(choice) = self.choose_entity()? else {
+            return self.set_status("No entity chosen; the passage is unchanged.");
+        };
+        let outcome = self
+            .workspace
+            .borrow_mut()
+            .enrichment_submit_entity(&choice);
+        self.after_command(outcome)
+    }
+
+    /// `t`: a time with its sticky basis, or — in the location sweep — the
+    /// wording the source itself used.
+    fn enter_time_or_location(&self) -> w::SysResult<()> {
+        let field = self
+            .workspace
+            .borrow()
+            .enrichment_session()
+            .map(|session| session.field);
+        if let Err(error) = self.workspace.borrow_mut().enrichment_key("t") {
+            return self.set_status(&format!("ERROR  {error}"));
+        }
+        if field == Some(EnrichmentField::Location) {
+            let Some(text) = prompt_text(
+                &self.wnd,
+                "Location",
+                "Type the location exactly as the source words it.",
+                "",
+            )?
+            else {
+                return self.set_status("No location entered.");
+            };
+            let outcome = self
+                .workspace
+                .borrow_mut()
+                .enrichment_submit_location(&text);
+            return self.after_command(outcome);
+        }
+        let Some(entry) = self.prompt_time()? else {
+            return self.set_status("No time entered.");
+        };
+        let outcome = self.workspace.borrow_mut().enrichment_submit_time(&entry);
+        self.after_command(outcome)
+    }
+
+    /// `s`: mark the part of a passage the reading is really about.
+    fn enter_span(&self) -> w::SysResult<()> {
+        let text = self
+            .workspace
+            .borrow()
+            .enrichment_session()
+            .and_then(|session| session.selected().map(|row| row.text.clone()))
+            .unwrap_or_default();
+        if let Err(error) = self.workspace.borrow_mut().enrichment_key("s") {
+            return self.set_status(&format!("ERROR  {error}"));
+        }
+        let Some(quoted) = prompt_text(
+            &self.wnd,
+            "Sub-span",
+            "Paste the exact words this reading covers. They must appear in the passage.",
+            "",
+        )?
+        else {
+            return self.set_status("No sub-span marked.");
+        };
+        let Some(start) = text.find(quoted.trim()) else {
+            return self
+                .set_status("Those words are not in the passage; the sub-span must be verbatim.");
+        };
+        let start = u32::try_from(start).unwrap_or(0);
+        let end = start + u32::try_from(quoted.trim().len()).unwrap_or(0);
+        let outcome = self
+            .workspace
+            .borrow_mut()
+            .enrichment_submit_span(start, end);
+        self.after_command(outcome)
+    }
+
+    fn after_command(&self, outcome: GuiResult<String>) -> w::SysResult<()> {
+        match outcome {
+            Ok(_) => {
+                self.refresh_grid()?;
+                self.sync_field_combo();
+                self.refresh_keys()?;
+                let summary = self.summary();
+                self.set_status(&summary)
+            }
+            Err(error) => self.set_status(&format!("ERROR  {error}")),
+        }
+    }
+
+    fn summary(&self) -> String {
+        let workspace = self.workspace.borrow();
+        let Some(session) = workspace.enrichment_session() else {
+            return "No source is open.".to_owned();
+        };
+        let waiting = session
+            .rows
+            .iter()
+            .filter(|row| row.needs(session.field))
+            .count();
+        format!(
+            "{} · passage {} of {} · {waiting} still need this field · {} keystrokes recorded under {}{}",
+            session.source_id,
+            session.cursor + 1,
+            session.rows.len(),
+            session.keystrokes,
+            session.actor,
+            if session.command_mode {
+                " · command mode: u undoes"
+            } else {
+                ""
+            }
+        )
+    }
+
+    fn refresh_grid(&self) -> w::SysResult<()> {
+        let (rows, cursor) = {
+            let workspace = self.workspace.borrow();
+            let rows = workspace.enrichment_rows().unwrap_or_default();
+            let cursor = workspace
+                .enrichment_session()
+                .map_or(0, |session| session.cursor);
+            (rows, cursor)
+        };
+        self.grid.set_redraw(false);
+        self.grid.items().delete_all()?;
+        for row in &rows {
+            self.grid.items().add(&grid_texts(row), None, ())?;
+        }
+        self.grid.set_redraw(true);
+        if let Ok(index) = u32::try_from(cursor)
+            && index < self.grid.items().count()
+        {
+            let item = self.grid.items().get(index);
+            item.select(true)?;
+            item.focus()?;
+            item.ensure_visible()?;
+        }
+        self.counts_label
+            .hwnd()
+            .SetWindowText(&Self::counts_text(&rows))?;
+        self.refresh_preview()
+    }
+
+    fn counts_text(rows: &[EnrichmentRow]) -> String {
+        let candidates = rows.iter().filter(|row| row.candidate).count();
+        let needing = rows.iter().filter(|row| row.needs).count();
+        format!(
+            "{} passages · {needing} need this field · {candidates} candidates",
+            rows.len()
+        )
+    }
+
+    fn sync_field_combo(&self) {
+        let field = self
+            .workspace
+            .borrow()
+            .enrichment_session()
+            .map(|session| session.field);
+        if let Some(field) = field
+            && let Some(index) = SWEEP_FIELDS
+                .iter()
+                .position(|(_, candidate, _)| *candidate == field)
+        {
+            self.field_combo
+                .items()
+                .select(Some(u32::try_from(index).unwrap_or(0)));
+        }
+    }
+
+    fn refresh_preview(&self) -> w::SysResult<()> {
+        let descriptor = self.workspace.borrow().enrichment_preview().ok();
+        let text = describe_preview(descriptor.as_ref());
+        *self.preview.borrow_mut() = descriptor;
+        self.preview_edit.set_text(&windows_lines(&text))
+    }
+
+    fn refresh_keys(&self) -> w::SysResult<()> {
+        let field = self
+            .workspace
+            .borrow()
+            .enrichment_session()
+            .map_or(EnrichmentField::ContentForm, |session| session.field);
+        let mut text = String::new();
+        for (key, meaning) in key_sheet(field) {
+            let _ = writeln!(text, "{key:<14}{meaning}");
+        }
+        text.push('\n');
+        for (key, meaning) in COMMAND_SHEET {
+            let _ = writeln!(text, "{key:<14}{meaning}");
+        }
+        self.keys_edit.set_text(&windows_lines(&text))
+    }
+
+    /// Opens the untouched original, or the retained context beside it.
+    fn open_preview_path(&self, context: bool) -> w::SysResult<()> {
+        let path = {
+            let preview = self.preview.borrow();
+            let Some(descriptor) = preview.as_ref() else {
+                return self.set_status("No passage is selected.");
+            };
+            if context {
+                context_path(descriptor)
+            } else {
+                original_path(descriptor)
+            }
+        };
+        let Some(path) = path else {
+            return self.set_status(
+                "That file is not available. The locator on screen is still the citation.",
+            );
+        };
+        let path = path.to_string_lossy().to_string();
+        self.wnd
+            .hwnd()
+            .ShellExecute("open", &path, None, None, co::SW::SHOWNORMAL)?;
+        Ok(())
+    }
+
+    /// `@` autocomplete: the case's own names, or a new record for one it does
+    /// not have. `possibly the same person` is offered instead of a merge.
+    fn choose_entity(&self) -> w::SysResult<Option<String>> {
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: "Choose a person, organization, object, or place",
+            size: gui::dpi(560, 400),
+            ..Default::default()
+        });
+        let _find_label = label(&modal, "Find", 20, 24, 34, ANCHOR);
+        let find_edit = edit(&modal, 58, 20, 350, ANCHOR);
+        let search = button(&modal, "&Find", 420, 18, 116, ANCHOR);
+        let list = gui::ComboBox::new(
+            &modal,
+            gui::ComboBoxOpts {
+                position: gui::dpi(20, 62),
+                width: gui::dpi_x(516),
+                items: &[],
+                ..Default::default()
+            },
+        );
+        let _list_hint = label(
+            &modal,
+            "Names the case already holds. Find narrows the list; the selection is what Use records.",
+            20,
+            96,
+            516,
+            ANCHOR,
+        );
+        let _new_label = label(
+            &modal,
+            "A name the case does not hold yet — created as its own record, never merged.",
+            20,
+            270,
+            516,
+            ANCHOR,
+        );
+        let new_edit = edit(&modal, 20, 292, 350, ANCHOR);
+        let create = button(&modal, "&Create New", 380, 290, 156, ANCHOR);
+        let same_person = button(
+            &modal,
+            "Create, &Possibly Same as Selected",
+            20,
+            330,
+            300,
+            ANCHOR,
+        );
+        let use_selected = button(&modal, "&Use Selected", 330, 330, 116, ANCHOR);
+        let cancel = button(&modal, "Cancel", 456, 330, 80, ANCHOR);
+
+        let candidates = Rc::new(RefCell::new(
+            self.workspace
+                .borrow()
+                .entity_candidates("", 200)
+                .unwrap_or_default(),
+        ));
+        let chosen: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+
+        let fill = {
+            let list = list.clone();
+            let candidates = candidates.clone();
+            move || -> w::SysResult<()> {
+                list.items().delete_all();
+                let captions = candidates
+                    .borrow()
+                    .iter()
+                    .map(|entity| format!("{} ({})", entity.display_name, entity.kind))
+                    .collect::<Vec<_>>();
+                if !captions.is_empty() {
+                    list.items().add(&captions)?;
+                    list.items().select(Some(0));
+                }
+                Ok(())
+            }
+        };
+        fill()?;
+        let fill = Rc::new(fill);
+
+        let workspace = self.workspace.clone();
+        let candidates_for_find = candidates.clone();
+        let find_edit_for_find = find_edit.clone();
+        let fill_for_find = fill.clone();
+        search.on().bn_clicked(move || {
+            let prefix = find_edit_for_find.text()?;
+            *candidates_for_find.borrow_mut() = workspace
+                .borrow()
+                .entity_candidates(prefix.trim(), 200)
+                .unwrap_or_default();
+            fill_for_find()?;
+            Ok(())
+        });
+
+        let candidates_for_use = candidates.clone();
+        let list_for_use = list.clone();
+        let chosen_for_use = chosen.clone();
+        let modal_for_use = modal.clone();
+        use_selected.on().bn_clicked(move || {
+            if let Some(index) = list_for_use.items().selected_index()
+                && let Some(entity) = candidates_for_use.borrow().get(index as usize)
+            {
+                *chosen_for_use.borrow_mut() = Some(entity.id.clone());
+                modal_for_use.close();
+            }
+            Ok(())
+        });
+
+        for (control, link_to_selected) in [(create, false), (same_person, true)] {
+            let workspace = self.workspace.clone();
+            let candidates = candidates.clone();
+            let list = list.clone();
+            let new_edit = new_edit.clone();
+            let chosen = chosen.clone();
+            let modal_close = modal.clone();
+            let actor = self.actor();
+            control.on().bn_clicked(move || {
+                let name = new_edit.text()?.trim().to_owned();
+                if name.is_empty() {
+                    return Ok(());
+                }
+                let other = if link_to_selected {
+                    list.items().selected_index().and_then(|index| {
+                        candidates
+                            .borrow()
+                            .get(index as usize)
+                            .map(|entity| entity.id.clone())
+                    })
+                } else {
+                    None
+                };
+                let written = workspace.borrow_mut().create_entity(
+                    &name,
+                    EntityKind::Person,
+                    &actor,
+                    other.as_deref(),
+                );
+                if let Ok(entity) = written {
+                    *chosen.borrow_mut() = Some(entity.id);
+                    modal_close.close();
+                }
+                Ok(())
+            });
+        }
+
+        let modal_cancel = modal.clone();
+        cancel.on().bn_clicked(move || {
+            modal_cancel.close();
+            Ok(())
+        });
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+        let picked = chosen.borrow().clone();
+        Ok(picked)
+    }
+
+    /// `t`: the expression, whether it is the source's own claim or the
+    /// reviewer's alignment, and the basis that alignment rests on.
+    fn prompt_time(&self) -> w::SysResult<Option<crate::TimeEntry>> {
+        let sticky = self
+            .workspace
+            .borrow()
+            .enrichment_session()
+            .and_then(|session| session.sticky_time_basis.clone())
+            .unwrap_or_default();
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: "Time",
+            size: gui::dpi(560, 260),
+            ..Default::default()
+        });
+        let _value_label = label(
+            &modal,
+            "22:42 · 2024-03-02 22:42 · +57m from the last anchor",
+            20,
+            22,
+            420,
+            ANCHOR,
+        );
+        let value_edit = edit(&modal, 20, 46, 380, ANCHOR);
+        let asserted = gui::CheckBox::new(
+            &modal,
+            gui::CheckBoxOpts {
+                text: "The source &asserts this time",
+                position: gui::dpi(20, 84),
+                ..Default::default()
+            },
+        );
+        let approximate = gui::CheckBox::new(
+            &modal,
+            gui::CheckBoxOpts {
+                text: "A&pproximate",
+                position: gui::dpi(300, 84),
+                ..Default::default()
+            },
+        );
+        let _basis_label = label(
+            &modal,
+            "Alignment basis — required for a normalized case time, kept for the rest of the sweep",
+            20,
+            116,
+            520,
+            ANCHOR,
+        );
+        let basis_edit = gui::Edit::new(
+            &modal,
+            gui::EditOpts {
+                text: &sticky,
+                position: gui::dpi(20, 140),
+                width: gui::dpi_x(516),
+                ..Default::default()
+            },
+        );
+        let accept = button(&modal, "&Record", 300, 196, 116, ANCHOR);
+        let cancel = button(&modal, "Cancel", 424, 196, 112, ANCHOR);
+        let entry: Rc<RefCell<Option<crate::TimeEntry>>> = Rc::new(RefCell::new(None));
+
+        let entry_for_accept = entry.clone();
+        let value_for_accept = value_edit.clone();
+        let basis_for_accept = basis_edit.clone();
+        let asserted_for_accept = asserted.clone();
+        let approximate_for_accept = approximate.clone();
+        let modal_for_accept = modal.clone();
+        accept.on().bn_clicked(move || {
+            let value = value_for_accept.text()?.trim().to_owned();
+            if value.is_empty() {
+                return Ok(());
+            }
+            *entry_for_accept.borrow_mut() = Some(crate::TimeEntry {
+                value,
+                asserted: asserted_for_accept.is_checked(),
+                basis: optional_text(basis_for_accept.text()?.trim()),
+                approximate: approximate_for_accept.is_checked(),
+            });
+            modal_for_accept.close();
+            Ok(())
+        });
+        let modal_cancel = modal.clone();
+        cancel.on().bn_clicked(move || {
+            modal_cancel.close();
+            Ok(())
+        });
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+        let recorded = entry.borrow().clone();
+        Ok(recorded)
+    }
+
+    fn set_status(&self, text: &str) -> w::SysResult<()> {
+        self.status_label.hwnd().SetWindowText(text)
+    }
+}
+
+/// One free-text answer, used where a value has no controlled vocabulary.
+fn prompt_text(
+    parent: &gui::WindowModal,
+    title: &str,
+    guidance: &str,
+    initial: &str,
+) -> w::SysResult<Option<String>> {
+    let modal = gui::WindowModal::new(gui::WindowModalOpts {
+        title,
+        size: gui::dpi(560, 200),
+        ..Default::default()
+    });
+    let _guidance = label(&modal, guidance, 20, 22, 516, ANCHOR);
+    let value = gui::Edit::new(
+        &modal,
+        gui::EditOpts {
+            text: initial,
+            position: gui::dpi(20, 56),
+            width: gui::dpi_x(516),
+            ..Default::default()
+        },
+    );
+    let accept = button(&modal, "&Record", 300, 130, 116, ANCHOR);
+    let cancel = button(&modal, "Cancel", 424, 130, 112, ANCHOR);
+    let answer: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+
+    let answer_for_accept = answer.clone();
+    let value_for_accept = value.clone();
+    let modal_for_accept = modal.clone();
+    accept.on().bn_clicked(move || {
+        let text = value_for_accept.text()?.trim().to_owned();
+        if !text.is_empty() {
+            *answer_for_accept.borrow_mut() = Some(text);
+        }
+        modal_for_accept.close();
+        Ok(())
+    });
+    let modal_cancel = modal.clone();
+    cancel.on().bn_clicked(move || {
+        modal_cancel.close();
+        Ok(())
+    });
+    modal
+        .show_modal(parent)
+        .map_err(|_| co::ERROR::INVALID_DATA)?;
+    let recorded = answer.borrow().clone();
+    Ok(recorded)
+}
+
+/// `F2`…`F8`, which is how a sweep changes column.
+fn function_key(vkey: co::VK) -> Option<&'static str> {
+    match vkey {
+        co::VK::F2 => Some("F2"),
+        co::VK::F3 => Some("F3"),
+        co::VK::F4 => Some("F4"),
+        co::VK::F5 => Some("F5"),
+        co::VK::F6 => Some("F6"),
+        co::VK::F7 => Some("F7"),
+        co::VK::F8 => Some("F8"),
+        _ => None,
+    }
+}
+
+/// A letter, in the case the reviewer typed it: `Shift` is the range apply.
+fn letter_key(vkey: co::VK, shift: bool) -> Option<String> {
+    let raw = u16::from(vkey);
+    if !(0x41..=0x5a).contains(&raw) {
+        return None;
+    }
+    let letter = char::from(u8::try_from(raw).ok()?);
+    Some(if shift {
+        letter.to_string()
+    } else {
+        letter.to_ascii_lowercase().to_string()
+    })
+}
+
+/// The digit row, for the `Ctrl` view accelerators.
+fn digit_key(digit: char) -> co::VK {
+    match digit {
+        '0' => co::VK::CHAR_0,
+        '2' => co::VK::CHAR_2,
+        '3' => co::VK::CHAR_3,
+        '4' => co::VK::CHAR_4,
+        '5' => co::VK::CHAR_5,
+        '6' => co::VK::CHAR_6,
+        '7' => co::VK::CHAR_7,
+        '8' => co::VK::CHAR_8,
+        '9' => co::VK::CHAR_9,
+        _ => co::VK::CHAR_1,
+    }
+}
+
+fn grid_texts(row: &EnrichmentRow) -> [String; 6] {
+    [
+        row.number.to_string(),
+        row.locator.clone(),
+        row.passage.clone(),
+        row.value.clone(),
+        row.provenance.clone(),
+        row.badge.clone(),
+    ]
+}
+
+/// The preview in words: what the passage points at, and whether the file
+/// backing it still matches what was imported.
+fn describe_preview(descriptor: Option<&PreviewDescriptor>) -> String {
+    let Some(descriptor) = descriptor else {
+        return "No passage is selected.".to_owned();
+    };
+    let mut text = String::new();
+    match descriptor {
+        PreviewDescriptor::Document {
+            original_path,
+            page,
+            bounding_box,
+            page_image,
+            ..
+        } => {
+            let _ = writeln!(text, "Document · page {page}");
+            if let Some(region) = bounding_box {
+                let _ = writeln!(
+                    text,
+                    "Region on the page: {:.3}, {:.3} to {:.3}, {:.3}",
+                    region[0], region[1], region[2], region[3]
+                );
+            }
+            write_path(&mut text, "Original", original_path.as_deref());
+            write_path(&mut text, "Retained page image", page_image.as_deref());
+        }
+        PreviewDescriptor::Audio {
+            original_path,
+            start_ms,
+            end_ms,
+            waveform,
+            ..
+        } => {
+            let _ = writeln!(text, "Audio · {} to {}", clock(*start_ms), clock(*end_ms));
+            write_path(&mut text, "Original", original_path.as_deref());
+            write_path(&mut text, "Retained waveform", waveform.as_deref());
+        }
+        PreviewDescriptor::Video {
+            original_path,
+            start_ms,
+            end_ms,
+            frames,
+            ..
+        } => {
+            let _ = writeln!(
+                text,
+                "Video · {} to {} · {} retained still(s)",
+                clock(*start_ms),
+                clock(*end_ms),
+                frames.len()
+            );
+            write_path(&mut text, "Original", original_path.as_deref());
+            write_path(
+                &mut text,
+                "First still",
+                frames.first().map(PathBuf::as_path),
+            );
+        }
+        PreviewDescriptor::Unavailable { locator, reason } => {
+            let _ = writeln!(text, "The original cannot be opened from here.");
+            let _ = writeln!(text, "Locator: {locator}");
+            let _ = writeln!(text, "Why: {reason}");
+        }
+    }
+    if descriptor.verified_context() {
+        text.push_str("The file still matches the hash and length recorded at intake.\n");
+    } else {
+        text.push_str(
+            "Unverified context: a `verified` decision still needs the original itself.\n",
+        );
+    }
+    text
+}
+
+fn write_path(text: &mut String, caption: &str, path: Option<&Path>) {
+    if let Some(path) = path {
+        let _ = writeln!(text, "{caption}: {}", path.display());
+    }
+}
+
+fn clock(milliseconds: u64) -> String {
+    let seconds = milliseconds / 1_000;
+    format!(
+        "{:02}:{:02}:{:02}.{:03}",
+        seconds / 3_600,
+        (seconds % 3_600) / 60,
+        seconds % 60,
+        milliseconds % 1_000
+    )
+}
+
+fn original_path(descriptor: &PreviewDescriptor) -> Option<PathBuf> {
+    match descriptor {
+        PreviewDescriptor::Document { original_path, .. }
+        | PreviewDescriptor::Audio { original_path, .. }
+        | PreviewDescriptor::Video { original_path, .. } => original_path.clone(),
+        PreviewDescriptor::Unavailable { .. } => None,
+    }
+}
+
+fn context_path(descriptor: &PreviewDescriptor) -> Option<PathBuf> {
+    match descriptor {
+        PreviewDescriptor::Document { page_image, .. } => page_image.clone(),
+        PreviewDescriptor::Audio { waveform, .. } => waveform.clone(),
+        PreviewDescriptor::Video { frames, .. } => frames.first().cloned(),
+        PreviewDescriptor::Unavailable { .. } => None,
+    }
+}
+
+/// Reads an optional controlled value out of a combo whose first row is "none".
+fn selected_optional<T: Copy>(combo: &gui::ComboBox, all: &'static [T]) -> Option<T> {
+    combo
+        .items()
+        .selected_index()
+        .filter(|index| *index > 0)
+        .and_then(|index| all.get(index as usize - 1).copied())
+}
+
+/// Selects the row of a "none"-headed combo that holds one optional value.
+fn select_optional<T: Copy + PartialEq>(
+    combo: &gui::ComboBox,
+    all: &'static [T],
+    value: Option<T>,
+) {
+    let index = value
+        .and_then(|value| all.iter().position(|candidate| *candidate == value))
+        .map_or(0, |index| index + 1);
+    combo
+        .items()
+        .select(Some(u32::try_from(index).unwrap_or(0)));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every command the window offers, whether or not it claims a letter.
+    fn commands() -> Vec<&'static str> {
+        VIEW_BUTTONS
+            .iter()
+            .map(|(caption, _)| *caption)
+            .chain([
+                OPEN_DATABASE,
+                NEW_CASE,
+                INTAKE_EVIDENCE,
+                PROCESSING_QUEUE,
+                ENRICHMENT_SWEEP,
+                RUN_COLLATION,
+                DISCLOSABLE_EXPORT,
+                WORK_FILE_EXPORT,
+                SAVE_EXPORT,
+                FIND,
+                MARK_REVIEWED,
+                VERIFY,
+                REJECT,
+                NEW_FROM_TEMPLATE,
+                SAVE_AUTHORED,
+                IMPORT_BATCH,
+            ])
+            .collect()
+    }
 
     /// The letter a caption claims for `Alt`, if it claims one. A doubled `&&`
     /// is an escaped ampersand and claims nothing.
@@ -1930,29 +3547,12 @@ mod tests {
     /// the same letter make `Alt` cycle focus between them instead of pressing
     /// either, which silently costs the keyboard path through the workspace.
     #[test]
-    fn every_command_has_its_own_alt_key() {
-        let commands = VIEW_BUTTONS.iter().map(|(caption, _)| *caption).chain([
-            OPEN_DATABASE,
-            NEW_CASE,
-            INTAKE_EVIDENCE,
-            PROCESSING_QUEUE,
-            RUN_COLLATION,
-            DISCLOSABLE_EXPORT,
-            WORK_FILE_EXPORT,
-            SAVE_EXPORT,
-            FIND,
-            MARK_REVIEWED,
-            VERIFY,
-            REJECT,
-            NEW_FROM_TEMPLATE,
-            SAVE_AUTHORED,
-            IMPORT_BATCH,
-        ]);
-
+    fn every_alt_key_is_claimed_once() {
         let mut claimed: Vec<(char, &str)> = Vec::new();
-        for caption in commands {
-            let letter =
-                mnemonic(caption).unwrap_or_else(|| panic!("{caption:?} offers no Alt key"));
+        for caption in commands() {
+            let Some(letter) = mnemonic(caption) else {
+                continue;
+            };
             if let Some((_, other)) = claimed.iter().find(|(taken, _)| *taken == letter) {
                 panic!("Alt+{letter} is claimed by both {other:?} and {caption:?}");
             }
@@ -1960,18 +3560,137 @@ mod tests {
         }
     }
 
+    /// The Alt namespace ran out before the views did, so a view that carries
+    /// no letter is reached by a `Ctrl` chord instead. Every view has exactly
+    /// one chord, no chord is shared, and no command is unreachable.
     #[test]
-    fn ten_view_controls_stay_above_the_action_rail() {
-        let last_row = i32::try_from(VIEW_BUTTONS.len() - 1).expect("small navigation rail");
-        let last_bottom = VIEW_RAIL_TOP + last_row * VIEW_RAIL_PITCH + VIEW_BUTTON_HEIGHT;
+    fn every_command_has_its_own_accelerator() {
+        let mut chords: Vec<(String, &str)> = Vec::new();
+        for (index, (caption, _)) in VIEW_BUTTONS.iter().enumerate() {
+            let (shift, key) = view_accelerator(index);
+            let chord = accelerator_label(shift, key);
+            if let Some((_, other)) = chords.iter().find(|(taken, _)| *taken == chord) {
+                panic!("{chord} is claimed by both {other:?} and {caption:?}");
+            }
+            chords.push((chord, caption));
+        }
+        assert_eq!(chords.len(), VIEW_BUTTONS.len());
+
+        for caption in commands() {
+            let has_letter = mnemonic(caption).is_some();
+            let has_chord = VIEW_BUTTONS
+                .iter()
+                .any(|(view_caption, _)| *view_caption == caption);
+            assert!(
+                has_letter || has_chord,
+                "{caption:?} offers neither an Alt key nor a Ctrl chord"
+            );
+        }
+    }
+
+    /// Every workspace view the kernel offers has a control. A read model with
+    /// no way to reach it is a read model nobody uses.
+    #[test]
+    fn every_workspace_view_is_on_the_rail() {
+        for view in WorkspaceView::ALL {
+            assert!(
+                VIEW_BUTTONS.iter().any(|(_, candidate)| *candidate == view),
+                "{} has no navigation control",
+                view.label()
+            );
+        }
+        assert_eq!(VIEW_BUTTONS.len(), WorkspaceView::ALL.len());
+    }
+
+    /// The rail is anchored and does not move, so everything on it has to fit
+    /// inside the smallest client area the window will accept.
+    #[test]
+    fn the_rail_fits_above_the_minimum_height() {
+        let last_view_row = i32::try_from(VIEW_BUTTONS.len() - 1).expect("a small rail");
+        let last_view_bottom = VIEW_RAIL_TOP + last_view_row * VIEW_RAIL_PITCH + VIEW_BUTTON_HEIGHT;
         assert!(
-            last_bottom < RAIL_RULES[1],
-            "view controls end at {last_bottom}, colliding with the rule at {}",
+            last_view_bottom < RAIL_RULES[1],
+            "view controls end at {last_view_bottom}, colliding with the rule at {}",
             RAIL_RULES[1]
         );
         assert!(
             RAIL_RULES[1] < ACTION_RAIL_TOP,
             "the group rule must remain above the first action"
+        );
+
+        let intake_bottom = INTAKE_RAIL_TOP + 2 * INTAKE_RAIL_PITCH + BUTTON_HEIGHT;
+        assert!(
+            intake_bottom < RAIL_RULES[0],
+            "intake commands end at {intake_bottom}, colliding with the rule at {}",
+            RAIL_RULES[0]
+        );
+        assert!(
+            RAIL_RULES[0] < VIEW_RAIL_TOP,
+            "the first rule must remain above the view rail"
+        );
+
+        let last_action_bottom = ACTION_RAIL_TOP + 3 * ACTION_RAIL_PITCH + BUTTON_HEIGHT;
+        assert!(
+            last_action_bottom <= MIN_HEIGHT,
+            "the export commands end at {last_action_bottom}, below the {MIN_HEIGHT} floor"
+        );
+    }
+
+    /// Each sweep column is reachable by exactly one function key, and the
+    /// tokens are the ones the platform-neutral grammar answers to.
+    #[test]
+    fn every_sweep_field_has_its_own_function_key() {
+        let mut seen: Vec<&str> = Vec::new();
+        for (_, field, token) in SWEEP_FIELDS {
+            assert!(!seen.contains(&token), "{token} selects two sweep fields");
+            seen.push(token);
+            let key = match token {
+                "F2" => co::VK::F2,
+                "F3" => co::VK::F3,
+                "F4" => co::VK::F4,
+                "F5" => co::VK::F5,
+                "F6" => co::VK::F6,
+                "F7" => co::VK::F7,
+                _ => co::VK::F8,
+            };
+            assert_eq!(function_key(key), Some(token));
+            assert!(
+                SWEEP_FIELDS
+                    .iter()
+                    .filter(|(_, candidate, _)| *candidate == field)
+                    .count()
+                    == 1,
+                "{field:?} appears twice in the sweep table"
+            );
+        }
+    }
+
+    /// A letter reaches the grammar in the case it was typed, because `Shift`
+    /// is the range apply and not a different value.
+    #[test]
+    fn shift_reaches_the_grammar_as_an_uppercase_letter() {
+        assert_eq!(letter_key(co::VK::CHAR_Q, false).as_deref(), Some("q"));
+        assert_eq!(letter_key(co::VK::CHAR_Q, true).as_deref(), Some("Q"));
+        assert_eq!(letter_key(co::VK::F2, false), None);
+        assert_eq!(letter_key(co::VK::CHAR_1, false), None);
+    }
+
+    /// The sweep window's rows are laid out from its bottom edge, so they have
+    /// to stay inside the floor it will not shrink past.
+    #[test]
+    fn the_sweep_window_fits_its_own_floor() {
+        let columns = GRID_COLUMNS.iter().map(|(_, width)| width).sum::<i32>();
+        assert!(
+            columns <= SWEEP_WIDTH - 40,
+            "the grid's {columns} units of columns do not fit the window it was drawn for"
+        );
+        // Narrowed to the floor the passage column is the one that gives way.
+        // Everything a decision needs — the locator, the value, where the
+        // value came from, and the badge — stays on screen without scrolling.
+        let decided = columns - GRID_COLUMNS[2].1;
+        assert!(
+            decided <= SWEEP_MIN_WIDTH - 40,
+            "at the floor the decision columns still need {decided} units"
         );
     }
 }

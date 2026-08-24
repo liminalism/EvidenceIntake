@@ -248,6 +248,38 @@ pub struct ProposedBrief {
     pub author: String,
 }
 
+/// Whether one decision-brief paragraph states source-grounded facts or analysis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BriefParagraphKind {
+    /// A factual paragraph; at least one exact node reference is mandatory.
+    Factual,
+    /// Attorney analysis, which may stand without an evidentiary reference.
+    Analytical,
+}
+
+impl BriefParagraphKind {
+    /// Stable database and wire representation.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Factual => "factual",
+            Self::Analytical => "analytical",
+        }
+    }
+}
+
+/// One ordered, typed paragraph written with a decision brief.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProposedBriefParagraph {
+    /// Whether the paragraph is factual or analytical.
+    pub kind: BriefParagraphKind,
+    /// Paragraph text.
+    pub body: String,
+    /// Exact evidentiary/application nodes supporting a factual paragraph.
+    #[serde(default)]
+    pub references: Vec<NodeRef>,
+}
+
 /// A work-product record as it stands after being written or revised.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WorkProductVersion {

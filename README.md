@@ -132,13 +132,21 @@ cargo run --features gui-winsafe --bin evidence-gui -- evidence.db
 ```
 
 The GUI is deliberately workflow-first: choose a case, navigate the standing,
-discovery, element, timeline, issue, review, search, collation, and export views,
-then use the lower action panel for named review decisions, normalized-batch
-intake, and typed authoring JSON. Buttons use Win32 mnemonic markers, so
-`Alt` plus the underlined letter activates the corresponding command. The safe
-export is `disclosable`; the privileged work-file export is a separate action.
-**Collation Groups** presents time/location anchors and placement gaps as a
-readable review sheet rather than raw JSON; `Alt+G` opens it directly.
+discovery, element, timeline, issue, review, search, collation, packet, digest,
+and export views, then use the lower action panel for named review decisions,
+normalized-batch intake, and typed authoring JSON. Buttons use Win32 mnemonic
+markers, so `Alt` plus the underlined letter activates the corresponding
+command; every view also carries a `Ctrl` accelerator, because the Alt
+namespace ran out before the views did. The safe export is `disclosable`; the
+privileged work-file export is a separate action. **Time & Place Index**
+presents time/location anchors and placement gaps as a readable review sheet
+rather than raw JSON; `Alt+G` opens it directly.
+
+**Enrichment Sweep** (`Alt+X` or `Ctrl+E`) is where the semantic layer is
+entered. No adapter can say whether a sentence is an assertion, a quotation or
+a report of somebody else's words, so a person does — one source profile
+inherited by every passage in the file, then one keystroke per exception, with
+the original beside the grid. See [`docs/enrichment.md`](docs/enrichment.md).
 
 ## Current boundary
 

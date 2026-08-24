@@ -1,4 +1,4 @@
-# Time and location collation
+# Time & Place Index
 
 The collation index is a source-grounded navigation view. It arranges active
 content without merging records or declaring that two files document one
@@ -15,7 +15,7 @@ The view contains three arrangements of the same passages:
 - `by_location` folds case and repeated whitespace in `location_text`, but does
   no address expansion, geocoding, abbreviation matching or semantic inference;
   and
-- `possibly_related` contains only date-plus-location groups spanning at least
+- `shared_anchor_unconfirmed` contains only date-plus-location groups spanning at least
   two distinct immutable sources.
 
 It also contains two integration-work sections:
@@ -34,8 +34,8 @@ content-creation time, machine attribution and review state. Raw, creation and
 asserted times are displayed but never substituted for a missing normalized
 date.
 
-Each possible group states the exact keys it shares and says that the records
-remain separate. Opening this view writes no relationship and adds nothing to
+Each shared-anchor group states the exact keys it shares and says that the records
+remain separate and their relationship is not established. Opening this view writes no relationship and adds nothing to
 the review queue. A lawyer may later author a relationship or a named work
 collection after opening the originals.
 
@@ -50,9 +50,10 @@ match.
 
 ## Native workspace
 
-The Windows workspace exposes this index through **Collation Groups**
+The Windows workspace exposes this index through **Time & Place Index**
 (`Alt+G`). Unlike the CLI's machine-readable JSON, the native view renders a
 review sheet with a short summary, source-anchor coverage, possible shared-key
 groups, placement work, chronological entries and a compact location index.
-The tenth view uses a denser navigation row so it remains above the existing
-collation/export actions at the established minimum window height.
+The navigation rail carries twelve views in a denser row so they remain above
+the collation and export actions at the window's minimum height, which
+`the_rail_fits_above_the_minimum_height` checks.

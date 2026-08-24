@@ -23,6 +23,17 @@ record evidence-intake-project.papercut.a-final-ripgrep-line-number-lookup-embed
     created_at 2026-08-09
 }
 
+record evidence-intake-project.papercut.a-follow-up-enrichment-rule-patch-missed/1 : papercut {
+    title "A follow-up enrichment-rule patch missed because rustfmt had reflowed…"
+    state verified
+    statement """
+        A follow-up enrichment-rule patch missed because rustfmt had reflowed the guarded match arm after the initial edit; splitting structural and helper edits into smaller patches avoids the fragile large context.
+        """
+    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    author "codex"
+    created_at 2026-08-23
+}
+
 record evidence-intake-project.papercut.a-multi-file-documentation-cleanup-patch-missed/1 : papercut {
     title "A multi-file documentation cleanup patch missed because the Python…"
     state verified
@@ -124,6 +135,18 @@ record evidence-intake-project.papercut.codegraph-explore-hung-16-minutes-on-a-1
     created_at 2026-08-14
 }
 
+record evidence-intake-project.papercut.correcting-an-invalid-scratch-backed-evidence/1 : papercut {
+    title "Correcting an invalid scratch-backed evidence artifact with…"
+    state verified
+    statement """
+        Correcting an invalid scratch-backed evidence artifact with knowledge.revise was rejected because the superseded invalid revision still had to validate. The required bridge was to `akr scratch keep` first, then revise to the durable artifact.
+        """
+    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    about "akr"
+    author "codex"
+    created_at 2026-08-23
+}
+
 record evidence-intake-project.papercut.external-ocr-repository-instructions-lived-at/1 : papercut {
     title "External OCR repository instructions lived at the ecosystem parent,…"
     state verified
@@ -195,6 +218,18 @@ record evidence-intake-project.papercut.knowledge-validate-returned-an-unexpecte
     created_at 2026-08-21
 }
 
+record evidence-intake-project.papercut.proposing-records-with-line-based-citations/1 : papercut {
+    title "Proposing records with line-based citations into a registered source:…"
+    state verified
+    statement """
+        Proposing records with line-based citations into a registered source: every citation whose end_line fell on a blank line was accepted by knowledge.propose but then failed validation with AKR-S022 (byte range covers one line fewer). Eight revises to fix. Propose should either reject or normalise the range at write time.
+        """
+    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    about "akr"
+    author "claude"
+    created_at 2026-08-23
+}
+
 record evidence-intake-project.papercut.ran-knowledge-context-goal-on-a-project-whose/1 : papercut {
     title "Ran knowledge.context --goal on a project whose ledger held only the…"
     state verified
@@ -239,6 +274,18 @@ record evidence-intake-project.papercut.strict-clippy-for-the-adapter-packages-a
     observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
     author "codex"
     created_at 2026-08-21
+}
+
+record evidence-intake-project.papercut.the-advertised-codegraph-instructions-name/1 : papercut {
+    title "The advertised CodeGraph instructions name `codegraph_explore`, but…"
+    state verified
+    statement """
+        The advertised CodeGraph instructions name `codegraph_explore`, but this session exposes only node/callers/callees/impact/search; the first structural lookup failed and required tool-name discovery.
+        """
+    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    about "CodeGraph"
+    author "codex"
+    created_at 2026-08-23
 }
 
 record evidence-intake-project.papercut.the-agents-protocol-names-commands-as-knowledge/1 : papercut {

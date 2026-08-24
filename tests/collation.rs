@@ -220,7 +220,7 @@ fn placement_gaps_exclude_content_a_reviewer_rejected() {
 }
 
 #[test]
-fn possibly_related_groups_need_shared_date_location_and_distinct_originals() {
+fn shared_anchor_groups_need_shared_date_location_and_distinct_originals() {
     let (mut store, case_id) = fixture();
     let batch = NormalizedBatch {
         case_id: case_id.clone(),
@@ -251,7 +251,7 @@ fn possibly_related_groups_need_shared_date_location_and_distinct_originals() {
 
     let index = store.collation_index(&case_id).expect("collation index");
     let group = index
-        .possibly_related
+        .shared_anchor_unconfirmed
         .iter()
         .find(|group| {
             let ids: Vec<_> = group
@@ -264,9 +264,13 @@ fn possibly_related_groups_need_shared_date_location_and_distinct_originals() {
         .expect("multi-source date and location group");
     assert_eq!(group.normalized_date.as_deref(), Some("2026-01-08"));
     assert_eq!(group.location.as_deref(), Some("400 block of Oak Street"));
-    assert!(group.distinct_sources >= 2);
-    assert!(group.rationale.contains("Shared collation keys only"));
-    assert!(group.rationale.contains("does not assert a common event"));
+    assert!(group.distinct_originals >= 2);
+    assert!(
+        group
+            .rationale
+            .contains("Shared reviewed date/location anchor only")
+    );
+    assert!(group.rationale.contains("Relationship not established"));
     for forbidden in ["score", "confidence", "likely", "probably", "same event"] {
         assert!(
             !group.rationale.to_lowercase().contains(forbidden),

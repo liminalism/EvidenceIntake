@@ -2,20 +2,29 @@ akr 0.1
 project evidence-intake-project
 
 record evidence-intake-project.constraint.distinct-alt-keys/1 : constraint {
-    title "Every command in the WinSafe window claims a distinct Alt key"
+    title "Every command in the WinSafe window claims a distinct accelerator"
     state proposed
     scope [ path "src/gui/winsafe.rs" ]
     statement """
-        No two controls in the WinSafe main window may claim the same mnemonic letter. Win32 resolves a mnemonic across the whole window, so a repeated letter makes Alt cycle focus between the claimants instead of pressing either one -- which silently breaks the keyboard path the status bar advertises, without any visible symptom. Command captions therefore live as named constants at the top of src/gui/winsafe.rs, and the unit test every_command_has_its_own_alt_key is what keeps them distinct.
+        No two controls in the WinSafe main window may claim the same keyboard accelerator. Win32 resolves a mnemonic across the whole window, so a repeated letter makes Alt cycle focus between the claimants instead of pressing either one -- which silently breaks the keyboard path the status bar advertises, without any visible symptom. The Alt namespace is now full: twenty-five of the twenty-six letters are claimed, and X was the last one, taken by the enrichment sweep. A command that arrives with no letter left therefore carries a Ctrl accelerator instead -- Ctrl+1 to Ctrl+9 and Ctrl+0 for the first ten workspace views, Ctrl+Shift+1 and Ctrl+Shift+2 for the two the assembly layer added, and Ctrl+E for the sweep. Command captions live as named constants at the top of src/gui/winsafe.rs; every_alt_key_is_claimed_once keeps the letters distinct, every_command_has_its_own_accelerator keeps the chords distinct and refuses a command that offers neither, and every_workspace_view_is_on_the_rail refuses a read model with no control at all.
+        """
+    measure "cargo test --features gui-winsafe --lib gui::winsafe"
+    rationale """
+        A view nobody can reach from the keyboard is a view nobody uses, and the Alt namespace ran out before the views did.
         """
     claim labels-claim-mnemonics-too {
         text """
             A static label takes the same ampersand prefix as a button, so a heading may not contain a bare ampersand. The heading 'COLLATION & EXPORT' would have claimed Alt+Space, which is the system menu.
             """
     }
+    claim the-chords-are-not-a-second-namespace {
+        text """
+            A Ctrl chord does not replace a caption's Alt letter where it has one: the ten original views keep both, and the status line names the chord when a view is shown, which is how the two lettersless views teach their own keyboard path. Accelerator command identifiers start at 0x0200 because WinSafe assigns automatic control identifiers downward from 0xdfff.
+            """
+    }
     claim what-the-collisions-were {
         text """
-            Before this pass four commands claimed Alt+V -- Seed Vehicle, Save Export, Reviewed and Verify -- and further pairs collided on O, R, T, S and I. Fixing them forced several captions to change: the import command became 'Import Normalized Batch' and the authoring command became 'Save New Record', both of which are also more accurate than what they replaced.
+            Before the first pass four commands claimed Alt+V -- Seed Vehicle, Save Export, Reviewed and Verify -- and further pairs collided on O, R, T, S and I. Fixing them forced several captions to change: the import command became 'Import Normalized Batch' and the authoring command became 'Save New Record', both of which are also more accurate than what they replaced.
             """
     }
 }

@@ -42,6 +42,23 @@ record evidence-intake-project.decision.adapters-may-propose-structural-edges/1 
     depends_on [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
 }
 
+record evidence-intake-project.decision.analyzer-classes-are-disjoint/1 : decision {
+    title "An analyzer proposes relationships, proposes interpretations, or reports findings — three disjoint classes"
+    state proposed
+    scope [ path "src/store.rs", path "src/store/enrichment_rules.rs", path "src/suggest.rs" ]
+    decision """
+        SuggestionKind classifies every analyzer into exactly one of three classes, and the predicates are exhaustive and disjoint. proposes_relationships writes suggested edges. proposes_interpretations writes suggested rows in content_interpretations -- a reading of one passage, which has no second endpoint to point at. reports_findings derives gaps on every run and stores nothing. reports_findings is defined as neither of the other two, so a new analyzer joins a class by construction rather than by being remembered in every walk over SuggestionKind::ALL.
+        """
+    context """
+        The interpretation layer added eleven analyzers to the eight the case already had. Eight of them propose readings rather than edges, and the existing rule was a single boolean: an analyzer either proposed relationships or reported findings. Store::suggest was taught the new class with an inline match, but Store::open_gaps -- which case_standing calls -- still asked every analyzer that did not propose relationships for its findings, and Store::findings answers that with InvalidAuthoring. Every test in tests/standing.rs failed on `inherit-profile proposes relationships and reports no findings`, an error message that describes neither what happened nor what is true.
+        """
+    consequences """
+        Adding an analyzer means adding it to one predicate. Anything walking SuggestionKind::ALL asks reports_findings first rather than negating a different question. The domain rule the classes encode is unchanged: an analyzer either proposes something a person must answer, or reports work nobody has done, and never both.
+        """
+    depends_on [ @evidence-intake-project.decision.structure-not-verdict ]
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.decision.audio-adapter-native-whisper-engine/1 : decision {
     title "The audio adapter transcribes in process with a feature-gated fork of franken_whisper, not whisper-rs"
     state superseded

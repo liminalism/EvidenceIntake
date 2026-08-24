@@ -18,7 +18,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::AuthoredLink;
+use crate::{AuthoredLink, ContentInterpretation, SourceProfile};
 
 /// Prefix marking an edge as machine-proposed rather than human-authored.
 ///
@@ -57,11 +57,33 @@ pub enum SuggestionKind {
     UnresolvedReference,
     /// Sources placing the same proposition at materially different times.
     ClockDisagreement,
+    /// Source-profile values inherited at read time rather than copied per passage.
+    InheritProfile,
+    /// Cue verbs propose a reported-statement form.
+    ReportedStatement,
+    /// Balanced quotation marks propose a quoted sub-span.
+    QuotedStatement,
+    /// A numeric value with a measurement unit proposes measured-result form.
+    MeasuredResult,
+    /// Statute/probable-cause language proposes official characterization.
+    OfficialCharacterization,
+    /// Evidence-reference language proposes reference form.
+    EvidenceReference,
+    /// A clock-shaped token proposes asserted time.
+    AssertedClock,
+    /// Page-one report-date language proposes a source creation claim.
+    HeaderDate,
+    /// A diarization observation proposes a structural speaker candidate.
+    DiarizationSpeaker,
+    /// A shared exact token run proposes a quote/summary dependency.
+    CrossDocumentEcho,
+    /// A reviewed shared date/location anchor proposes same-occurrence review.
+    SharedAnchor,
 }
 
 impl SuggestionKind {
     /// Returns every analyzer, which is what a bare `suggest` runs.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 19] = [
         Self::TemporalOverlap,
         Self::ContradictionCandidate,
         Self::ConflictingAttribution,
@@ -70,6 +92,17 @@ impl SuggestionKind {
         Self::UnmappedProposition,
         Self::UnresolvedReference,
         Self::ClockDisagreement,
+        Self::InheritProfile,
+        Self::ReportedStatement,
+        Self::QuotedStatement,
+        Self::MeasuredResult,
+        Self::OfficialCharacterization,
+        Self::EvidenceReference,
+        Self::AssertedClock,
+        Self::HeaderDate,
+        Self::DiarizationSpeaker,
+        Self::CrossDocumentEcho,
+        Self::SharedAnchor,
     ];
 
     /// Returns the stable analyzer name.
@@ -83,6 +116,17 @@ impl SuggestionKind {
             Self::UnmappedProposition => "unmapped-proposition",
             Self::UnresolvedReference => "unresolved-reference",
             Self::ClockDisagreement => "clock-disagreement",
+            Self::InheritProfile => "inherit-profile",
+            Self::ReportedStatement => "reported-statement",
+            Self::QuotedStatement => "quoted-statement",
+            Self::MeasuredResult => "measured-result",
+            Self::OfficialCharacterization => "official-characterization",
+            Self::EvidenceReference => "evidence-reference",
+            Self::AssertedClock => "asserted-clock",
+            Self::HeaderDate => "header-date",
+            Self::DiarizationSpeaker => "diarization-speaker",
+            Self::CrossDocumentEcho => "cross-document-echo",
+            Self::SharedAnchor => "shared-anchor",
         }
     }
 
@@ -99,6 +143,58 @@ impl SuggestionKind {
                 | Self::ContradictionCandidate
                 | Self::ConflictingAttribution
                 | Self::DuplicateEntity
+                | Self::DiarizationSpeaker
+                | Self::CrossDocumentEcho
+                | Self::SharedAnchor
+        )
+    }
+
+    /// Whether this analyzer proposes interpretation candidates.
+    ///
+    /// An interpretation candidate is a reading of one passage, not a
+    /// relationship between two records, so it lands in
+    /// `content_interpretations` as `suggested` rather than in `edges`. Like
+    /// every proposal it waits for a person; unlike an edge it has no second
+    /// endpoint to point at.
+    pub const fn proposes_interpretations(self) -> bool {
+        matches!(
+            self,
+            Self::InheritProfile
+                | Self::ReportedStatement
+                | Self::QuotedStatement
+                | Self::MeasuredResult
+                | Self::OfficialCharacterization
+                | Self::EvidenceReference
+                | Self::AssertedClock
+                | Self::HeaderDate
+        )
+    }
+
+    /// Whether this analyzer derives findings instead of writing proposals.
+    ///
+    /// The three classes are exhaustive and disjoint: an analyzer proposes
+    /// relationships, proposes interpretations, or reports findings. Anything
+    /// walking every analyzer to collect gaps asks this first, because calling
+    /// for the findings of a proposing analyzer is a programming error.
+    pub const fn reports_findings(self) -> bool {
+        !self.proposes_relationships() && !self.proposes_interpretations()
+    }
+
+    /// Whether this is one of the semantic-enrichment rules.
+    pub const fn is_enrichment(self) -> bool {
+        matches!(
+            self,
+            Self::InheritProfile
+                | Self::ReportedStatement
+                | Self::QuotedStatement
+                | Self::MeasuredResult
+                | Self::OfficialCharacterization
+                | Self::EvidenceReference
+                | Self::AssertedClock
+                | Self::HeaderDate
+                | Self::DiarizationSpeaker
+                | Self::CrossDocumentEcho
+                | Self::SharedAnchor
         )
     }
 
@@ -137,6 +233,10 @@ pub struct AnalyzerReport {
     pub analyzer: String,
     /// Relationships newly proposed, each awaiting a person.
     pub proposed: Vec<AuthoredLink>,
+    /// Interpretation candidates newly proposed by this rule.
+    pub proposed_interpretations: Vec<ContentInterpretation>,
+    /// Source-profile candidates newly proposed by this rule.
+    pub proposed_profiles: Vec<SourceProfile>,
     /// Candidates the analyzer found but did not write, because the claim was
     /// already in the case — asserted by a person, proposed by an earlier run,
     /// or rejected by a reviewer who does not need to be asked twice.
@@ -152,7 +252,7 @@ pub struct SuggestionRun {
     pub case_id: String,
     /// One report per analyzer, in the order they ran.
     pub analyzers: Vec<AnalyzerReport>,
-    /// Total relationships newly proposed.
+    /// Total relationships, interpretations, and source profiles newly proposed.
     pub proposed: u32,
     /// Total candidates skipped because the case already held the claim.
     pub already_recorded: u32,

@@ -1,5 +1,16 @@
 [
   {
+    "added_at": "2026-08-23",
+    "availability": "full",
+    "byte_len": 28834,
+    "content_hash": "sha256:ab4591b1731184f7f879a1c6227ec440a7788a73e6472519d889c9bd38812931",
+    "id": "collation-gap-review-2026-08-23",
+    "media_type": "text/markdown",
+    "origin": "external",
+    "path": "sources/external/collation-gap-review-2026-08-23--ab4591b1.md",
+    "title": "External static review: the collation gap between the design plan and the live pipeline"
+  },
+  {
     "added_at": "2026-08-20",
     "availability": "full",
     "byte_len": 3756,
