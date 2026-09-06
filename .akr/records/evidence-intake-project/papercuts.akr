@@ -124,6 +124,17 @@ record evidence-intake-project.papercut.akr-propose-from-rejected-a-decision-s-m
     created_at 2026-08-19
 }
 
+record evidence-intake-project.papercut.capturing-the-winsafe-gui-for-evidence-took/1 : papercut {
+    title "Capturing the WinSafe GUI for evidence took three tries: PowerShell is…"
+    state verified
+    statement """
+        Capturing the WinSafe GUI for evidence took three tries: PowerShell is DPI-unaware by default, so GetWindowRect and PrintWindow returned a downscaled, cropped view of a 150%-DPI window and the lower half of the layout appeared to be missing controls that were actually there. SetProcessDpiAwarenessContext(-4) at the top of the capture script fixes it. Also, GetWindowText across a process boundary returns empty for Edit controls, so a screenshot is the only way to read what the detail pane says. Worth a small scripts/screenshot.ps1 so the next GUI session does not rediscover both.
+        """
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    author "claude"
+    created_at 2026-08-30
+}
+
 record evidence-intake-project.papercut.codegraph-explore-hung-16-minutes-on-a-12-file/1 : papercut {
     title "codegraph_explore hung ~16 minutes on a 12-file query…"
     state verified
@@ -145,6 +156,17 @@ record evidence-intake-project.papercut.correcting-an-invalid-scratch-backed-evi
     about "akr"
     author "codex"
     created_at 2026-08-23
+}
+
+record evidence-intake-project.papercut.driving-the-winsafe-gui-for-verification-via/1 : papercut {
+    title "Driving the WinSafe GUI for verification via PowerShell SendKeys…"
+    state verified
+    statement """
+        Driving the WinSafe GUI for verification via PowerShell SendKeys misfired: SetForegroundWindow from a background process is ignored by the Windows foreground lock, so keystrokes went to whatever app the user had focused. Any future GUI-driving script must verify GetForegroundWindow equals the target window before EVERY key send and abort otherwise; better, verify through headless Workspace tests and leave live-GUI passes to a human.
+        """
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    author "claude"
+    created_at 2026-08-30
 }
 
 record evidence-intake-project.papercut.external-ocr-repository-instructions-lived-at/1 : papercut {

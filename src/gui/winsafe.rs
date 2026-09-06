@@ -16,9 +16,15 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 use winsafe::{self as w, co, gui, prelude::*};
 
+use office_core::{
+    AppearanceType, CustodyState, DeadlineOrigin, MatterStatus, NoteScope, OfferState,
+    PossiblePerson, Sex, USER_ROLES,
+};
+
 use super::{
-    AuthorKind, COMMAND_SHEET, EnrichmentRow, GuiError, GuiResult, Workspace, WorkspaceView,
-    key_sheet, review_target,
+    AuthorKind, COMMAND_SHEET, ClientDraft, DeadlineDraft, DeadlineGridRow, DocketGridRow,
+    EnrichmentRow, EvidenceLink, GuiError, GuiResult, MatterDraft, NoteDraft, Pane, SettingDraft,
+    Workspace, WorkspaceView, key_sheet, readable_text, review_target,
 };
 use crate::{
     ContentForm, EnrichmentField, EntityKind, ExportAudience, IntakeCoordinator, IntakeJobState,
@@ -84,7 +90,15 @@ const RULE_HIGHLIGHT: (u8, u8, u8) = (0xFC, 0xFC, 0xFC);
 /// `every_command_has_its_own_alt_key` is what keeps these distinct. Static
 /// labels take the same prefix, so a heading may not contain a bare `&`.
 const OPEN_DATABASE: &str = "Open Data&base";
-const NEW_CASE: &str = "&Untitled Case";
+const NEW_CASE: &str = "New Case (&U)";
+// The office entry commands carry no Alt letter — the namespace is exhausted —
+// so each is reached by its `Ctrl+Shift` chord in `OFFICE_COMMANDS`.
+const ACTING_AS: &str = "Acting As";
+const NEW_CLIENT: &str = "New Client";
+const NEW_MATTER: &str = "New Matter";
+const NEW_SETTING: &str = "New Setting";
+const NEW_DEADLINE: &str = "New Deadline";
+const NEW_NOTE: &str = "New Note";
 const INTAKE_EVIDENCE: &str = "Intake E&vidence";
 const PROCESSING_QUEUE: &str = "P&rocessing Queue";
 const ENRICHMENT_SWEEP: &str = "Enrichment Sweep (&X)";
@@ -128,6 +142,142 @@ const VIEW_BUTTONS: [(&str, WorkspaceView); 12] = [
 ///
 const ACCEL_FIRST_VIEW: u16 = 0x0200;
 const ACCEL_ENRICHMENT: u16 = 0x0220;
+/// The pane switch, and the Court pane's own commands, each at a range of its
+/// own so a later view can be added without walking into them.
+const ACCEL_FIRST_PANE: u16 = 0x0240;
+const ACCEL_FIRST_COURT: u16 = 0x0250;
+const ACCEL_FIRST_OFFICE: u16 = 0x0260;
+
+/// The two halves of the workspace, and the `Ctrl+Shift` letter that reaches
+/// each. The Alt namespace is exhausted — every one of the twenty-six letters
+/// is claimed by a command below — so the switch carries no mnemonic at all.
+const PANE_BUTTONS: [(Pane, char); 2] = [(Pane::Court, 'K'), (Pane::Office, 'O')];
+
+/// What the Court pane can be asked to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CourtCommand {
+    /// Move the day to today.
+    Today,
+    /// Move back a week.
+    PreviousWeek,
+    /// Move back a day.
+    PreviousDay,
+    /// Move forward a day.
+    NextDay,
+    /// Move forward a week.
+    NextWeek,
+    /// Put the selected row on the clipboard.
+    CopyRow,
+    /// Seed the demonstration caseload into the office database.
+    SeedOffice,
+}
+
+/// Court commands, their captions, and the `Ctrl+Shift` letter each carries.
+///
+/// None of these claims an Alt letter, for the reason stated above
+/// [`PANE_BUTTONS`]; `every_command_has_its_own_accelerator` is what keeps the
+/// chords unambiguous against the views' own.
+const COURT_COMMANDS: [(&str, char, CourtCommand); 7] = [
+    ("Today", 'T', CourtCommand::Today),
+    ("Prev Week", 'B', CourtCommand::PreviousWeek),
+    ("Prev Day", 'P', CourtCommand::PreviousDay),
+    ("Next Day", 'N', CourtCommand::NextDay),
+    ("Next Week", 'W', CourtCommand::NextWeek),
+    ("Copy Row", 'C', CourtCommand::CopyRow),
+    ("Seed Office Caseload", 'S', CourtCommand::SeedOffice),
+];
+
+/// What the Office pane's entry row can be asked to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OfficeCommand {
+    /// Name the person every office write this session is attributed to.
+    ActingAs,
+    /// Open a client record, after the possible-duplicate question.
+    NewClient,
+    /// Open a matter, and its evidence case in the same flow.
+    NewMatter,
+    /// Schedule one setting covering several matters of one client.
+    NewSetting,
+    /// Record what is owed on a matter and when.
+    NewDeadline,
+    /// File a note under a client, a matter, or a setting.
+    NewNote,
+}
+
+impl OfficeCommand {
+    /// Every command, in the order the entry row shows them. Referenced by the
+    /// tests that hold the table complete; the running window walks the table.
+    #[cfg(test)]
+    const ALL: [Self; 6] = [
+        Self::ActingAs,
+        Self::NewClient,
+        Self::NewMatter,
+        Self::NewSetting,
+        Self::NewDeadline,
+        Self::NewNote,
+    ];
+}
+
+/// Office data entry, each on a `Ctrl+Shift` letter. The Alt namespace is
+/// exhausted and the Court commands hold B, C, N, P, S, T and W, so the
+/// letters here are the free ones nearest the word: L for cLient, H for
+/// Hearing, J for Jot.
+const OFFICE_COMMANDS: [(&str, char, OfficeCommand); 6] = [
+    (ACTING_AS, 'A', OfficeCommand::ActingAs),
+    (NEW_CLIENT, 'L', OfficeCommand::NewClient),
+    (NEW_MATTER, 'M', OfficeCommand::NewMatter),
+    (NEW_SETTING, 'H', OfficeCommand::NewSetting),
+    (NEW_DEADLINE, 'D', OfficeCommand::NewDeadline),
+    (NEW_NOTE, 'J', OfficeCommand::NewNote),
+];
+
+/// Docket grid columns, in logical units before DPI scaling.
+///
+/// One row is one setting, however many matters it covers, so `Matters` and
+/// `Charges` hold several values on a line rather than splitting the row.
+const DOCKET_COLUMNS: [(&str, i32); 11] = [
+    ("Time", 56),
+    ("For", 96),
+    ("Court", 132),
+    ("Client", 140),
+    ("Matters", 140),
+    ("Charges", 170),
+    ("Custody", 92),
+    ("Offer", 100),
+    ("Last contact", 92),
+    ("Evidence posture", 210),
+    ("Open work", 100),
+];
+
+/// Deadline grid columns, in logical units before DPI scaling.
+const DEADLINE_COLUMNS: [(&str, i32); 6] = [
+    ("Due", 90),
+    ("In", 120),
+    ("Matter", 150),
+    ("Client", 150),
+    ("What is owed", 320),
+    ("Origin", 120),
+];
+
+/// Court pane geometry. The two grids and the detail box stack down the full
+/// width of the window, because the Court pane has no rail: on a court day the
+/// question is what is on the docket, not which read model to open.
+const COURT_ROW_TOP: i32 = 78;
+const COURT_GRID_TOP: i32 = 118;
+const COURT_GRID_HEIGHT: i32 = 240;
+const COURT_DEADLINES_TOP: i32 = 388;
+const COURT_DEADLINES_HEIGHT: i32 = 120;
+const COURT_DETAIL_TOP: i32 = 538;
+const COURT_DETAIL_HEIGHT: i32 = 120;
+const COURT_STATUS_TOP: i32 = 666;
+
+/// Office pane geometry: the output box, the entry row under it, and the
+/// status line. The entry row is what makes the Office pane the appending
+/// half of the workspace; the Court pane deliberately has no such row.
+const OFFICE_OUTPUT_TOP: i32 = 118;
+const OFFICE_OUTPUT_HEIGHT: i32 = 286;
+const OFFICE_ENTRY_TOP: i32 = 412;
+const OFFICE_STATUS_TOP: i32 = 446;
 
 /// The `Ctrl` chord that reaches one view: the first ten take the digit row,
 /// and later views take `Ctrl+Shift` over the same digits.
@@ -154,7 +304,7 @@ fn accelerator_label(shift: bool, key: char) -> String {
     }
 }
 
-const STATUS_HINT: &str = "Alt + the underlined letter runs a command; Ctrl + a digit opens a view. All derived material must be checked against the original.";
+const STATUS_HINT: &str = "Alt + the underlined letter runs a command; Ctrl + a digit opens a view; Enter in the search box finds. All derived material must be checked against the original.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum IntakeModality {
@@ -211,7 +361,22 @@ struct MainWindow {
     wnd: gui::WindowMain,
     workspace: Rc<RefCell<Workspace>>,
     coordinator: Rc<RefCell<Option<IntakeCoordinator>>>,
+    /// Header captions, on screen in both panes.
     _labels: Vec<gui::Label>,
+    /// Captions that belong to the Office pane and hide with it.
+    office_labels: Vec<gui::Label>,
+    /// Captions that belong to the Court pane and hide with it.
+    court_labels: Vec<gui::Label>,
+    pane_buttons: Vec<(Pane, gui::Button)>,
+    court_date_edit: gui::Edit,
+    court_buttons: Vec<(CourtCommand, gui::Button)>,
+    docket_grid: gui::ListView<()>,
+    deadline_grid: gui::ListView<()>,
+    court_detail_edit: gui::Edit,
+    court_status_label: gui::Label,
+    matter_combo: gui::ComboBox,
+    office_buttons: Vec<(OfficeCommand, gui::Button)>,
+    acting_label: gui::Label,
     actor_label: gui::Label,
     database_edit: gui::Edit,
     open_button: gui::Button,
@@ -273,6 +438,29 @@ impl MainWindow {
             key: co::VK::CHAR_E,
             cmd: ACCEL_ENRICHMENT,
         });
+        // The pane switch and the Court commands, all on `Ctrl+Shift` letters:
+        // the Alt namespace has no letter left to give any of them.
+        for (index, (_, key)) in PANE_BUTTONS.iter().enumerate() {
+            accelerators.push(w::ACCEL {
+                fVirt: co::ACCELF::VIRTKEY | co::ACCELF::CONTROL | co::ACCELF::SHIFT,
+                key: chord_key(*key),
+                cmd: ACCEL_FIRST_PANE + u16::try_from(index).unwrap_or(0),
+            });
+        }
+        for (index, (_, key, _)) in COURT_COMMANDS.iter().enumerate() {
+            accelerators.push(w::ACCEL {
+                fVirt: co::ACCELF::VIRTKEY | co::ACCELF::CONTROL | co::ACCELF::SHIFT,
+                key: chord_key(*key),
+                cmd: ACCEL_FIRST_COURT + u16::try_from(index).unwrap_or(0),
+            });
+        }
+        for (index, (_, key, _)) in OFFICE_COMMANDS.iter().enumerate() {
+            accelerators.push(w::ACCEL {
+                fVirt: co::ACCELF::VIRTKEY | co::ACCELF::CONTROL | co::ACCELF::SHIFT,
+                key: chord_key(*key),
+                cmd: ACCEL_FIRST_OFFICE + u16::try_from(index).unwrap_or(0),
+            });
+        }
         let accel_table = w::HACCEL::CreateAcceleratorTable(&accelerators).ok();
 
         let wnd = gui::WindowMain::new(gui::WindowMainOpts {
@@ -291,8 +479,8 @@ impl MainWindow {
             ..Default::default()
         });
 
-        // --- Header: which database, which case ------------------------------
-        let mut labels = vec![
+        // --- Header: which database, and which half of the workspace ---------
+        let labels = vec![
             label(
                 &wnd,
                 "EVIDENCE INTAKE  /  LOCAL CASE WORKSPACE",
@@ -303,6 +491,24 @@ impl MainWindow {
             ),
             label(&wnd, "Database", 20, 41, 62, ANCHOR),
         ];
+
+        // The pane switch. Two plain buttons rather than a tab strip: a
+        // `gui::Tab` page is repositioned only on `TCN::SELCHANGE` and never on
+        // a parent resize, and correcting that needs `tcm::AdjustRect` through
+        // an unsafe `SendMessage` — which `unsafe_code = "forbid"` rules out.
+        // Buttons over two shown-and-hidden groups keep every existing
+        // `resize_behavior` exactly as it was.
+        let pane_buttons = PANE_BUTTONS
+            .iter()
+            .enumerate()
+            .map(|(index, (pane, _))| {
+                let column = i32::try_from(index).expect("two panes");
+                (
+                    *pane,
+                    button(&wnd, pane.label(), 912 + column * 88, 6, 84, SLIDE_X),
+                )
+            })
+            .collect::<Vec<_>>();
 
         let database_text = database.display().to_string();
         let database_edit = gui::Edit::new(
@@ -317,7 +523,7 @@ impl MainWindow {
         );
         let open_button = button(&wnd, OPEN_DATABASE, 542, 34, 112, SLIDE_X);
 
-        labels.push(label(&wnd, "Case", 674, 41, 34, SLIDE_X));
+        let mut office_labels = vec![label(&wnd, "Case", 674, 41, 34, SLIDE_X)];
         let initial_case_labels = case_labels(&workspace.borrow());
         let initial_case_refs = initial_case_labels
             .iter()
@@ -419,12 +625,25 @@ impl MainWindow {
             ANCHOR,
         );
 
-        // --- Pane: search over originals -------------------------------------
+        // --- Pane: which matter, and search over its originals ----------------
+        // The matter chooser sits above the output pane rather than beside the
+        // case chooser in the header, because a matter is how the office
+        // actually reaches discovery: a court number, not a case identifier.
+        office_labels.push(label(&wnd, "Matter", PANE_X, 82, 46, ANCHOR));
+        let matter_combo = gui::ComboBox::new(
+            &wnd,
+            gui::ComboBoxOpts {
+                position: gui::dpi(262, 78),
+                width: gui::dpi_x(238),
+                items: &[],
+                ..Default::default()
+            },
+        );
         let search_mode = gui::ComboBox::new(
             &wnd,
             gui::ComboBoxOpts {
-                position: gui::dpi(PANE_X, 78),
-                width: gui::dpi_x(140),
+                position: gui::dpi(512, 78),
+                width: gui::dpi_x(120),
                 items: &["Text", "Video Frames"],
                 selected_item: Some(0),
                 ..Default::default()
@@ -434,8 +653,8 @@ impl MainWindow {
             &wnd,
             gui::EditOpts {
                 text: "",
-                position: gui::dpi(364, 81),
-                width: gui::dpi_x(588),
+                position: gui::dpi(642, 81),
+                width: gui::dpi_x(310),
                 resize_behavior: (gui::Horz::Resize, gui::Vert::None),
                 ..Default::default()
             },
@@ -447,9 +666,9 @@ impl MainWindow {
             &wnd,
             gui::EditOpts {
                 text: "",
-                position: gui::dpi(PANE_X, 118),
+                position: gui::dpi(PANE_X, OFFICE_OUTPUT_TOP),
                 width: gui::dpi_x(PANE_WIDTH),
-                height: gui::dpi_y(320),
+                height: gui::dpi_y(OFFICE_OUTPUT_HEIGHT),
                 control_style: co::ES::MULTILINE
                     | co::ES::AUTOVSCROLL
                     | co::ES::AUTOHSCROLL
@@ -469,16 +688,48 @@ impl MainWindow {
             &wnd,
             STATUS_HINT,
             PANE_X,
-            446,
+            OFFICE_STATUS_TOP,
             PANE_WIDTH,
             STRETCH_X_SLIDE_Y,
+        );
+
+        // --- Pane: the office entry row ---------------------------------------
+        // Where records enter the workspace. Every command also carries a
+        // `Ctrl+Shift` chord, because entry is fastest when the mouse never
+        // has to be picked up; the acting-as label sits in the gap after the
+        // first button so the row also says who is writing.
+        let office_layout: [(i32, i32); 6] = [
+            (PANE_X, 104),
+            (484, 100),
+            (590, 100),
+            (696, 100),
+            (802, 106),
+            (914, 90),
+        ];
+        let office_buttons = OFFICE_COMMANDS
+            .iter()
+            .zip(office_layout)
+            .map(|((caption, _, command), (x, width))| {
+                (
+                    *command,
+                    button(&wnd, caption, x, OFFICE_ENTRY_TOP, width, SLIDE_Y),
+                )
+            })
+            .collect::<Vec<_>>();
+        let acting_label = label(
+            &wnd,
+            "Acting as: nobody yet",
+            326,
+            OFFICE_ENTRY_TOP + 5,
+            150,
+            SLIDE_Y,
         );
 
         // --- Pane: the human review and authoring panel ----------------------
         // The rule above this panel is anchored to the first field label, so it
         // follows the panel when the window grows.
         let actor_label = label(&wnd, "Actor", PANE_X, 482, 60, SLIDE_Y);
-        labels.extend([
+        office_labels.extend([
             label(&wnd, "Target kind", 356, 482, 84, SLIDE_Y),
             label(&wnd, "Target ID", 476, 482, 80, SLIDE_Y),
             label(&wnd, "Original locator", 676, 482, 110, SLIDE_Y),
@@ -502,7 +753,7 @@ impl MainWindow {
         // The payload box is shared: a review reads it as the written basis, an
         // authoring or intake command reads it as JSON. Say so above the box,
         // and keep the template loader beside the selector that fills it.
-        labels.extend([
+        office_labels.extend([
             label(
                 &wnd,
                 "Basis for a review decision, or JSON for authoring and intake",
@@ -572,11 +823,127 @@ impl MainWindow {
         let author_button = button(&wnd, SAVE_AUTHORED, 786, 650, 118, SLIDE_XY);
         let import_button = button(&wnd, IMPORT_BATCH, 912, 650, 168, SLIDE_XY);
 
+        // --- The Court pane: what the office has to be in court for ----------
+        // No rail here. On a court day the question is what is on the docket,
+        // so the two grids and the detail box take the whole width, and the
+        // day's navigation sits on one line above them.
+        let mut court_labels = vec![label(&wnd, "Day", 20, COURT_ROW_TOP + 4, 34, ANCHOR)];
+        let court_date_edit = edit(&wnd, 58, COURT_ROW_TOP, 110, ANCHOR);
+        let mut court_buttons = Vec::with_capacity(COURT_COMMANDS.len());
+        for (caption, _, command) in COURT_COMMANDS {
+            let (x, width, behavior) = match command {
+                CourtCommand::Today => (178, 84, ANCHOR),
+                CourtCommand::PreviousWeek => (268, 96, ANCHOR),
+                CourtCommand::PreviousDay => (370, 90, ANCHOR),
+                CourtCommand::NextDay => (466, 90, ANCHOR),
+                CourtCommand::NextWeek => (562, 96, ANCHOR),
+                CourtCommand::CopyRow => (824, 96, SLIDE_X),
+                CourtCommand::SeedOffice => (926, 154, SLIDE_X),
+            };
+            court_buttons.push((
+                command,
+                button(&wnd, caption, x, COURT_ROW_TOP, width, behavior),
+            ));
+        }
+
+        let docket_columns = DOCKET_COLUMNS
+            .map(|(caption, width)| (caption, gui::dpi_x(width)))
+            .to_vec();
+        let docket_grid = gui::ListView::<()>::new(
+            &wnd,
+            gui::ListViewOpts {
+                position: gui::dpi(20, COURT_GRID_TOP),
+                size: gui::dpi(WIDTH - 40, COURT_GRID_HEIGHT),
+                columns: &docket_columns,
+                control_ex_style: co::LVS_EX::FULLROWSELECT | co::LVS_EX::GRIDLINES,
+                resize_behavior: (gui::Horz::Resize, gui::Vert::Resize),
+                ..Default::default()
+            },
+        );
+
+        court_labels.push(label(
+            &wnd,
+            "What is owed, counted from the day above",
+            20,
+            COURT_DEADLINES_TOP - 20,
+            520,
+            SLIDE_Y,
+        ));
+        let deadline_columns = DEADLINE_COLUMNS
+            .map(|(caption, width)| (caption, gui::dpi_x(width)))
+            .to_vec();
+        let deadline_grid = gui::ListView::<()>::new(
+            &wnd,
+            gui::ListViewOpts {
+                position: gui::dpi(20, COURT_DEADLINES_TOP),
+                size: gui::dpi(WIDTH - 40, COURT_DEADLINES_HEIGHT),
+                columns: &deadline_columns,
+                control_ex_style: co::LVS_EX::FULLROWSELECT | co::LVS_EX::GRIDLINES,
+                resize_behavior: STRETCH_X_SLIDE_Y,
+                ..Default::default()
+            },
+        );
+
+        // Selecting a setting expands it here rather than navigating away from
+        // the docket — the record stays on screen while it is being read.
+        court_labels.push(label(
+            &wnd,
+            "The setting under the cursor: the client, every matter it covers, and what their evidence rests on",
+            20,
+            COURT_DETAIL_TOP - 20,
+            860,
+            SLIDE_Y,
+        ));
+        let court_detail_edit = gui::Edit::new(
+            &wnd,
+            gui::EditOpts {
+                text: "",
+                position: gui::dpi(20, COURT_DETAIL_TOP),
+                width: gui::dpi_x(WIDTH - 40),
+                height: gui::dpi_y(COURT_DETAIL_HEIGHT),
+                // Read-only, but not disabled: an edit control still answers
+                // Ctrl+C, which is how a name or a number is lifted out of the
+                // detail without being retyped.
+                control_style: co::ES::MULTILINE
+                    | co::ES::AUTOVSCROLL
+                    | co::ES::AUTOHSCROLL
+                    | co::ES::READONLY,
+                window_style: co::WS::CHILD
+                    | co::WS::VISIBLE
+                    | co::WS::BORDER
+                    | co::WS::VSCROLL
+                    | co::WS::HSCROLL
+                    | co::WS::TABSTOP,
+                resize_behavior: STRETCH_X_SLIDE_Y,
+                ..Default::default()
+            },
+        );
+        let court_status_label = label(
+            &wnd,
+            "No day is loaded.",
+            20,
+            COURT_STATUS_TOP,
+            WIDTH - 40,
+            STRETCH_X_SLIDE_Y,
+        );
+
         let new_self = Self {
             wnd,
             workspace,
             coordinator,
             _labels: labels,
+            office_labels,
+            court_labels,
+            pane_buttons,
+            court_date_edit,
+            court_buttons,
+            docket_grid,
+            deadline_grid,
+            court_detail_edit,
+            court_status_label,
+            matter_combo,
+            office_buttons,
+            acting_label,
             actor_label,
             database_edit,
             open_button,
@@ -612,13 +979,16 @@ impl MainWindow {
 
     /// Every push button, in creation order, for the shadow pass.
     fn buttons(&self) -> Vec<&gui::Button> {
-        let mut all = vec![
-            &self.open_button,
+        let mut all = vec![&self.open_button];
+        all.extend(self.pane_buttons.iter().map(|(_, control)| control));
+        all.extend(self.court_buttons.iter().map(|(_, control)| control));
+        all.extend(self.office_buttons.iter().map(|(_, control)| control));
+        all.extend([
             &self.new_case_button,
             &self.intake_button,
             &self.queue_button,
             &self.enrichment_button,
-        ];
+        ]);
         all.extend(self.view_buttons.iter().map(|(_, control)| control));
         all.extend([
             &self.suggest_button,
@@ -636,11 +1006,285 @@ impl MainWindow {
         all
     }
 
+    /// Every control that belongs to the Court pane.
+    fn court_windows(&self) -> Vec<&w::HWND> {
+        let mut all = vec![
+            self.court_date_edit.hwnd(),
+            self.docket_grid.hwnd(),
+            self.deadline_grid.hwnd(),
+            self.court_detail_edit.hwnd(),
+            self.court_status_label.hwnd(),
+        ];
+        all.extend(self.court_labels.iter().map(gui::Label::hwnd));
+        all.extend(self.court_buttons.iter().map(|(_, control)| control.hwnd()));
+        all
+    }
+
+    /// Every control that belongs to the Office pane.
+    ///
+    /// The header — which database, and the pane switch itself — is in neither
+    /// list, because it stays on screen in both.
+    fn office_windows(&self) -> Vec<&w::HWND> {
+        let mut all = vec![
+            self.case_combo.hwnd(),
+            self.new_case_button.hwnd(),
+            self.matter_combo.hwnd(),
+            self.intake_button.hwnd(),
+            self.queue_button.hwnd(),
+            self.enrichment_button.hwnd(),
+            self.suggest_button.hwnd(),
+            self.safe_export_button.hwnd(),
+            self.work_export_button.hwnd(),
+            self.persist_export_button.hwnd(),
+            self.search_mode.hwnd(),
+            self.search_edit.hwnd(),
+            self.search_button.hwnd(),
+            self.output_edit.hwnd(),
+            self.status_label.hwnd(),
+            self.actor_label.hwnd(),
+            self.actor_edit.hwnd(),
+            self.target_combo.hwnd(),
+            self.target_edit.hwnd(),
+            self.locator_edit.hwnd(),
+            self.payload_edit.hwnd(),
+            self.author_combo.hwnd(),
+            self.template_button.hwnd(),
+            self.author_button.hwnd(),
+            self.import_button.hwnd(),
+            self.acting_label.hwnd(),
+        ];
+        all.extend(
+            self.office_buttons
+                .iter()
+                .map(|(_, control)| control.hwnd()),
+        );
+        all.extend(self.office_labels.iter().map(gui::Label::hwnd));
+        all.extend(self.view_buttons.iter().map(|(_, control)| control.hwnd()));
+        all.extend(
+            self.review_buttons
+                .iter()
+                .map(|(_, control)| control.hwnd()),
+        );
+        all
+    }
+
+    /// Shows one pane and hides the other.
+    ///
+    /// Every control stays a direct child of the main window and keeps the
+    /// `resize_behavior` it was built with; only its visibility changes. That
+    /// is why this is `ShowWindow` over two groups rather than a tab control,
+    /// whose pages would need an unsafe `tcm::AdjustRect` to survive a resize.
+    fn show_pane(&self, pane: Pane) -> w::SysResult<()> {
+        self.workspace.borrow_mut().set_pane(pane);
+        let court = pane == Pane::Court;
+        let (shown, hidden) = if court {
+            (self.court_windows(), self.office_windows())
+        } else {
+            (self.office_windows(), self.court_windows())
+        };
+        // Hide first: showing first would flash the incoming controls over the
+        // outgoing ones for a frame.
+        for hwnd in hidden {
+            hwnd.ShowWindow(co::SW::HIDE);
+        }
+        for hwnd in shown {
+            hwnd.ShowWindow(co::SW::SHOW);
+        }
+        for (candidate, control) in &self.pane_buttons {
+            control.hwnd().EnableWindow(*candidate != pane);
+        }
+        self.wnd.hwnd().InvalidateRect(None, true)?;
+        if court {
+            self.refresh_court()?;
+        }
+        Ok(())
+    }
+
+    /// Reloads the day on screen and both of its grids.
+    fn refresh_court(&self) -> w::SysResult<()> {
+        let loaded = self.workspace.borrow_mut().refresh_court();
+        let (date, summary) = {
+            let workspace = self.workspace.borrow();
+            (
+                workspace.docket_date().to_owned(),
+                workspace.docket_summary(),
+            )
+        };
+        self.court_date_edit.hwnd().SetWindowText(&date)?;
+        match loaded {
+            Ok(()) => {
+                self.fill_docket_grid()?;
+                self.court_status_label.hwnd().SetWindowText(&summary)?;
+            }
+            Err(error) => {
+                self.docket_grid.items().delete_all()?;
+                self.deadline_grid.items().delete_all()?;
+                self.court_detail_edit.hwnd().SetWindowText("")?;
+                self.court_status_label
+                    .hwnd()
+                    .SetWindowText(&error.to_string())?;
+            }
+        }
+        self.refresh_matter_combo()
+    }
+
+    fn fill_docket_grid(&self) -> w::SysResult<()> {
+        let (settings, owed) = {
+            let workspace = self.workspace.borrow();
+            (workspace.docket_rows(), workspace.deadline_rows())
+        };
+
+        self.docket_grid.set_redraw(false);
+        self.docket_grid.items().delete_all()?;
+        for row in &settings {
+            self.docket_grid.items().add(&docket_texts(row), None, ())?;
+        }
+        self.docket_grid.set_redraw(true);
+
+        self.deadline_grid.set_redraw(false);
+        self.deadline_grid.items().delete_all()?;
+        for row in &owed {
+            self.deadline_grid
+                .items()
+                .add(&deadline_texts(row), None, ())?;
+        }
+        self.deadline_grid.set_redraw(true);
+
+        if self.docket_grid.items().count() > 0 {
+            let first = self.docket_grid.items().get(0);
+            first.select(true)?;
+            first.focus()?;
+        }
+        self.refresh_court_detail()
+    }
+
+    /// Fills the detail box from whichever setting the cursor is on.
+    fn refresh_court_detail(&self) -> w::SysResult<()> {
+        let Some(index) = self.docket_grid.items().focused() else {
+            self.court_detail_edit
+                .hwnd()
+                .SetWindowText("Select a setting to see who it is for and what it rests on.")?;
+            return Ok(());
+        };
+        let text = self
+            .workspace
+            .borrow()
+            .court_detail(index.index() as usize)
+            .unwrap_or_else(|error| error.to_string());
+        self.court_detail_edit
+            .hwnd()
+            .SetWindowText(&windows_lines(&text))
+    }
+
+    /// Reloads the Office pane's matter chooser.
+    fn refresh_matter_combo(&self) -> w::SysResult<()> {
+        let matters = self.workspace.borrow().office_matters().unwrap_or_default();
+        self.matter_combo.items().delete_all();
+        let labels = matters
+            .iter()
+            .map(|(_, label)| label.as_str())
+            .collect::<Vec<_>>();
+        self.matter_combo.items().add(&labels)
+    }
+
+    /// Runs one Court command.
+    fn court_command(&self, command: CourtCommand) -> w::SysResult<()> {
+        match command {
+            CourtCommand::CopyRow => return self.copy_selected_row(),
+            CourtCommand::SeedOffice => {
+                let seeded = self.workspace.borrow_mut().seed_office();
+                if let Err(error) = seeded {
+                    self.court_status_label
+                        .hwnd()
+                        .SetWindowText(&error.to_string())?;
+                    return Ok(());
+                }
+            }
+            _ => {
+                let moved = {
+                    let mut workspace = self.workspace.borrow_mut();
+                    match command {
+                        CourtCommand::Today => workspace.docket_today(),
+                        CourtCommand::PreviousWeek => workspace.docket_shift_weeks(-1),
+                        CourtCommand::PreviousDay => workspace.docket_shift_days(-1),
+                        CourtCommand::NextDay => workspace.docket_shift_days(1),
+                        CourtCommand::NextWeek => workspace.docket_shift_weeks(1),
+                        CourtCommand::CopyRow | CourtCommand::SeedOffice => Ok(()),
+                    }
+                };
+                if let Err(error) = moved {
+                    self.court_status_label
+                        .hwnd()
+                        .SetWindowText(&error.to_string())?;
+                    return Ok(());
+                }
+            }
+        }
+        self.refresh_court()
+    }
+
+    /// Puts the selected row on the clipboard, whichever grid has the focus.
+    ///
+    /// Everything identifying is copyable: a court number, a client's name, a
+    /// charge and a due date all leave this window without being retyped, which
+    /// is the whole complaint behind the rule.
+    fn copy_selected_row(&self) -> w::SysResult<()> {
+        let focus = w::HWND::GetFocus();
+        let from_deadlines = focus.as_ref() == Some(self.deadline_grid.hwnd());
+        let grid = if from_deadlines {
+            &self.deadline_grid
+        } else {
+            &self.docket_grid
+        };
+        let Some(item) = grid.items().focused() else {
+            return self
+                .court_status_label
+                .hwnd()
+                .SetWindowText("Select a row first; there is nothing to copy.");
+        };
+        let index = item.index() as usize;
+        let workspace = self.workspace.borrow();
+        let text = if from_deadlines {
+            workspace
+                .deadline_rows()
+                .get(index)
+                .map(|row| row.copy_text.clone())
+        } else {
+            workspace
+                .docket_rows()
+                .get(index)
+                .map(|row| row.copy_text.clone())
+        };
+        drop(workspace);
+        let Some(text) = text else {
+            return Ok(());
+        };
+        self.copy_text(&text)?;
+        self.court_status_label
+            .hwnd()
+            .SetWindowText(&format!("Copied: {text}"))
+    }
+
+    /// Puts one line of text on the clipboard as Unicode.
+    fn copy_text(&self, text: &str) -> w::SysResult<()> {
+        let mut bytes = Vec::with_capacity((text.len() + 1) * 2);
+        for unit in text.encode_utf16().chain(std::iter::once(0)) {
+            bytes.extend_from_slice(&unit.to_le_bytes());
+        }
+        let clipboard = self.wnd.hwnd().OpenClipboard()?;
+        clipboard.EmptyClipboard()?;
+        clipboard.SetClipboardData(co::CF::UNICODETEXT, &bytes)
+    }
+
     fn events(&self) {
         let me = self.clone();
         self.wnd.on().wm_create(move |_| {
             me.fit_to_work_area()?;
+            me.update_title()?;
             me.show_view(WorkspaceView::Overview)?;
+            // Court opens first: the first question of a defender's day is
+            // where they have to be, not what is in one case file.
+            me.show_pane(Pane::Court)?;
             Ok(0)
         });
 
@@ -689,6 +1333,7 @@ impl MainWindow {
                     .borrow_mut()
                     .select_case(index as usize)
                     .and_then(|()| me.workspace.borrow().render(WorkspaceView::Overview));
+                me.update_title()?;
                 me.present(result, WorkspaceView::Overview.label())?;
             }
             Ok(())
@@ -714,6 +1359,111 @@ impl MainWindow {
                 Ok(())
             });
         }
+
+        // The pane switch, by button and by its `Ctrl+Shift` chord.
+        for (index, (pane, control)) in self.pane_buttons.iter().enumerate() {
+            let me = self.clone();
+            let pane = *pane;
+            control.on().bn_clicked(move || {
+                me.show_pane(pane)?;
+                Ok(())
+            });
+
+            let me = self.clone();
+            let command = ACCEL_FIRST_PANE + u16::try_from(index).unwrap_or(0);
+            self.wnd.on().wm_command_acc_menu(command, move || {
+                me.show_pane(pane)?;
+                Ok(())
+            });
+        }
+
+        // The Court commands, likewise. None of them has an Alt letter left to
+        // claim, so the chord is the only keyboard path to each.
+        for (index, (command, control)) in self.court_buttons.iter().enumerate() {
+            let me = self.clone();
+            let command = *command;
+            control.on().bn_clicked(move || {
+                me.court_command(command)?;
+                Ok(())
+            });
+
+            let me = self.clone();
+            let accelerator = ACCEL_FIRST_COURT + u16::try_from(index).unwrap_or(0);
+            self.wnd.on().wm_command_acc_menu(accelerator, move || {
+                me.court_command(command)?;
+                Ok(())
+            });
+        }
+
+        // The office entry row, by button and by chord, exactly as the Court
+        // commands are wired.
+        for (index, (command, control)) in self.office_buttons.iter().enumerate() {
+            let me = self.clone();
+            let command = *command;
+            control.on().bn_clicked(move || {
+                me.office_command(command)?;
+                Ok(())
+            });
+
+            let me = self.clone();
+            let accelerator = ACCEL_FIRST_OFFICE + u16::try_from(index).unwrap_or(0);
+            self.wnd.on().wm_command_acc_menu(accelerator, move || {
+                me.office_command(command)?;
+                Ok(())
+            });
+        }
+
+        // Selecting a setting expands it in place rather than opening anything.
+        let me = self.clone();
+        self.docket_grid.on().lvn_item_changed(move |_| {
+            me.refresh_court_detail()?;
+            Ok(())
+        });
+
+        // A typed day is read when the box loses the focus, so a person can
+        // type it and tab away rather than hunting for a button.
+        let me = self.clone();
+        self.court_date_edit.on().en_kill_focus(move || {
+            let typed = me.court_date_edit.hwnd().GetWindowText()?;
+            let moved = me.workspace.borrow_mut().set_docket_date(&typed);
+            match moved {
+                Ok(()) => me.refresh_court()?,
+                Err(error) => me
+                    .court_status_label
+                    .hwnd()
+                    .SetWindowText(&error.to_string())?,
+            }
+            Ok(())
+        });
+
+        // A matter is how the Office pane reaches discovery: choosing one
+        // selects its evidence case and shows that case's overview.
+        let me = self.clone();
+        self.matter_combo.on().cbn_sel_change(move || {
+            let Some(index) = me.matter_combo.items().selected_index() else {
+                return Ok(());
+            };
+            let chosen = me
+                .workspace
+                .borrow()
+                .office_matters()
+                .ok()
+                .and_then(|matters| matters.get(index as usize).map(|(id, _)| id.clone()));
+            let Some(matter_id) = chosen else {
+                return Ok(());
+            };
+            let selected = me.workspace.borrow_mut().select_matter(&matter_id);
+            match selected {
+                Ok(_) => {
+                    me.refresh_case_combo()?;
+                    me.update_title()?;
+                    let rendered = me.workspace.borrow().render(WorkspaceView::Overview);
+                    me.present(rendered, WorkspaceView::Overview.label())?;
+                }
+                Err(error) => me.present(Err(error), "")?,
+            }
+            Ok(())
+        });
 
         let me = self.clone();
         self.enrichment_button.on().bn_clicked(move || {
@@ -742,27 +1492,23 @@ impl MainWindow {
 
         let me = self.clone();
         self.search_button.on().bn_clicked(move || {
-            let query = me.search_edit.text()?;
-            let mode = me
-                .search_mode
-                .items()
-                .selected_text()?
-                .unwrap_or_else(|| "Text".to_owned());
-            let result = if mode == "Video Frames" {
-                me.search_video_frames(query.trim())
-            } else {
-                me.workspace.borrow().search(query.trim(), 100)
-            };
-            me.present(
-                result,
-                if mode == "Video Frames" {
-                    "Frame finder results"
-                } else {
-                    "Search results"
-                },
-            )?;
+            me.run_search()?;
             Ok(())
         });
+
+        // Enter runs Find when typed in the search box. The message loop's
+        // `IsDialogMessage` turns an Enter no control claims into `IDOK`
+        // (the multiline payload box claims its own through `ES_WANTRETURN`),
+        // so the search box is told apart from every other edit by focus.
+        let me = self.clone();
+        self.wnd
+            .on()
+            .wm_command(co::DLGID::OK, co::CMD::Menu, move || {
+                if w::HWND::GetFocus().as_ref() == Some(me.search_edit.hwnd()) {
+                    me.run_search()?;
+                }
+                Ok(())
+            });
 
         let me = self.clone();
         self.suggest_button.on().bn_clicked(move || {
@@ -785,7 +1531,7 @@ impl MainWindow {
         ] {
             let me = self.clone();
             button.on().bn_clicked(move || {
-                let result = me.workspace.borrow().export(audience);
+                let result = me.workspace.borrow().export_preview(audience);
                 me.present(result, status)?;
                 Ok(())
             });
@@ -1238,6 +1984,30 @@ impl MainWindow {
         Ok(BrokerModels { by_operation })
     }
 
+    /// Runs the search the mode selector names — from the Find button, or
+    /// from Enter in the search box.
+    fn run_search(&self) -> w::SysResult<()> {
+        let query = self.search_edit.text()?;
+        let mode = self
+            .search_mode
+            .items()
+            .selected_text()?
+            .unwrap_or_else(|| "Text".to_owned());
+        let result = if mode == "Video Frames" {
+            self.search_video_frames(query.trim())
+        } else {
+            self.workspace.borrow().search(query.trim(), 100)
+        };
+        self.present(
+            result,
+            if mode == "Video Frames" {
+                "Frame finder results"
+            } else {
+                "Search results"
+            },
+        )
+    }
+
     fn search_video_frames(&self, query: &str) -> GuiResult<String> {
         if query.trim().is_empty() {
             return Err(GuiError::new("Enter a frame-search description."));
@@ -1300,7 +2070,7 @@ impl MainWindow {
                 })
             })
             .collect::<Vec<_>>();
-        serde_json::to_string_pretty(&rendered).map_err(GuiError::from)
+        Ok(readable_text(&serde_json::Value::Array(rendered)))
     }
 
     /// Opens the keyboard enrichment sweep over one of the case's originals.
@@ -1572,9 +2342,13 @@ impl MainWindow {
         let client = hwnd.GetClientRect()?;
         let unit = gui::dpi_x(1).max(1);
 
+        // Only what is on screen. A hidden control still has a rectangle, and
+        // painting its shadow would leave the Office pane's chrome showing
+        // under the Court pane with no button beneath it.
         let buttons = self
             .buttons()
             .into_iter()
+            .filter(|control| control.hwnd().IsWindowVisible())
             .map(|control| hwnd.ScreenToClientRc(control.hwnd().GetWindowRect()?))
             .collect::<w::SysResult<Vec<_>>>()?;
         for (steps, colour) in SHADOW_BANDS {
@@ -1618,40 +2392,1188 @@ impl MainWindow {
             )
         };
 
-        for y in RAIL_RULES {
+        // The rail rules and the divider belong to the Office pane, which is
+        // the only pane that has a rail. Painting them under the Court pane
+        // would draw a groove down a window with nothing on either side of it.
+        if self.output_edit.hwnd().IsWindowVisible() {
+            for y in RAIL_RULES {
+                rule(
+                    gui::dpi_x(RAIL_X),
+                    gui::dpi_y(y),
+                    gui::dpi_x(RAIL_X + RAIL_WIDTH),
+                    gui::dpi_y(y) + unit,
+                )?;
+            }
             rule(
-                gui::dpi_x(RAIL_X),
-                gui::dpi_y(y),
-                gui::dpi_x(RAIL_X + RAIL_WIDTH),
-                gui::dpi_y(y) + unit,
+                gui::dpi_x(DIVIDER_X),
+                gui::dpi_y(DIVIDER_TOP),
+                gui::dpi_x(DIVIDER_X) + unit,
+                client.bottom - gui::dpi_y(14),
             )?;
-        }
-        rule(
-            gui::dpi_x(DIVIDER_X),
-            gui::dpi_y(DIVIDER_TOP),
-            gui::dpi_x(DIVIDER_X) + unit,
-            client.bottom - gui::dpi_y(14),
-        )?;
 
-        // The review panel slides with the window, so anchor its rule to the
-        // panel's first field rather than to a fixed coordinate.
-        let field = hwnd.ScreenToClientRc(self.actor_label.hwnd().GetWindowRect()?)?;
-        let y = field.top - gui::dpi_y(12);
-        rule(
-            gui::dpi_x(PANE_X),
-            y,
-            client.right - gui::dpi_x(20),
-            y + unit,
-        )
+            // The review panel slides with the window, so anchor its rule to
+            // the panel's first field rather than to a fixed coordinate.
+            let field = hwnd.ScreenToClientRc(self.actor_label.hwnd().GetWindowRect()?)?;
+            let y = field.top - gui::dpi_y(12);
+            rule(
+                gui::dpi_x(PANE_X),
+                y,
+                client.right - gui::dpi_x(20),
+                y + unit,
+            )?;
+        } else {
+            // The Court pane's own rule: under the day's navigation, above the
+            // docket, which is the only grouping that pane needs.
+            let y = gui::dpi_y(COURT_GRID_TOP - 12);
+            rule(gui::dpi_x(20), y, client.right - gui::dpi_x(20), y + unit)?;
+        }
+        Ok(())
     }
 
     fn open_new_case(&self) -> w::SysResult<()> {
-        let payload = self.payload_edit.text()?;
+        let Some(payload) = self.prompt_new_case()? else {
+            return Ok(());
+        };
         let result = self.workspace.borrow_mut().open_case_json(&payload);
         if result.is_ok() {
             self.refresh_case_combo()?;
         }
-        self.present(result, "Case opened")
+        self.present(result, "Case opened — it is now the selected case")
+    }
+
+    /// Asks for the new case in the fields a paralegal actually has — a name,
+    /// a docket reference, a jurisdiction — instead of a JSON payload. The
+    /// dialog returns the typed proposal as JSON for the platform-neutral
+    /// [`Workspace::open_case_json`].
+    fn prompt_new_case(&self) -> w::SysResult<Option<String>> {
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: "New Case",
+            size: gui::dpi(520, 260),
+            ..Default::default()
+        });
+        let _name_label = label(&modal, "Case name", 20, 26, 120, ANCHOR);
+        let name_edit = edit(&modal, 150, 22, 346, ANCHOR);
+        let _reference_label = label(&modal, "Docket / reference", 20, 64, 120, ANCHOR);
+        let reference_edit = edit(&modal, 150, 60, 346, ANCHOR);
+        let _jurisdiction_label = label(&modal, "Jurisdiction", 20, 102, 120, ANCHOR);
+        let jurisdiction_edit = edit(&modal, 150, 98, 346, ANCHOR);
+        let _hint = label(
+            &modal,
+            "The case opens with an initial production, ready to receive intake.",
+            20,
+            140,
+            476,
+            ANCHOR,
+        );
+        let open = button(&modal, "&Open Case", 260, 190, 116, ANCHOR);
+        let cancel = button(&modal, "Cancel", 384, 190, 112, ANCHOR);
+
+        let payload: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+        let record = {
+            let payload = payload.clone();
+            let name_edit = name_edit.clone();
+            let reference_edit = reference_edit.clone();
+            let jurisdiction_edit = jurisdiction_edit.clone();
+            let modal = modal.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let name = name_edit.text()?.trim().to_owned();
+                if name.is_empty() {
+                    return Ok(());
+                }
+                let proposal = serde_json::json!({
+                    "name": name,
+                    "reference": optional_text(&reference_edit.text()?),
+                    "jurisdiction": optional_text(&jurisdiction_edit.text()?),
+                });
+                *payload.borrow_mut() = Some(proposal.to_string());
+                modal.close();
+                Ok(())
+            })
+        };
+        let record_click = record.clone();
+        open.on().bn_clicked(move || record_click());
+        modal.on().wm_command(
+            co::DLGID::OK,
+            co::CMD::Menu,
+            enter_submits(
+                record,
+                vec![
+                    Field::text(&name_edit),
+                    Field::text(&reference_edit),
+                    Field::text(&jurisdiction_edit),
+                ],
+            ),
+        );
+        let modal_cancel = modal.clone();
+        cancel.on().bn_clicked(move || {
+            modal_cancel.close();
+            Ok(())
+        });
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+        let recorded = payload.borrow().clone();
+        Ok(recorded)
+    }
+
+    /// Runs one office entry command, asking who is acting first if nobody is.
+    fn office_command(&self, command: OfficeCommand) -> w::SysResult<()> {
+        if self.workspace.borrow().pane() != Pane::Office {
+            self.show_pane(Pane::Office)?;
+        }
+        if command != OfficeCommand::ActingAs && self.workspace.borrow().acting_user().is_none() {
+            self.prompt_acting_user()?;
+            if self.workspace.borrow().acting_user().is_none() {
+                return self.present(
+                    Err(GuiError::new(
+                        "Nobody is acting. Choose who is entering records before writing.",
+                    )),
+                    "",
+                );
+            }
+        }
+        match command {
+            OfficeCommand::ActingAs => self.prompt_acting_user(),
+            OfficeCommand::NewClient => self.new_client(),
+            OfficeCommand::NewMatter => self.new_matter(),
+            OfficeCommand::NewSetting => self.new_setting(),
+            OfficeCommand::NewDeadline => self.new_deadline(),
+            OfficeCommand::NewNote => self.new_note(),
+        }
+    }
+
+    /// Keeps the entry row saying who office writes are attributed to.
+    fn refresh_acting_label(&self) -> w::SysResult<()> {
+        let text = match self.workspace.borrow().acting_user() {
+            Some(user) => format!("Acting as: {} ({})", user.display_name, user.role),
+            None => "Acting as: nobody yet".to_owned(),
+        };
+        self.acting_label.hwnd().SetWindowText(&text)
+    }
+
+    /// Asks who is entering records, once per session.
+    fn prompt_acting_user(&self) -> w::SysResult<()> {
+        let users = self.workspace.borrow().office_users().unwrap_or_default();
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: "Acting As",
+            size: gui::dpi(400, 210),
+            ..Default::default()
+        });
+        let _who = label(&modal, "Who is entering records", 20, 26, 120, ANCHOR);
+        let mut user_rows = vec!["(somebody new)".to_owned()];
+        user_rows.extend(
+            users
+                .iter()
+                .map(|(_, name, role)| format!("{name} — {role}")),
+        );
+        let user_refs = user_rows.iter().map(String::as_str).collect::<Vec<_>>();
+        let users_combo = choice(&modal, 150, 22, 226, &user_refs, 0);
+        let _name = label(&modal, "Name", 20, 64, 120, ANCHOR);
+        let name_edit = edit(&modal, 150, 60, 226, ANCHOR);
+        let _role = label(&modal, "Role", 20, 102, 120, ANCHOR);
+        let role_combo = choice(&modal, 150, 98, 226, &USER_ROLES, 0);
+        let (accept, cancel) = modal_buttons(&modal, "&Use", 150);
+
+        // Picking an existing user fills the boxes, so Enter is immediate.
+        {
+            let users = users.clone();
+            let users_combo = users_combo.clone();
+            let name_edit = name_edit.clone();
+            let role_combo = role_combo.clone();
+            users_combo.clone().on().cbn_sel_change(move || {
+                let Some(index) = users_combo.items().selected_index() else {
+                    return Ok(());
+                };
+                if index == 0 {
+                    return Ok(());
+                }
+                if let Some((_, name, role)) = users.get(index as usize - 1) {
+                    name_edit.set_text(name)?;
+                    let position = USER_ROLES.iter().position(|known| known == role);
+                    role_combo
+                        .items()
+                        .select(position.and_then(|p| u32::try_from(p).ok()));
+                }
+                Ok(())
+            });
+        }
+
+        let chosen: Rc<RefCell<Option<(String, String)>>> = Rc::new(RefCell::new(None));
+        let record = {
+            let chosen = chosen.clone();
+            let name_edit = name_edit.clone();
+            let role_combo = role_combo.clone();
+            let modal = modal.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let name = name_edit.text()?.trim().to_owned();
+                if name.is_empty() {
+                    return Ok(());
+                }
+                let role = role_combo.items().selected_index().unwrap_or(0);
+                let role = USER_ROLES[role as usize % USER_ROLES.len()].to_owned();
+                *chosen.borrow_mut() = Some((name, role));
+                modal.close();
+                Ok(())
+            })
+        };
+        let record_click = record.clone();
+        accept.on().bn_clicked(move || record_click());
+        modal.on().wm_command(
+            co::DLGID::OK,
+            co::CMD::Menu,
+            enter_submits(
+                record,
+                vec![
+                    Field::choice(&users_combo),
+                    Field::text(&name_edit),
+                    Field::choice(&role_combo),
+                ],
+            ),
+        );
+        wire_cancel(&modal, &cancel);
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+
+        let chosen = chosen.borrow().clone();
+        if let Some((name, role)) = chosen {
+            let named = self.workspace.borrow_mut().set_acting_user(&name, &role);
+            match named {
+                Ok(message) => self.set_status(&message)?,
+                Err(error) => self.present(Err(error), "")?,
+            }
+            self.refresh_acting_label()?;
+        }
+        Ok(())
+    }
+
+    /// The client entry form, with the possible-duplicate question before the
+    /// write. f, m and a pick a sex; any language can be typed via `Other…`.
+    fn new_client(&self) -> w::SysResult<()> {
+        let languages = self
+            .workspace
+            .borrow()
+            .office_languages()
+            .unwrap_or_default();
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: NEW_CLIENT,
+            size: gui::dpi(560, 440),
+            ..Default::default()
+        });
+        let rows = [
+            "Name",
+            "Date of birth",
+            "Sex",
+            "Language",
+            "Aliases",
+            "Phone",
+            "Email",
+            "Address",
+            "Notes",
+        ];
+        for (index, caption) in rows.iter().enumerate() {
+            let y = 26 + i32::try_from(index).unwrap_or(0) * 38;
+            label(&modal, caption, 20, y, 120, ANCHOR);
+        }
+        let name_edit = edit(&modal, 150, 22, 390, ANCHOR);
+        let dob_edit = edit(&modal, 150, 60, 390, ANCHOR);
+        let sex_items = [
+            "(not recorded)",
+            Sex::Female.as_str(),
+            Sex::Male.as_str(),
+            Sex::Another.as_str(),
+        ];
+        let sex_combo = choice(&modal, 150, 98, 180, &sex_items, 0);
+        let mut language_rows = vec!["(not recorded)".to_owned()];
+        language_rows.extend(languages);
+        language_rows.push("Other…".to_owned());
+        let language_refs = language_rows.iter().map(String::as_str).collect::<Vec<_>>();
+        let language_combo = choice(&modal, 150, 136, 180, &language_refs, 0);
+        let aliases_edit = edit(&modal, 150, 174, 390, ANCHOR);
+        let _alias_hint = label(&modal, "separated by ;", 462, 200, 78, ANCHOR);
+        let phone_edit = edit(&modal, 150, 212, 390, ANCHOR);
+        let email_edit = edit(&modal, 150, 250, 390, ANCHOR);
+        let address_edit = edit(&modal, 150, 288, 390, ANCHOR);
+        let notes_edit = edit(&modal, 150, 326, 390, ANCHOR);
+        let _hint = label(
+            &modal,
+            "Dates are written 2026-08-31. Enter records; Tab moves on.",
+            20,
+            364,
+            520,
+            ANCHOR,
+        );
+        let (accept, cancel) = modal_buttons(&modal, "&Create Client", 386);
+
+        let recorded: Rc<RefCell<Option<ClientDraft>>> = Rc::new(RefCell::new(None));
+        let record = {
+            let me = self.clone();
+            let recorded = recorded.clone();
+            let modal = modal.clone();
+            let name_edit = name_edit.clone();
+            let dob_edit = dob_edit.clone();
+            let sex_combo = sex_combo.clone();
+            let language_combo = language_combo.clone();
+            let language_rows = language_rows.clone();
+            let aliases_edit = aliases_edit.clone();
+            let phone_edit = phone_edit.clone();
+            let email_edit = email_edit.clone();
+            let address_edit = address_edit.clone();
+            let notes_edit = notes_edit.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let display_name = name_edit.text()?.trim().to_owned();
+                if display_name.is_empty() {
+                    return Ok(());
+                }
+                let date_of_birth = optional_text(&dob_edit.text()?);
+                if let Some(date) = date_of_birth.as_deref()
+                    && office_core::CivilDate::parse(date).is_none()
+                {
+                    // A wrong date keeps the dialog open; the hint under the
+                    // form says how a date is written.
+                    return Ok(());
+                }
+                let sex = match sex_combo.items().selected_index().unwrap_or(0) {
+                    1 => Some(Sex::Female),
+                    2 => Some(Sex::Male),
+                    3 => Some(Sex::Another),
+                    _ => None,
+                };
+                let language_index = language_combo.items().selected_index().unwrap_or(0) as usize;
+                let preferred_language = if language_index == 0 {
+                    None
+                } else if language_index + 1 == language_rows.len() {
+                    // `Other…`: the one language line the list did not carry.
+                    match prompt_text(
+                        &modal,
+                        "Language",
+                        "The language they ask to be spoken to in.",
+                        "",
+                    )? {
+                        Some(language) => Some(language),
+                        None => return Ok(()),
+                    }
+                } else {
+                    language_rows.get(language_index).cloned()
+                };
+                let aliases = aliases_edit
+                    .text()?
+                    .split(';')
+                    .map(str::trim)
+                    .filter(|alias| !alias.is_empty())
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>();
+                let draft = ClientDraft {
+                    display_name,
+                    date_of_birth,
+                    sex,
+                    preferred_language,
+                    aliases,
+                    phone: optional_text(&phone_edit.text()?),
+                    email: optional_text(&email_edit.text()?),
+                    address: optional_text(&address_edit.text()?),
+                    notes: optional_text(&notes_edit.text()?),
+                };
+
+                // The conservative-identity question, asked before the write
+                // and never answered by the machine: candidates are shown, and
+                // only a person's explicit choice creates the record anyway.
+                let candidates = me
+                    .workspace
+                    .borrow()
+                    .client_duplicates(&draft.display_name, &draft.contact_values())
+                    .unwrap_or_default();
+                if !candidates.is_empty() && !Self::prompt_possible_duplicates(&modal, &candidates)?
+                {
+                    return Ok(());
+                }
+                *recorded.borrow_mut() = Some(draft);
+                modal.close();
+                Ok(())
+            })
+        };
+        let record_click = record.clone();
+        accept.on().bn_clicked(move || record_click());
+        modal.on().wm_command(
+            co::DLGID::OK,
+            co::CMD::Menu,
+            enter_submits(
+                record,
+                vec![
+                    Field::text(&name_edit),
+                    Field::text(&dob_edit),
+                    Field::choice(&sex_combo),
+                    Field::choice(&language_combo),
+                    Field::text(&aliases_edit),
+                    Field::text(&phone_edit),
+                    Field::text(&email_edit),
+                    Field::text(&address_edit),
+                    Field::text(&notes_edit),
+                ],
+            ),
+        );
+        wire_cancel(&modal, &cancel);
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+
+        let recorded = recorded.borrow().clone();
+        if let Some(draft) = recorded {
+            let written = self.workspace.borrow_mut().create_client(&draft);
+            self.present(written, "Client opened")?;
+        }
+        Ok(())
+    }
+
+    /// Shows who the office may already know, and asks rather than answers.
+    fn prompt_possible_duplicates(
+        parent: &gui::WindowModal,
+        candidates: &[PossiblePerson],
+    ) -> w::SysResult<bool> {
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: "Possibly Known",
+            size: gui::dpi(520, 310),
+            ..Default::default()
+        });
+        let _caption = label(
+            &modal,
+            "The office may already know this person. Nothing is merged either way.",
+            20,
+            20,
+            476,
+            ANCHOR,
+        );
+        let mut lines = String::new();
+        for person in candidates {
+            let born = person
+                .date_of_birth
+                .as_deref()
+                .unwrap_or("birth date not recorded");
+            let _ = writeln!(
+                lines,
+                "{} · {born} · {} matter(s) · matched on {}",
+                person.display_name,
+                person.matters,
+                person.matched_on.join(" / ")
+            );
+        }
+        let _listing = gui::Edit::new(
+            &modal,
+            gui::EditOpts {
+                text: &windows_lines(&lines),
+                position: gui::dpi(20, 48),
+                width: gui::dpi_x(476),
+                height: gui::dpi_y(170),
+                control_style: co::ES::MULTILINE | co::ES::AUTOVSCROLL | co::ES::READONLY,
+                window_style: co::WS::CHILD
+                    | co::WS::VISIBLE
+                    | co::WS::BORDER
+                    | co::WS::VSCROLL
+                    | co::WS::TABSTOP,
+                ..Default::default()
+            },
+        );
+        // Cancel first: it takes the first tabstop, so a bare Enter walks away
+        // rather than creating a possible double.
+        let cancel = button(&modal, "Cancel", 268, 232, 112, ANCHOR);
+        let create = button(&modal, "Create Any&way", 388, 232, 128, ANCHOR);
+
+        let anyway = Rc::new(RefCell::new(false));
+        {
+            let anyway = anyway.clone();
+            let modal = modal.clone();
+            create.on().bn_clicked(move || {
+                *anyway.borrow_mut() = true;
+                modal.close();
+                Ok(())
+            });
+        }
+        wire_cancel(&modal, &cancel);
+        modal
+            .show_modal(parent)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+        let decided = *anyway.borrow();
+        Ok(decided)
+    }
+
+    /// The matter entry form: one flow opens the matter and its evidence case.
+    fn new_matter(&self) -> w::SysResult<()> {
+        let clients = self.workspace.borrow().office_clients().unwrap_or_default();
+        if clients.is_empty() {
+            return self.set_status("No clients yet. New Client is Ctrl+Shift+L.");
+        }
+        let courts: Rc<RefCell<Vec<(String, String)>>> = Rc::new(RefCell::new(
+            self.workspace.borrow().office_courts().unwrap_or_default(),
+        ));
+        let cases: Vec<(String, String)> = self
+            .workspace
+            .borrow()
+            .cases()
+            .iter()
+            .map(|(id, name)| (id.0.clone(), name.clone()))
+            .collect();
+
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: NEW_MATTER,
+            size: gui::dpi(560, 480),
+            ..Default::default()
+        });
+        let rows = [
+            "Client",
+            "Caption",
+            "Court number",
+            "Court",
+            "Status",
+            "Custody",
+            "Offer",
+            "Charges",
+            "Evidence",
+            "Case",
+        ];
+        for (index, caption) in rows.iter().enumerate() {
+            let y = 26 + i32::try_from(index).unwrap_or(0) * 38;
+            label(&modal, caption, 20, y, 120, ANCHOR);
+        }
+        let client_rows = clients
+            .iter()
+            .map(|(_, name)| name.as_str())
+            .collect::<Vec<_>>();
+        let client_combo = choice(&modal, 150, 22, 390, &client_rows, 0);
+        let caption_edit = edit(&modal, 150, 60, 390, ANCHOR);
+        let number_edit = edit(&modal, 150, 98, 390, ANCHOR);
+        let initial_court_rows = court_rows(&courts.borrow());
+        let initial_court_refs = initial_court_rows
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        let court_combo = choice(&modal, 150, 136, 280, &initial_court_refs, 0);
+        let status_combo = vocabulary(
+            &modal,
+            150,
+            174,
+            200,
+            &MatterStatus::ALL.map(MatterStatus::as_str),
+            0,
+        );
+        let custody_combo = vocabulary(
+            &modal,
+            150,
+            212,
+            200,
+            &CustodyState::ALL.map(CustodyState::as_str),
+            0,
+        );
+        let offer_combo = vocabulary(
+            &modal,
+            150,
+            250,
+            200,
+            &OfferState::ALL.map(OfferState::as_str),
+            0,
+        );
+        let charges_edit = edit(&modal, 150, 288, 390, ANCHOR);
+        let evidence_combo = choice(
+            &modal,
+            150,
+            326,
+            280,
+            &["Open a new case", "Link an existing case", "None yet"],
+            0,
+        );
+        let case_rows = cases
+            .iter()
+            .map(|(_, name)| name.as_str())
+            .collect::<Vec<_>>();
+        let case_combo = choice(&modal, 150, 364, 390, &case_rows, 0);
+        case_combo.hwnd().EnableWindow(false);
+        let (accept, cancel) = modal_buttons(&modal, "&Open Matter", 426);
+
+        // The case chooser wakes only when an existing case is what is linked.
+        {
+            let evidence_combo = evidence_combo.clone();
+            let case_combo = case_combo.clone();
+            evidence_combo.clone().on().cbn_sel_change(move || {
+                let linking = evidence_combo.items().selected_index() == Some(1);
+                case_combo.hwnd().EnableWindow(linking);
+                Ok(())
+            });
+        }
+        // The last court row records a court the office has not met yet.
+        {
+            let me = self.clone();
+            let courts = courts.clone();
+            let court_combo = court_combo.clone();
+            let modal = modal.clone();
+            court_combo.clone().on().cbn_sel_change(move || {
+                let Some(index) = court_combo.items().selected_index() else {
+                    return Ok(());
+                };
+                let count = u32::try_from(courts.borrow().len()).unwrap_or(0);
+                if index != count + 1 {
+                    return Ok(());
+                }
+                let named = prompt_text(&modal, "New Court", "The court's name.", "")?;
+                match named {
+                    Some(name) => {
+                        me.workspace.borrow_mut().create_court_named(&name).ok();
+                        *courts.borrow_mut() =
+                            me.workspace.borrow().office_courts().unwrap_or_default();
+                        let rows = court_rows(&courts.borrow());
+                        let refs = rows.iter().map(String::as_str).collect::<Vec<_>>();
+                        court_combo.items().delete_all();
+                        court_combo.items().add(&refs)?;
+                        let position = courts
+                            .borrow()
+                            .iter()
+                            .position(|(_, known)| known == &name)
+                            .and_then(|p| u32::try_from(p + 1).ok());
+                        court_combo.items().select(position);
+                    }
+                    None => court_combo.items().select(Some(0)),
+                }
+                Ok(())
+            });
+        }
+
+        let recorded: Rc<RefCell<Option<MatterDraft>>> = Rc::new(RefCell::new(None));
+        let record = {
+            let recorded = recorded.clone();
+            let modal = modal.clone();
+            let clients = clients.clone();
+            let courts = courts.clone();
+            let cases = cases.clone();
+            let client_combo = client_combo.clone();
+            let caption_edit = caption_edit.clone();
+            let number_edit = number_edit.clone();
+            let court_combo = court_combo.clone();
+            let status_combo = status_combo.clone();
+            let custody_combo = custody_combo.clone();
+            let offer_combo = offer_combo.clone();
+            let charges_edit = charges_edit.clone();
+            let evidence_combo = evidence_combo.clone();
+            let case_combo = case_combo.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let caption = caption_edit.text()?.trim().to_owned();
+                if caption.is_empty() {
+                    return Ok(());
+                }
+                let client_index = client_combo.items().selected_index().unwrap_or(0) as usize;
+                let Some((client_id, _)) = clients.get(client_index) else {
+                    return Ok(());
+                };
+                let court_index = court_combo.items().selected_index().unwrap_or(0) as usize;
+                let court_id = if court_index == 0 {
+                    None
+                } else {
+                    courts
+                        .borrow()
+                        .get(court_index - 1)
+                        .map(|(id, _)| id.clone())
+                };
+                let status_index = status_combo.items().selected_index().unwrap_or(0) as usize;
+                let custody_index = custody_combo.items().selected_index().unwrap_or(0) as usize;
+                let offer_index = offer_combo.items().selected_index().unwrap_or(0) as usize;
+                let evidence = match evidence_combo.items().selected_index().unwrap_or(0) {
+                    1 => {
+                        let case_index = case_combo.items().selected_index().unwrap_or(0) as usize;
+                        let Some((case_id, _)) = cases.get(case_index) else {
+                            return Ok(());
+                        };
+                        EvidenceLink::Existing(crate::CaseId(case_id.clone()))
+                    }
+                    2 => EvidenceLink::None,
+                    _ => EvidenceLink::OpenNewCase,
+                };
+                *recorded.borrow_mut() = Some(MatterDraft {
+                    client_id: client_id.clone(),
+                    caption,
+                    court_number: optional_text(&number_edit.text()?),
+                    court_id,
+                    status: MatterStatus::ALL[status_index % MatterStatus::ALL.len()],
+                    custody_state: CustodyState::ALL[custody_index % CustodyState::ALL.len()],
+                    offer_state: OfferState::ALL[offer_index % OfferState::ALL.len()],
+                    charge_summary: optional_text(&charges_edit.text()?),
+                    evidence,
+                });
+                modal.close();
+                Ok(())
+            })
+        };
+        let record_click = record.clone();
+        accept.on().bn_clicked(move || record_click());
+        modal.on().wm_command(
+            co::DLGID::OK,
+            co::CMD::Menu,
+            enter_submits(
+                record,
+                vec![
+                    Field::choice(&client_combo),
+                    Field::text(&caption_edit),
+                    Field::text(&number_edit),
+                    Field::choice(&court_combo),
+                    Field::choice(&status_combo),
+                    Field::choice(&custody_combo),
+                    Field::choice(&offer_combo),
+                    Field::text(&charges_edit),
+                    Field::choice(&evidence_combo),
+                    Field::choice(&case_combo),
+                ],
+            ),
+        );
+        wire_cancel(&modal, &cancel);
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+
+        let recorded = recorded.borrow().clone();
+        if let Some(draft) = recorded {
+            let opened = self.workspace.borrow_mut().open_matter(&draft);
+            let succeeded = opened.is_ok();
+            self.present(opened, "Matter opened")?;
+            if succeeded {
+                self.refresh_case_combo()?;
+                self.refresh_matter_combo()?;
+                self.update_title()?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The setting entry form. One setting covers several matters of one
+    /// client, which is why the matter list multi-selects.
+    fn new_setting(&self) -> w::SysResult<()> {
+        let clients = self.workspace.borrow().office_clients().unwrap_or_default();
+        if clients.is_empty() {
+            return self.set_status("No clients yet. New Client is Ctrl+Shift+L.");
+        }
+        let courts = self.workspace.borrow().office_courts().unwrap_or_default();
+        let docket_date = self.workspace.borrow().docket_date().to_owned();
+
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: NEW_SETTING,
+            size: gui::dpi(560, 480),
+            ..Default::default()
+        });
+        let _client = label(&modal, "Client", 20, 26, 120, ANCHOR);
+        let client_rows = clients
+            .iter()
+            .map(|(_, name)| name.as_str())
+            .collect::<Vec<_>>();
+        let client_combo = choice(&modal, 150, 22, 390, &client_rows, 0);
+        let _matters = label(&modal, "Matters", 20, 64, 120, ANCHOR);
+        let initial_matters = clients
+            .first()
+            .map(|(id, _)| {
+                self.workspace
+                    .borrow()
+                    .office_matters_of_client(id)
+                    .unwrap_or_default()
+            })
+            .unwrap_or_default();
+        let initial_matter_refs = initial_matters
+            .iter()
+            .map(|(_, label)| label.as_str())
+            .collect::<Vec<_>>();
+        let matter_list = gui::ListBox::new(
+            &modal,
+            gui::ListBoxOpts {
+                position: gui::dpi(150, 60),
+                size: gui::dpi(390, 96),
+                control_style: co::LBS::NOTIFY | co::LBS::MULTIPLESEL,
+                items: &initial_matter_refs,
+                ..Default::default()
+            },
+        );
+        let _how = label(
+            &modal,
+            "Space selects; one setting covers every matter it names.",
+            150,
+            160,
+            390,
+            ANCHOR,
+        );
+        let _date = label(&modal, "Date", 20, 190, 120, ANCHOR);
+        let date_edit = gui::Edit::new(
+            &modal,
+            gui::EditOpts {
+                text: &docket_date,
+                position: gui::dpi(150, 186),
+                width: gui::dpi_x(120),
+                ..Default::default()
+            },
+        );
+        let _time = label(&modal, "Time", 290, 190, 42, ANCHOR);
+        let time_edit = edit(&modal, 340, 186, 70, ANCHOR);
+        let _kind = label(&modal, "For", 20, 228, 120, ANCHOR);
+        let type_combo = vocabulary(
+            &modal,
+            150,
+            224,
+            200,
+            &AppearanceType::ALL.map(AppearanceType::as_str),
+            1,
+        );
+        let _court = label(&modal, "Court", 20, 266, 120, ANCHOR);
+        let court_labels = court_rows_plain(&courts);
+        let court_refs = court_labels.iter().map(String::as_str).collect::<Vec<_>>();
+        let court_combo = choice(&modal, 150, 262, 280, &court_refs, 0);
+        let _judge = label(&modal, "Judge", 20, 304, 120, ANCHOR);
+        let judge_edit = edit(&modal, 150, 300, 280, ANCHOR);
+        let _notes = label(&modal, "Notes", 20, 342, 120, ANCHOR);
+        let notes_edit = edit(&modal, 150, 338, 390, ANCHOR);
+        let hint = label(&modal, "", 20, 380, 520, ANCHOR);
+        let (accept, cancel) = modal_buttons(&modal, "&Schedule", 426);
+
+        let listed: Rc<RefCell<Vec<(String, String)>>> = Rc::new(RefCell::new(initial_matters));
+        let refill = {
+            let me = self.clone();
+            let clients = clients.clone();
+            let client_combo = client_combo.clone();
+            let matter_list = matter_list.clone();
+            let listed = listed.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let index = client_combo.items().selected_index().unwrap_or(0) as usize;
+                let Some((client_id, _)) = clients.get(index) else {
+                    return Ok(());
+                };
+                let matters = me
+                    .workspace
+                    .borrow()
+                    .office_matters_of_client(client_id)
+                    .unwrap_or_default();
+                matter_list.items().delete_all();
+                let refs = matters
+                    .iter()
+                    .map(|(_, label)| label.as_str())
+                    .collect::<Vec<_>>();
+                matter_list.items().add(&refs)?;
+                *listed.borrow_mut() = matters;
+                Ok(())
+            })
+        };
+        client_combo.clone().on().cbn_sel_change(move || refill());
+
+        let recorded: Rc<RefCell<Option<SettingDraft>>> = Rc::new(RefCell::new(None));
+        let record = {
+            let recorded = recorded.clone();
+            let modal = modal.clone();
+            let clients = clients.clone();
+            let courts = courts.clone();
+            let listed = listed.clone();
+            let client_combo = client_combo.clone();
+            let matter_list = matter_list.clone();
+            let date_edit = date_edit.clone();
+            let time_edit = time_edit.clone();
+            let type_combo = type_combo.clone();
+            let court_combo = court_combo.clone();
+            let judge_edit = judge_edit.clone();
+            let notes_edit = notes_edit.clone();
+            let hint = hint.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let client_index = client_combo.items().selected_index().unwrap_or(0) as usize;
+                let Some((client_id, _)) = clients.get(client_index) else {
+                    return Ok(());
+                };
+                let mut matter_ids = Vec::new();
+                for selected in matter_list.items().iter_selected()? {
+                    let (index, _) = selected?;
+                    if let Some((id, _)) = listed.borrow().get(index as usize) {
+                        matter_ids.push(id.clone());
+                    }
+                }
+                if matter_ids.is_empty() {
+                    hint.hwnd().SetWindowText("Select at least one matter.")?;
+                    return Ok(());
+                }
+                let date = date_edit.text()?.trim().to_owned();
+                if office_core::CivilDate::parse(&date).is_none() {
+                    hint.hwnd().SetWindowText("Dates are written 2026-08-31.")?;
+                    return Ok(());
+                }
+                let type_index = type_combo.items().selected_index().unwrap_or(0) as usize;
+                let court_index = court_combo.items().selected_index().unwrap_or(0) as usize;
+                let court_id = if court_index == 0 {
+                    None
+                } else {
+                    courts.get(court_index - 1).map(|(id, _)| id.clone())
+                };
+                *recorded.borrow_mut() = Some(SettingDraft {
+                    client_id: client_id.clone(),
+                    matter_ids,
+                    court_id,
+                    judge: optional_text(&judge_edit.text()?),
+                    date,
+                    time: optional_text(&time_edit.text()?),
+                    appearance_type: AppearanceType::ALL[type_index % AppearanceType::ALL.len()],
+                    notes: optional_text(&notes_edit.text()?),
+                });
+                modal.close();
+                Ok(())
+            })
+        };
+        let record_click = record.clone();
+        accept.on().bn_clicked(move || record_click());
+        modal.on().wm_command(
+            co::DLGID::OK,
+            co::CMD::Menu,
+            enter_submits(
+                record,
+                vec![
+                    Field::choice(&client_combo),
+                    Field::list(&matter_list),
+                    Field::text(&date_edit),
+                    Field::text(&time_edit),
+                    Field::choice(&type_combo),
+                    Field::choice(&court_combo),
+                    Field::text(&judge_edit),
+                    Field::text(&notes_edit),
+                ],
+            ),
+        );
+        wire_cancel(&modal, &cancel);
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+
+        let recorded = recorded.borrow().clone();
+        if let Some(draft) = recorded {
+            let scheduled = self.workspace.borrow_mut().schedule_setting(&draft);
+            self.present(scheduled, "Setting scheduled")?;
+        }
+        Ok(())
+    }
+
+    /// The deadline entry form: what is owed, on which matter, by when.
+    fn new_deadline(&self) -> w::SysResult<()> {
+        let matters = self.workspace.borrow().office_matters().unwrap_or_default();
+        if matters.is_empty() {
+            return self.set_status("No matters yet. New Matter is Ctrl+Shift+M.");
+        }
+        let docket_date = self.workspace.borrow().docket_date().to_owned();
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: NEW_DEADLINE,
+            size: gui::dpi(520, 280),
+            ..Default::default()
+        });
+        let _matter = label(&modal, "Matter", 20, 26, 110, ANCHOR);
+        let matter_rows = matters
+            .iter()
+            .map(|(_, label)| label.as_str())
+            .collect::<Vec<_>>();
+        let matter_combo = choice(&modal, 140, 22, 360, &matter_rows, 0);
+        let _what = label(&modal, "What is owed", 20, 64, 110, ANCHOR);
+        let what_edit = edit(&modal, 140, 60, 360, ANCHOR);
+        let _due = label(&modal, "Due", 20, 102, 110, ANCHOR);
+        let due_edit = gui::Edit::new(
+            &modal,
+            gui::EditOpts {
+                text: &docket_date,
+                position: gui::dpi(140, 98),
+                width: gui::dpi_x(120),
+                ..Default::default()
+            },
+        );
+        let _origin = label(&modal, "Origin", 20, 140, 110, ANCHOR);
+        let origin_combo = vocabulary(
+            &modal,
+            140,
+            136,
+            200,
+            &DeadlineOrigin::ALL.map(DeadlineOrigin::as_str),
+            1,
+        );
+        let hint = label(&modal, "", 20, 178, 480, ANCHOR);
+        let (accept, cancel) = modal_buttons(&modal, "&Record", 224);
+
+        let recorded: Rc<RefCell<Option<DeadlineDraft>>> = Rc::new(RefCell::new(None));
+        let record = {
+            let recorded = recorded.clone();
+            let modal = modal.clone();
+            let matters = matters.clone();
+            let matter_combo = matter_combo.clone();
+            let what_edit = what_edit.clone();
+            let due_edit = due_edit.clone();
+            let origin_combo = origin_combo.clone();
+            let hint = hint.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let description = what_edit.text()?.trim().to_owned();
+                if description.is_empty() {
+                    return Ok(());
+                }
+                let due_date = due_edit.text()?.trim().to_owned();
+                if office_core::CivilDate::parse(&due_date).is_none() {
+                    hint.hwnd().SetWindowText("Dates are written 2026-08-31.")?;
+                    return Ok(());
+                }
+                let matter_index = matter_combo.items().selected_index().unwrap_or(0) as usize;
+                let Some((matter_id, _)) = matters.get(matter_index) else {
+                    return Ok(());
+                };
+                let origin_index = origin_combo.items().selected_index().unwrap_or(0) as usize;
+                *recorded.borrow_mut() = Some(DeadlineDraft {
+                    matter_id: matter_id.clone(),
+                    description,
+                    due_date,
+                    origin: DeadlineOrigin::ALL[origin_index % DeadlineOrigin::ALL.len()],
+                });
+                modal.close();
+                Ok(())
+            })
+        };
+        let record_click = record.clone();
+        accept.on().bn_clicked(move || record_click());
+        modal.on().wm_command(
+            co::DLGID::OK,
+            co::CMD::Menu,
+            enter_submits(
+                record,
+                vec![
+                    Field::choice(&matter_combo),
+                    Field::text(&what_edit),
+                    Field::text(&due_edit),
+                    Field::choice(&origin_combo),
+                ],
+            ),
+        );
+        wire_cancel(&modal, &cancel);
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+
+        let recorded = recorded.borrow().clone();
+        if let Some(draft) = recorded {
+            let written = self.workspace.borrow_mut().record_office_deadline(&draft);
+            self.present(written, "Deadline recorded")?;
+        }
+        Ok(())
+    }
+
+    /// The note entry form. A note is filed under exactly one client, matter,
+    /// or setting; Enter writes it, so a note that wants paragraphs wants the
+    /// CLI instead.
+    fn new_note(&self) -> w::SysResult<()> {
+        let docket_date = self.workspace.borrow().docket_date().to_owned();
+        let modal = gui::WindowModal::new(gui::WindowModalOpts {
+            title: NEW_NOTE,
+            size: gui::dpi(560, 330),
+            ..Default::default()
+        });
+        let _scope = label(&modal, "Filed under", 20, 26, 120, ANCHOR);
+        let scope_combo = choice(&modal, 150, 22, 160, &["client", "matter", "setting"], 0);
+        let _subject = label(&modal, "Subject", 20, 64, 120, ANCHOR);
+        let initial_subjects = self.workspace.borrow().office_clients().unwrap_or_default();
+        let initial_subject_refs = initial_subjects
+            .iter()
+            .map(|(_, label)| label.as_str())
+            .collect::<Vec<_>>();
+        let subject_combo = choice(&modal, 150, 60, 390, &initial_subject_refs, 0);
+        let _body = label(&modal, "Note", 20, 102, 120, ANCHOR);
+        // Multiline without `ES::WANTRETURN`, so Enter reaches
+        // `IsDialogMessage` and writes the note instead of a newline.
+        let body_edit = gui::Edit::new(
+            &modal,
+            gui::EditOpts {
+                text: "",
+                position: gui::dpi(150, 98),
+                width: gui::dpi_x(390),
+                height: gui::dpi_y(150),
+                control_style: co::ES::MULTILINE | co::ES::AUTOVSCROLL,
+                window_style: co::WS::CHILD
+                    | co::WS::VISIBLE
+                    | co::WS::BORDER
+                    | co::WS::VSCROLL
+                    | co::WS::TABSTOP,
+                ..Default::default()
+            },
+        );
+        let (accept, cancel) = modal_buttons(&modal, "&Write Note", 276);
+
+        let subjects: Rc<RefCell<Vec<(String, String)>>> = Rc::new(RefCell::new(initial_subjects));
+        let refill = {
+            let me = self.clone();
+            let scope_combo = scope_combo.clone();
+            let subject_combo = subject_combo.clone();
+            let subjects = subjects.clone();
+            let docket_date = docket_date.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let rows = match scope_combo.items().selected_index().unwrap_or(0) {
+                    1 => me.workspace.borrow().office_matters().unwrap_or_default(),
+                    2 => me
+                        .workspace
+                        .borrow()
+                        .office_settings_on(&docket_date)
+                        .unwrap_or_default(),
+                    _ => me.workspace.borrow().office_clients().unwrap_or_default(),
+                };
+                subject_combo.items().delete_all();
+                let refs = rows
+                    .iter()
+                    .map(|(_, label)| label.as_str())
+                    .collect::<Vec<_>>();
+                subject_combo.items().add(&refs)?;
+                subject_combo.items().select(Some(0));
+                *subjects.borrow_mut() = rows;
+                Ok(())
+            })
+        };
+        scope_combo.clone().on().cbn_sel_change(move || refill());
+
+        let recorded: Rc<RefCell<Option<NoteDraft>>> = Rc::new(RefCell::new(None));
+        let record = {
+            let recorded = recorded.clone();
+            let modal = modal.clone();
+            let subjects = subjects.clone();
+            let scope_combo = scope_combo.clone();
+            let subject_combo = subject_combo.clone();
+            let body_edit = body_edit.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let body = body_edit.text()?.trim().to_owned();
+                if body.is_empty() {
+                    return Ok(());
+                }
+                let subject_index = subject_combo.items().selected_index().unwrap_or(0) as usize;
+                let Some((subject_id, _)) = subjects.borrow().get(subject_index).cloned() else {
+                    return Ok(());
+                };
+                let scope = match scope_combo.items().selected_index().unwrap_or(0) {
+                    1 => NoteScope::Matter,
+                    2 => NoteScope::Appearance,
+                    _ => NoteScope::Client,
+                };
+                *recorded.borrow_mut() = Some(NoteDraft {
+                    scope,
+                    subject_id,
+                    body,
+                });
+                modal.close();
+                Ok(())
+            })
+        };
+        let record_click = record.clone();
+        accept.on().bn_clicked(move || record_click());
+        modal.on().wm_command(
+            co::DLGID::OK,
+            co::CMD::Menu,
+            enter_submits(
+                record,
+                vec![
+                    Field::choice(&scope_combo),
+                    Field::choice(&subject_combo),
+                    Field::text(&body_edit),
+                ],
+            ),
+        );
+        wire_cancel(&modal, &cancel);
+        modal
+            .show_modal(&self.wnd)
+            .map_err(|_| co::ERROR::INVALID_DATA)?;
+
+        let recorded = recorded.borrow().clone();
+        if let Some(draft) = recorded {
+            let written = self.workspace.borrow_mut().write_office_note(&draft);
+            self.present(written, "Note written")?;
+        }
+        Ok(())
     }
 
     fn open_database(&self) -> w::SysResult<()> {
@@ -1691,7 +3613,17 @@ impl MainWindow {
         self.case_combo
             .items()
             .select(selected.and_then(|index| u32::try_from(index).ok()));
-        Ok(())
+        self.update_title()
+    }
+
+    /// Keeps the title bar naming the selected case, so two open workspaces
+    /// are told apart in the taskbar rather than by their contents.
+    fn update_title(&self) -> w::SysResult<()> {
+        let title = self.workspace.borrow().active_case().map_or_else(
+            || "Evidence Intake — Local Case Workspace".to_owned(),
+            |(id, name)| format!("Evidence Intake — {name}  [{id}]"),
+        );
+        self.wnd.hwnd().SetWindowText(&title)
     }
 
     fn show_view(&self, view: WorkspaceView) -> w::SysResult<()> {
@@ -2038,9 +3970,9 @@ fn refresh_queue_view(
                 })
                 .collect::<Vec<_>>();
             *jobs.borrow_mut() = current;
-            output.set_text(&windows_lines(
-                &serde_json::to_string_pretty(&rows).unwrap_or_else(|error| error.to_string()),
-            ))?;
+            output.set_text(&windows_lines(&readable_text(&serde_json::Value::Array(
+                rows,
+            ))))?;
         }
         Err(error) => output.set_text(&format!("ERROR\r\n\r\n{error}"))?,
     }
@@ -3084,19 +5016,28 @@ impl SweepWindow {
         fill()?;
         let fill = Rc::new(fill);
 
-        let workspace = self.workspace.clone();
-        let candidates_for_find = candidates.clone();
-        let find_edit_for_find = find_edit.clone();
-        let fill_for_find = fill.clone();
-        search.on().bn_clicked(move || {
-            let prefix = find_edit_for_find.text()?;
-            *candidates_for_find.borrow_mut() = workspace
-                .borrow()
-                .entity_candidates(prefix.trim(), 200)
-                .unwrap_or_default();
-            fill_for_find()?;
-            Ok(())
-        });
+        let run_find = {
+            let workspace = self.workspace.clone();
+            let candidates = candidates.clone();
+            let find_edit = find_edit.clone();
+            let fill = fill.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let prefix = find_edit.text()?;
+                *candidates.borrow_mut() = workspace
+                    .borrow()
+                    .entity_candidates(prefix.trim(), 200)
+                    .unwrap_or_default();
+                fill()?;
+                Ok(())
+            })
+        };
+        let find_click = run_find.clone();
+        search.on().bn_clicked(move || find_click());
+        modal.on().wm_command(
+            co::DLGID::OK,
+            co::CMD::Menu,
+            enter_submits(run_find, vec![Field::text(&find_edit)]),
+        );
 
         let candidates_for_use = candidates.clone();
         let list_for_use = list.clone();
@@ -3221,26 +5162,38 @@ impl SweepWindow {
         let cancel = button(&modal, "Cancel", 424, 196, 112, ANCHOR);
         let entry: Rc<RefCell<Option<crate::TimeEntry>>> = Rc::new(RefCell::new(None));
 
-        let entry_for_accept = entry.clone();
-        let value_for_accept = value_edit.clone();
-        let basis_for_accept = basis_edit.clone();
-        let asserted_for_accept = asserted.clone();
-        let approximate_for_accept = approximate.clone();
-        let modal_for_accept = modal.clone();
-        accept.on().bn_clicked(move || {
-            let value = value_for_accept.text()?.trim().to_owned();
-            if value.is_empty() {
-                return Ok(());
-            }
-            *entry_for_accept.borrow_mut() = Some(crate::TimeEntry {
-                value,
-                asserted: asserted_for_accept.is_checked(),
-                basis: optional_text(basis_for_accept.text()?.trim()),
-                approximate: approximate_for_accept.is_checked(),
-            });
-            modal_for_accept.close();
-            Ok(())
-        });
+        let record = {
+            let entry = entry.clone();
+            let value_edit = value_edit.clone();
+            let basis_edit = basis_edit.clone();
+            let asserted = asserted.clone();
+            let approximate = approximate.clone();
+            let modal = modal.clone();
+            Rc::new(move || -> w::AnyResult<()> {
+                let value = value_edit.text()?.trim().to_owned();
+                if value.is_empty() {
+                    return Ok(());
+                }
+                *entry.borrow_mut() = Some(crate::TimeEntry {
+                    value,
+                    asserted: asserted.is_checked(),
+                    basis: optional_text(basis_edit.text()?.trim()),
+                    approximate: approximate.is_checked(),
+                });
+                modal.close();
+                Ok(())
+            })
+        };
+        let record_click = record.clone();
+        accept.on().bn_clicked(move || record_click());
+        modal.on().wm_command(
+            co::DLGID::OK,
+            co::CMD::Menu,
+            enter_submits(
+                record,
+                vec![Field::text(&value_edit), Field::text(&basis_edit)],
+            ),
+        );
         let modal_cancel = modal.clone();
         cancel.on().bn_clicked(move || {
             modal_cancel.close();
@@ -3255,6 +5208,128 @@ impl SweepWindow {
 
     fn set_status(&self, text: &str) -> w::SysResult<()> {
         self.status_label.hwnd().SetWindowText(text)
+    }
+}
+
+/// A dropdown list, quick-selected by typing an item's first letter — which
+/// is why every vocabulary shown through one keeps its stored words.
+fn choice(
+    parent: &(impl GuiParent + 'static),
+    x: i32,
+    y: i32,
+    width: i32,
+    items: &[&str],
+    selected: u32,
+) -> gui::ComboBox {
+    gui::ComboBox::new(
+        parent,
+        gui::ComboBoxOpts {
+            position: gui::dpi(x, y),
+            width: gui::dpi_x(width),
+            items,
+            selected_item: Some(selected),
+            ..Default::default()
+        },
+    )
+}
+
+/// A [`choice`] over a stored vocabulary's own words.
+fn vocabulary<const N: usize>(
+    parent: &(impl GuiParent + 'static),
+    x: i32,
+    y: i32,
+    width: i32,
+    items: &[&str; N],
+    selected: u32,
+) -> gui::ComboBox {
+    choice(parent, x, y, width, items, selected)
+}
+
+/// Accept and Cancel, in the corner every entry dialog puts them.
+fn modal_buttons(modal: &gui::WindowModal, accept: &str, y: i32) -> (gui::Button, gui::Button) {
+    let accept = button(modal, accept, 296, y, 132, ANCHOR);
+    let cancel = button(modal, "Cancel", 436, y, 104, ANCHOR);
+    (accept, cancel)
+}
+
+/// Wires a Cancel button to close its dialog and record nothing.
+fn wire_cancel(modal: &gui::WindowModal, cancel: &gui::Button) {
+    let modal = modal.clone();
+    cancel.on().bn_clicked(move || {
+        modal.close();
+        Ok(())
+    });
+}
+
+/// Court chooser rows: none, every court, and a row that records a new one.
+fn court_rows(courts: &[(String, String)]) -> Vec<String> {
+    let mut rows = vec!["(none)".to_owned()];
+    rows.extend(courts.iter().map(|(_, name)| name.clone()));
+    rows.push("New court…".to_owned());
+    rows
+}
+
+/// Court chooser rows without the recording row, where a new court would be a
+/// digression rather than a step.
+fn court_rows_plain(courts: &[(String, String)]) -> Vec<String> {
+    let mut rows = vec!["(none)".to_owned()];
+    rows.extend(courts.iter().map(|(_, name)| name.clone()));
+    rows
+}
+
+/// A control Enter may submit from.
+///
+/// Held as the control rather than its window handle, because copying a raw
+/// `HWND` needs `unsafe` and the crate forbids it; the controls are `Clone`.
+#[derive(Clone)]
+enum Field {
+    /// A single-line (or submitting multiline) text box.
+    Text(gui::Edit),
+    /// A dropdown list.
+    Choice(gui::ComboBox),
+    /// A list box, including a multi-select one.
+    List(gui::ListBox),
+}
+
+impl Field {
+    fn text(control: &gui::Edit) -> Self {
+        Self::Text(control.clone())
+    }
+
+    fn choice(control: &gui::ComboBox) -> Self {
+        Self::Choice(control.clone())
+    }
+
+    fn list(control: &gui::ListBox) -> Self {
+        Self::List(control.clone())
+    }
+
+    fn holds_focus(&self, focused: Option<&w::HWND>) -> bool {
+        let own = match self {
+            Self::Text(control) => control.hwnd(),
+            Self::Choice(control) => control.hwnd(),
+            Self::List(control) => control.hwnd(),
+        };
+        focused == Some(own)
+    }
+}
+
+/// Enter as submit. `IsDialogMessage` turns an Enter no control claims into
+/// `IDOK`; the returned handler accepts it only while focus is in one of the
+/// named fields, so Enter over a Cancel button records nothing.
+fn enter_submits(
+    submit: Rc<dyn Fn() -> w::AnyResult<()>>,
+    fields: Vec<Field>,
+) -> impl Fn() -> w::AnyResult<()> {
+    move || {
+        let focused = w::HWND::GetFocus();
+        if fields
+            .iter()
+            .any(|field| field.holds_focus(focused.as_ref()))
+        {
+            submit()?;
+        }
+        Ok(())
     }
 }
 
@@ -3284,17 +5359,26 @@ fn prompt_text(
     let cancel = button(&modal, "Cancel", 424, 130, 112, ANCHOR);
     let answer: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
 
-    let answer_for_accept = answer.clone();
-    let value_for_accept = value.clone();
-    let modal_for_accept = modal.clone();
-    accept.on().bn_clicked(move || {
-        let text = value_for_accept.text()?.trim().to_owned();
-        if !text.is_empty() {
-            *answer_for_accept.borrow_mut() = Some(text);
-        }
-        modal_for_accept.close();
-        Ok(())
-    });
+    let record = {
+        let answer = answer.clone();
+        let value = value.clone();
+        let modal = modal.clone();
+        Rc::new(move || -> w::AnyResult<()> {
+            let text = value.text()?.trim().to_owned();
+            if !text.is_empty() {
+                *answer.borrow_mut() = Some(text);
+            }
+            modal.close();
+            Ok(())
+        })
+    };
+    let record_click = record.clone();
+    accept.on().bn_clicked(move || record_click());
+    modal.on().wm_command(
+        co::DLGID::OK,
+        co::CMD::Menu,
+        enter_submits(record, vec![Field::text(&value)]),
+    );
     let modal_cancel = modal.clone();
     cancel.on().bn_clicked(move || {
         modal_cancel.close();
@@ -3335,6 +5419,47 @@ fn letter_key(vkey: co::VK, shift: bool) -> Option<String> {
     })
 }
 
+/// A letter of the alphabet, for the `Ctrl+Shift` chords the pane switch and
+/// the Court commands carry.
+///
+/// Spelled out rather than computed from the letter's ASCII code, because
+/// `co::VK` can only be built from a raw number through an `unsafe` call, and
+/// `unsafe_code = "forbid"` rules that out. The companion `digit_key` does the
+/// same thing for the view accelerators, for the same reason.
+fn chord_key(letter: char) -> co::VK {
+    match letter.to_ascii_uppercase() {
+        'B' => co::VK::CHAR_B,
+        'C' => co::VK::CHAR_C,
+        'D' => co::VK::CHAR_D,
+        'E' => co::VK::CHAR_E,
+        'F' => co::VK::CHAR_F,
+        'G' => co::VK::CHAR_G,
+        'H' => co::VK::CHAR_H,
+        'I' => co::VK::CHAR_I,
+        'J' => co::VK::CHAR_J,
+        'K' => co::VK::CHAR_K,
+        'L' => co::VK::CHAR_L,
+        'M' => co::VK::CHAR_M,
+        'N' => co::VK::CHAR_N,
+        'O' => co::VK::CHAR_O,
+        'P' => co::VK::CHAR_P,
+        'Q' => co::VK::CHAR_Q,
+        'R' => co::VK::CHAR_R,
+        'S' => co::VK::CHAR_S,
+        'T' => co::VK::CHAR_T,
+        'U' => co::VK::CHAR_U,
+        'V' => co::VK::CHAR_V,
+        'W' => co::VK::CHAR_W,
+        'X' => co::VK::CHAR_X,
+        'Y' => co::VK::CHAR_Y,
+        'Z' => co::VK::CHAR_Z,
+        // 'A' among them: the table is exhaustive over the alphabet, and a
+        // caller passing anything else is a mistake in this file rather than
+        // something a user can reach.
+        _ => co::VK::CHAR_A,
+    }
+}
+
 /// The digit row, for the `Ctrl` view accelerators.
 fn digit_key(digit: char) -> co::VK {
     match digit {
@@ -3349,6 +5474,35 @@ fn digit_key(digit: char) -> co::VK {
         '9' => co::VK::CHAR_9,
         _ => co::VK::CHAR_1,
     }
+}
+
+/// One docket row as its grid cells.
+fn docket_texts(row: &DocketGridRow) -> [String; 11] {
+    [
+        row.time.clone(),
+        row.what_for.clone(),
+        row.court.clone(),
+        row.client.clone(),
+        row.matters.clone(),
+        row.charges.clone(),
+        row.custody.clone(),
+        row.offer.clone(),
+        row.last_contact.clone(),
+        row.posture.clone(),
+        row.open_work.clone(),
+    ]
+}
+
+/// One owed thing as its grid cells.
+fn deadline_texts(row: &DeadlineGridRow) -> [String; 6] {
+    [
+        row.due.clone(),
+        row.within.clone(),
+        row.matter.clone(),
+        row.client.clone(),
+        row.what.clone(),
+        row.origin.clone(),
+    ]
 }
 
 fn grid_texts(row: &EnrichmentRow) -> [String; 6] {
@@ -3503,6 +5657,9 @@ mod tests {
         VIEW_BUTTONS
             .iter()
             .map(|(caption, _)| *caption)
+            .chain(PANE_BUTTONS.iter().map(|(pane, _)| pane.label()))
+            .chain(COURT_COMMANDS.iter().map(|(caption, _, _)| *caption))
+            .chain(OFFICE_COMMANDS.iter().map(|(caption, _, _)| *caption))
             .chain([
                 OPEN_DATABASE,
                 NEW_CASE,
@@ -3576,14 +5733,163 @@ mod tests {
         }
         assert_eq!(chords.len(), VIEW_BUTTONS.len());
 
+        // The pane switch and the Court commands take `Ctrl+Shift` letters,
+        // because the Alt namespace has nothing left to give them. They share
+        // that space with the last two views, which take `Ctrl+Shift` digits.
+        for (caption, key) in PANE_BUTTONS
+            .iter()
+            .map(|(pane, key)| (pane.label(), *key))
+            .chain(
+                COURT_COMMANDS
+                    .iter()
+                    .map(|(caption, key, _)| (*caption, *key)),
+            )
+            .chain(
+                OFFICE_COMMANDS
+                    .iter()
+                    .map(|(caption, key, _)| (*caption, *key)),
+            )
+        {
+            let chord = accelerator_label(true, key);
+            if let Some((_, other)) = chords.iter().find(|(taken, _)| *taken == chord) {
+                panic!("{chord} is claimed by both {other:?} and {caption:?}");
+            }
+            chords.push((chord, caption));
+        }
+
         for caption in commands() {
             let has_letter = mnemonic(caption).is_some();
-            let has_chord = VIEW_BUTTONS
-                .iter()
-                .any(|(view_caption, _)| *view_caption == caption);
+            let has_chord = chords.iter().any(|(_, claimed)| *claimed == caption);
             assert!(
                 has_letter || has_chord,
                 "{caption:?} offers neither an Alt key nor a Ctrl chord"
+            );
+        }
+    }
+
+    /// A `Ctrl+Shift` chord has to reach a real virtual key, or the
+    /// accelerator table silently binds every unrecognized letter to the same
+    /// one and the second command added is unreachable.
+    #[test]
+    fn every_chord_reaches_its_own_virtual_key() {
+        let mut keys: Vec<(co::VK, &str)> = Vec::new();
+        for (caption, letter) in PANE_BUTTONS
+            .iter()
+            .map(|(pane, key)| (pane.label(), *key))
+            .chain(
+                COURT_COMMANDS
+                    .iter()
+                    .map(|(caption, key, _)| (*caption, *key)),
+            )
+            .chain(
+                OFFICE_COMMANDS
+                    .iter()
+                    .map(|(caption, key, _)| (*caption, *key)),
+            )
+        {
+            let key = chord_key(letter);
+            assert_eq!(
+                letter_key(key, true).as_deref(),
+                Some(letter.to_string().as_str()),
+                "{caption:?} asked for Ctrl+Shift+{letter} and got something else"
+            );
+            if let Some((_, other)) = keys.iter().find(|(taken, _)| *taken == key) {
+                panic!("Ctrl+Shift+{letter} is claimed by both {other:?} and {caption:?}");
+            }
+            keys.push((key, caption));
+        }
+    }
+
+    /// Both panes are on the switch, and every Court command has a button.
+    #[test]
+    fn both_panes_and_every_court_command_have_a_control() {
+        for pane in Pane::ALL {
+            assert!(
+                PANE_BUTTONS.iter().any(|(candidate, _)| *candidate == pane),
+                "{} has no way to reach it",
+                pane.label()
+            );
+        }
+        assert_eq!(PANE_BUTTONS.len(), Pane::ALL.len());
+
+        // The Court pane has no rail, so nothing anchors its layout: the two
+        // grids and the detail box stack, and at the design size each has to
+        // clear the caption of the one below it.
+        const {
+            assert!(
+                COURT_GRID_TOP + COURT_GRID_HEIGHT < COURT_DEADLINES_TOP - 20,
+                "the docket grid runs into the deadlines caption"
+            );
+            assert!(
+                COURT_DEADLINES_TOP + COURT_DEADLINES_HEIGHT < COURT_DETAIL_TOP - 20,
+                "the deadlines grid runs into the detail caption"
+            );
+            assert!(
+                COURT_DETAIL_TOP + COURT_DETAIL_HEIGHT < COURT_STATUS_TOP,
+                "the detail box runs into the status line"
+            );
+            assert!(
+                COURT_STATUS_TOP + 20 <= HEIGHT,
+                "the status line starts below the window"
+            );
+        }
+
+        // And at the floor, where everything riding the bottom edge has moved
+        // up by the difference and the docket grid has given up that height.
+        const {
+            let shrink = HEIGHT - MIN_HEIGHT;
+            assert!(
+                COURT_GRID_HEIGHT - shrink > 60,
+                "the docket collapses to nothing before the window stops shrinking"
+            );
+            assert!(
+                COURT_STATUS_TOP - shrink + 20 <= MIN_HEIGHT,
+                "the Court status line falls off the bottom at the minimum height"
+            );
+        }
+    }
+
+    /// Every office entry command is on the table exactly once, so it has a
+    /// button, hides with the Office pane, and answers to its chord — the same
+    /// guarantee the Court pane's own table test gives.
+    #[test]
+    fn every_office_command_has_a_control() {
+        for command in OfficeCommand::ALL {
+            assert_eq!(
+                OFFICE_COMMANDS
+                    .iter()
+                    .filter(|(_, _, candidate)| *candidate == command)
+                    .count(),
+                1,
+                "{command:?} must appear exactly once on the entry row"
+            );
+        }
+        assert_eq!(OFFICE_COMMANDS.len(), OfficeCommand::ALL.len());
+    }
+
+    /// The Office pane's output box, entry row and status line stack without
+    /// touching, at the design size and at the floor.
+    #[test]
+    fn the_office_pane_stacks_without_collisions() {
+        const {
+            assert!(
+                OFFICE_OUTPUT_TOP + OFFICE_OUTPUT_HEIGHT < OFFICE_ENTRY_TOP,
+                "the output box runs into the entry row"
+            );
+            assert!(
+                OFFICE_ENTRY_TOP + BUTTON_HEIGHT <= OFFICE_STATUS_TOP,
+                "the entry row runs into the status line"
+            );
+        }
+        const {
+            let shrink = HEIGHT - MIN_HEIGHT;
+            assert!(
+                OFFICE_OUTPUT_HEIGHT - shrink > 60,
+                "the output box collapses before the window stops shrinking"
+            );
+            assert!(
+                OFFICE_STATUS_TOP - shrink + 20 <= MIN_HEIGHT,
+                "the status line falls off the bottom at the minimum height"
             );
         }
     }

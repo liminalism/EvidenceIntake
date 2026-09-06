@@ -10,19 +10,26 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use evidence_adapter_protocol::{AdapterJobRequest, AdapterResultManifest};
+use office_core::{
+    AppearanceType, COMMON_LANGUAGES, CivilDate, ClientProfile, ContactKind, CustodyState,
+    DeadlineOrigin, DeadlineRow, MatterProfile, MatterStatus, NoteScope, OfferState, OfficeFixture,
+    PossiblePerson, ProposedAppearance, ProposedClient, ProposedClientContact, ProposedCourt,
+    ProposedDeadline, ProposedMatter, ProposedNote, Sex, UpcomingDeadlines,
+};
 use serde::Serialize;
 
 use crate::{
-    AuthoredEntity, CaseDigest, CaseId, CollationEntry, CollationIndex, ContentForm,
-    ContentInterpretation, DemoFixture, EnrichmentField, EnrichmentPassage, EnrichmentSession,
-    EnrichmentSource, EnrichmentValue, EntityCandidate, EntityKind, ExportAudience, IntakeArtifact,
-    IntakeJob, InterpretationBatch, InterpretationTarget, KeyframeHit, Materiality, NewIntakeJob,
-    NodeKind, NodeRef, NormalizedBatch, OpenedProduction, PendingInput, PerceptionBasis,
-    PreviewDescriptor, ProposedAdvocacyItem, ProposedAnnotation, ProposedBrief, ProposedCase,
-    ProposedCharge, ProposedContentGroup, ProposedElementMapping, ProposedEntity,
-    ProposedInterpretation, ProposedLink, ProposedOccurrence, ProposedProduction,
-    ProposedProposition, ProposedSourceProfile, PropositionPacket, ReviewDecision, ReviewState,
-    ReviewTarget, SourceLocation, SourceProfile, Store, SuggestionKind, TemporalStance, TimeEntry,
+    AuthoredEntity, CaseDigest, CaseId, CaseStanding, CollationEntry, CollationIndex, ContentForm,
+    ContentInterpretation, CourtDocket, DemoFixture, DocketRow, EnrichmentField, EnrichmentPassage,
+    EnrichmentSession, EnrichmentSource, EnrichmentValue, EntityCandidate, EntityKind,
+    ExportAudience, IntakeArtifact, IntakeJob, InterpretationBatch, InterpretationTarget,
+    KeyframeHit, Materiality, NewIntakeJob, NodeKind, NodeRef, NormalizedBatch, OfficeDesk,
+    OpenedProduction, PendingInput, PerceptionBasis, PreviewDescriptor, ProposedAdvocacyItem,
+    ProposedAnnotation, ProposedBrief, ProposedCase, ProposedCharge, ProposedContentGroup,
+    ProposedElementMapping, ProposedEntity, ProposedInterpretation, ProposedLink,
+    ProposedOccurrence, ProposedProduction, ProposedProposition, ProposedSourceProfile,
+    PropositionPacket, ReviewDecision, ReviewState, ReviewTarget, SourceLocation, SourceProfile,
+    Store, SuggestionKind, TemporalStance, TimeEntry, TimelineEntry, WitnessStatement,
 };
 
 #[cfg(all(feature = "gui-winsafe", target_os = "windows"))]
@@ -55,6 +62,12 @@ impl std::error::Error for GuiError {}
 
 impl From<crate::Error> for GuiError {
     fn from(error: crate::Error) -> Self {
+        Self::new(error.to_string())
+    }
+}
+
+impl From<office_core::Error> for GuiError {
+    fn from(error: office_core::Error) -> Self {
         Self::new(error.to_string())
     }
 }
@@ -284,12 +297,23 @@ impl AuthorKind {
 }
 
 /// Platform-neutral state and operations for one database-backed workspace.
+///
+/// A workspace holds both halves of the product: the evidence kernel, and the
+/// office beside it. They never share a transaction and there is no foreign key
+/// between them — this struct is simply the place that has both open, the same
+/// way [`OfficeDesk`](crate::OfficeDesk) is one level down.
 pub struct Workspace {
     database: Option<PathBuf>,
     store: Store,
     cases: Vec<(CaseId, String)>,
     active_case: Option<usize>,
     enrichment: Option<EnrichmentSession>,
+    office: Option<OfficeDesk>,
+    acting_user: Option<ActingUser>,
+    pane: Pane,
+    docket_date: String,
+    docket: Option<CourtDocket>,
+    deadlines: Option<UpcomingDeadlines>,
 }
 
 impl Workspace {
@@ -308,12 +332,29 @@ impl Workspace {
     fn with_store(database: Option<PathBuf>, store: Store) -> GuiResult<Self> {
         let cases = docket_pairs(&store)?;
         let active_case = (!cases.is_empty()).then_some(0);
+        // The office is a separate file beside the case database, and its
+        // absence is not fatal: every evidence surface still reads, and the
+        // Court pane says why it is empty rather than refusing to open.
+        let office = match &database {
+            Some(path) => OfficeDesk::open(OfficeDesk::beside(path)).ok(),
+            None => OfficeDesk::in_memory().ok(),
+        };
+        let docket_date = office
+            .as_ref()
+            .and_then(|desk| desk.today().ok())
+            .unwrap_or_default();
         Ok(Self {
             database,
             store,
             cases,
             active_case,
             enrichment: None,
+            office,
+            acting_user: None,
+            pane: Pane::Court,
+            docket_date,
+            docket: None,
+            deadlines: None,
         })
     }
 
@@ -373,7 +414,7 @@ impl Workspace {
             self.active_case = Some(index);
         }
         self.enrichment = None;
-        json(&opened)
+        formatted(&opened)
     }
 
     /// Seeds one curated demonstration case and selects it.
@@ -920,20 +961,20 @@ impl Workspace {
         Ok(self.store.source_location(source_id)?)
     }
 
-    /// Renders one case read model as presentation-ready JSON.
+    /// Renders one case read model as presentation-ready text.
     pub fn render(&self, view: WorkspaceView) -> GuiResult<String> {
         let case_id = self.active_case_id()?;
         match view {
-            WorkspaceView::Overview => json(&self.store.overview(case_id)?),
-            WorkspaceView::Standing => json(&self.store.case_standing(case_id)?),
-            WorkspaceView::Discovery => json(&self.store.discovery_ledger(case_id)?),
-            WorkspaceView::Elements => json(&self.store.element_matrix(case_id)?),
-            WorkspaceView::Timeline => json(&self.store.contested_timeline(case_id)?),
+            WorkspaceView::Overview => formatted(&self.store.overview(case_id)?),
+            WorkspaceView::Standing => formatted(&self.store.case_standing(case_id)?),
+            WorkspaceView::Discovery => formatted(&self.store.discovery_ledger(case_id)?),
+            WorkspaceView::Elements => formatted(&self.store.element_matrix(case_id)?),
+            WorkspaceView::Timeline => formatted(&self.store.contested_timeline(case_id)?),
             WorkspaceView::Collation => Ok(collation_text(&self.store.collation_index(case_id)?)),
-            WorkspaceView::Issues => json(&self.store.issue_workspaces(case_id)?),
-            WorkspaceView::Offenses => json(&self.store.offense_comparison(case_id)?),
-            WorkspaceView::ReviewQueue => json(&self.store.review_queue(case_id)?),
-            WorkspaceView::ReviewHistory => json(&self.store.review_history(case_id, None)?),
+            WorkspaceView::Issues => formatted(&self.store.issue_workspaces(case_id)?),
+            WorkspaceView::Offenses => formatted(&self.store.offense_comparison(case_id)?),
+            WorkspaceView::ReviewQueue => formatted(&self.store.review_queue(case_id)?),
+            WorkspaceView::ReviewHistory => formatted(&self.store.review_history(case_id, None)?),
             WorkspaceView::Packets => Ok(packets_text(&self.store.proposition_packets(case_id)?)),
             WorkspaceView::Digest => Ok(digest_text(
                 &self.store.case_digest(case_id, ExportAudience::WorkFile)?,
@@ -943,13 +984,13 @@ impl Workspace {
 
     /// Searches source-grounded case content.
     pub fn search(&self, query: &str, limit: u32) -> GuiResult<String> {
-        json(&self.store.search(self.active_case_id()?, query, limit)?)
+        formatted(&self.store.search(self.active_case_id()?, query, limit)?)
     }
 
     /// Runs every deterministic analyzer and returns proposals plus findings.
     pub fn suggest_all(&mut self) -> GuiResult<String> {
         let case_id = self.active_case_id()?.clone();
-        json(&self.store.suggest(&case_id, &SuggestionKind::ALL)?)
+        formatted(&self.store.suggest(&case_id, &SuggestionKind::ALL)?)
     }
 
     /// Applies one named human review decision.
@@ -971,7 +1012,7 @@ impl Workspace {
             basis,
             verified_against_locator: locator,
         };
-        json(&self.store.apply_review(&case_id, &decision)?)
+        formatted(&self.store.apply_review(&case_id, &decision)?)
     }
 
     /// Parses a typed authoring payload and writes it through the kernel API.
@@ -980,39 +1021,39 @@ impl Workspace {
         match kind {
             AuthorKind::Proposition => {
                 let value: ProposedProposition = serde_json::from_str(payload)?;
-                json(&self.store.author_proposition(&case_id, &value)?)
+                formatted(&self.store.author_proposition(&case_id, &value)?)
             }
             AuthorKind::Link => {
                 let value: ProposedLink = serde_json::from_str(payload)?;
-                json(&self.store.link_evidence(&case_id, &value)?)
+                formatted(&self.store.link_evidence(&case_id, &value)?)
             }
             AuthorKind::Entity => {
                 let value: ProposedEntity = serde_json::from_str(payload)?;
-                json(&self.store.record_entity(&case_id, &value)?)
+                formatted(&self.store.record_entity(&case_id, &value)?)
             }
             AuthorKind::Charge => {
                 let value: ProposedCharge = serde_json::from_str(payload)?;
-                json(&self.store.record_charge(&case_id, &value)?)
+                formatted(&self.store.record_charge(&case_id, &value)?)
             }
             AuthorKind::WorkProduct => {
                 let value: ProposedAdvocacyItem = serde_json::from_str(payload)?;
-                json(&self.store.author_advocacy_item(&case_id, &value)?)
+                formatted(&self.store.author_advocacy_item(&case_id, &value)?)
             }
             AuthorKind::Note => {
                 let value: ProposedAnnotation = serde_json::from_str(payload)?;
-                json(&self.store.annotate(&case_id, &value)?)
+                formatted(&self.store.annotate(&case_id, &value)?)
             }
             AuthorKind::Brief => {
                 let value: ProposedBrief = serde_json::from_str(payload)?;
-                json(&self.store.record_brief(&case_id, &value)?)
+                formatted(&self.store.record_brief(&case_id, &value)?)
             }
             AuthorKind::ElementMapping => {
                 let value: ProposedElementMapping = serde_json::from_str(payload)?;
-                json(&self.store.map_element(&case_id, &value)?)
+                formatted(&self.store.map_element(&case_id, &value)?)
             }
             AuthorKind::Occurrence => {
                 let value: ProposedOccurrence = serde_json::from_str(payload)?;
-                json(&self.store.author_occurrence(&case_id, &value)?)
+                formatted(&self.store.author_occurrence(&case_id, &value)?)
             }
         }
     }
@@ -1020,6 +1061,15 @@ impl Workspace {
     /// Produces a source-linked export as JSON.
     pub fn export(&self, audience: ExportAudience) -> GuiResult<String> {
         json(&self.store.export_case(self.active_case_id()?, audience)?)
+    }
+
+    /// Renders an export as readable text for an on-screen preview.
+    ///
+    /// The artifact written to disk stays JSON — [`Self::export`] and
+    /// [`Self::save_export`] are the contract; this is only how a screen shows
+    /// what that file will hold.
+    pub fn export_preview(&self, audience: ExportAudience) -> GuiResult<String> {
+        formatted(&self.store.export_case(self.active_case_id()?, audience)?)
     }
 
     /// Writes an export to a caller-selected path.
@@ -1049,6 +1099,979 @@ impl Workspace {
                 GuiError::new("No case is selected. Open a case, or seed a demonstration case.")
             })
     }
+
+    // ----- the Court pane ---------------------------------------------------
+
+    /// Which half of the workspace is on screen.
+    pub const fn pane(&self) -> Pane {
+        self.pane
+    }
+
+    /// Switches panes. Nothing is reloaded here; the frontend asks for what the
+    /// pane it is showing needs.
+    pub const fn set_pane(&mut self, pane: Pane) {
+        self.pane = pane;
+    }
+
+    /// Whether an office database is open beside the case database.
+    pub const fn has_office(&self) -> bool {
+        self.office.is_some()
+    }
+
+    /// The day the Court pane is showing, in `YYYY-MM-DD`.
+    pub fn docket_date(&self) -> &str {
+        &self.docket_date
+    }
+
+    /// The day's name, so a reader knows a Monday from a Friday at a glance.
+    pub fn docket_weekday(&self) -> String {
+        self.docket
+            .as_ref()
+            .map_or_else(String::new, |docket| docket.day.weekday.clone())
+    }
+
+    /// Reloads the day on screen: its settings, and what is owed from it.
+    pub fn refresh_court(&mut self) -> GuiResult<()> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        if self.docket_date.is_empty() {
+            self.docket_date = office.today()?;
+        }
+        self.docket = Some(office.court_docket(&self.store, &self.docket_date)?);
+        self.deadlines = Some(office.upcoming_deadlines(&self.docket_date, DEADLINE_WINDOW_DAYS)?);
+        Ok(())
+    }
+
+    /// Moves the Court pane to today.
+    pub fn docket_today(&mut self) -> GuiResult<()> {
+        self.docket_date = self.office.as_ref().ok_or_else(no_office)?.today()?;
+        self.refresh_court()
+    }
+
+    /// Moves the Court pane a number of days, forward or back.
+    pub fn docket_shift_days(&mut self, days: i64) -> GuiResult<()> {
+        self.docket_date = self.civil_date()?.add_days(days).to_text();
+        self.refresh_court()
+    }
+
+    /// Moves the Court pane a number of weeks, forward or back.
+    pub fn docket_shift_weeks(&mut self, weeks: i64) -> GuiResult<()> {
+        self.docket_date = self.civil_date()?.add_weeks(weeks).to_text();
+        self.refresh_court()
+    }
+
+    /// Moves the Court pane to a typed day.
+    ///
+    /// A day that is not a real date is refused here rather than reaching the
+    /// office database, which validates the shape of a date string but cannot
+    /// tell February the thirtieth from a day that exists.
+    pub fn set_docket_date(&mut self, date: &str) -> GuiResult<()> {
+        let date = date.trim();
+        let parsed = if date.is_empty() || date.eq_ignore_ascii_case("today") {
+            return self.docket_today();
+        } else {
+            CivilDate::parse(date).ok_or_else(|| {
+                GuiError::new(format!(
+                    "{date:?} is not a day. Dates are written 2026-08-31."
+                ))
+            })?
+        };
+        self.docket_date = parsed.to_text();
+        self.refresh_court()
+    }
+
+    fn civil_date(&self) -> GuiResult<CivilDate> {
+        let held = if self.docket_date.is_empty() {
+            self.office.as_ref().ok_or_else(no_office)?.today()?
+        } else {
+            self.docket_date.clone()
+        };
+        CivilDate::parse(&held)
+            .ok_or_else(|| GuiError::new(format!("{held:?} is not a day the calendar can move.")))
+    }
+
+    /// The docket, flattened to what a grid paints.
+    pub fn docket_rows(&self) -> Vec<DocketGridRow> {
+        self.docket
+            .as_ref()
+            .map(|docket| docket.rows.iter().map(DocketGridRow::of).collect())
+            .unwrap_or_default()
+    }
+
+    /// What is owed from the day on screen, overdue first.
+    pub fn deadline_rows(&self) -> Vec<DeadlineGridRow> {
+        let Some(deadlines) = self.deadlines.as_ref() else {
+            return Vec::new();
+        };
+        deadlines
+            .overdue
+            .iter()
+            .chain(deadlines.upcoming.iter())
+            .map(DeadlineGridRow::of)
+            .collect()
+    }
+
+    /// One line summarizing the day, for the Court pane's status.
+    pub fn docket_summary(&self) -> String {
+        let Some(docket) = self.docket.as_ref() else {
+            return "No day is loaded.".to_owned();
+        };
+        let settings = docket.rows.len();
+        let matters: usize = docket.rows.iter().map(|row| row.entry.matters.len()).sum();
+        let deadlines = self
+            .deadlines
+            .as_ref()
+            .map_or(0, |owed| owed.overdue.len() + owed.upcoming.len());
+        format!(
+            "{} {} · {settings} settings · {matters} matters · {deadlines} owed within {DEADLINE_WINDOW_DAYS} days",
+            docket.day.date, docket.day.weekday
+        )
+    }
+
+    /// Everything behind one docket row, for the detail pane.
+    ///
+    /// This is the "show context, edit in place" rule made concrete: selecting
+    /// a setting expands what is already on screen rather than navigating away
+    /// from it. Privileged analysis is not here — advocacy items, annotations
+    /// and decision briefs are never read by this path.
+    pub fn court_detail(&self, index: usize) -> GuiResult<String> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        let docket = self
+            .docket
+            .as_ref()
+            .ok_or_else(|| GuiError::new("No day is loaded."))?;
+        let row = docket
+            .rows
+            .get(index)
+            .ok_or_else(|| GuiError::new(format!("row {index} is not on this docket")))?;
+
+        let client = office.store().client_profile(&row.entry.client_id)?;
+        let linked = office.store().linked_entities(&row.entry.client_id)?;
+        let mut matters = Vec::with_capacity(row.entry.matters.len());
+        for line in &row.entry.matters {
+            let profile = office.store().matter_profile(&line.id)?;
+            let evidence = match profile.evidence_case_id.as_deref() {
+                Some(case_id) => self.matter_evidence(case_id, &linked)?,
+                None => None,
+            };
+            matters.push(MatterDetail {
+                matter: profile,
+                evidence,
+            });
+        }
+
+        formatted(&CourtDetail {
+            setting: SettingHead {
+                date: row.entry.date.clone(),
+                weekday: docket.day.weekday.clone(),
+                time: row.entry.time.clone(),
+                what_for: row.entry.appearance_type.clone(),
+                court: row.entry.court.clone(),
+                room: row.entry.room.clone(),
+                judge: row.entry.judge.clone(),
+                outcome: row.entry.outcome.clone(),
+                evidence_posture: row.posture_line(),
+            },
+            client,
+            matters,
+        })
+    }
+
+    /// The kernel's own reading of one matter's case: what it rests on, the
+    /// competing accounts of when, and what the client's linked witnesses said.
+    ///
+    /// `None` when the kernel does not hold the case, which is reported as the
+    /// broken link it is rather than as an empty case.
+    fn matter_evidence(
+        &self,
+        case_id: &str,
+        linked: &[(String, String)],
+    ) -> GuiResult<Option<MatterEvidence>> {
+        let case = CaseId(case_id.to_owned());
+        let standing = match self.store.case_standing(&case) {
+            Ok(standing) => standing,
+            Err(crate::Error::NotFound { .. }) => return Ok(None),
+            Err(other) => return Err(other.into()),
+        };
+        let mut witnesses = Vec::new();
+        for entity_id in linked
+            .iter()
+            .filter(|(linked_case, _)| linked_case == case_id)
+            .map(|(_, entity_id)| entity_id)
+        {
+            witnesses.extend(self.store.witness_dossier(&case, entity_id)?);
+        }
+        Ok(Some(MatterEvidence {
+            standing,
+            timeline: self.store.contested_timeline(&case)?,
+            witnesses,
+        }))
+    }
+
+    // ----- reaching evidence through a matter -------------------------------
+
+    /// Matters as `(identifier, display label)`, for the Office pane's chooser.
+    ///
+    /// The Office pane reaches a case *through* a matter rather than through a
+    /// bare case list, because a matter is what an office actually carries and
+    /// what a court number belongs to.
+    pub fn office_matters(&self) -> GuiResult<Vec<(String, String)>> {
+        let Some(office) = self.office.as_ref() else {
+            return Ok(Vec::new());
+        };
+        Ok(office
+            .store()
+            .matters()?
+            .into_iter()
+            .map(|matter| {
+                let label = match (&matter.court_number, &matter.evidence_case_id) {
+                    (Some(number), Some(_)) => format!("{number} — {}", matter.caption),
+                    (Some(number), None) => format!("{number} — {} (no case)", matter.caption),
+                    (None, Some(_)) => matter.caption.clone(),
+                    (None, None) => format!("{} (no case)", matter.caption),
+                };
+                (matter.id, label)
+            })
+            .collect())
+    }
+
+    /// Selects the evidence case a matter points at.
+    ///
+    /// Fails loudly rather than silently doing nothing: a matter with no case
+    /// and a matter naming a case the kernel does not hold are different
+    /// problems, and both are worth saying out loud.
+    pub fn select_matter(&mut self, matter_id: &str) -> GuiResult<CaseId> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        let matter = office.store().matter_profile(matter_id)?;
+        let case_id = matter.evidence_case_id.ok_or_else(|| {
+            GuiError::new(format!(
+                "{} has no evidence case linked. Link one before reading its discovery.",
+                matter.caption
+            ))
+        })?;
+        let index = self
+            .cases
+            .iter()
+            .position(|(id, _)| id.0 == case_id)
+            .ok_or_else(|| {
+                GuiError::new(format!(
+                    "{} names case {case_id}, which this evidence database does not hold.",
+                    matter.caption
+                ))
+            })?;
+        self.select_case(index)?;
+        Ok(CaseId(case_id))
+    }
+
+    /// Seeds the office fixture, anchored on today so it is worth looking at.
+    pub fn seed_office(&mut self) -> GuiResult<String> {
+        let office = self.office.as_mut().ok_or_else(no_office)?;
+        let anchor = office.today()?;
+        let seeded = OfficeFixture::MisdemeanorDocket.seed_from(office.store_mut(), &anchor)?;
+        self.refresh_court()?;
+        Ok(seeded)
+    }
+
+    // ----- office data entry ------------------------------------------------
+
+    /// Users the office knows, as `(id, name, role)`, for the acting-as picker.
+    pub fn office_users(&self) -> GuiResult<Vec<(String, String, String)>> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        Ok(office.store().users()?)
+    }
+
+    /// Who office writes in this session are attributed to, once chosen.
+    pub fn acting_user(&self) -> Option<&ActingUser> {
+        self.acting_user.as_ref()
+    }
+
+    /// Names the person entering records, finding or creating the user row.
+    ///
+    /// Asked once and reused: an office record with no author is not a record,
+    /// and a per-dialog author box is a per-dialog chance to typo a new one.
+    pub fn set_acting_user(&mut self, display_name: &str, role: &str) -> GuiResult<String> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        let name = display_name.trim();
+        if name.is_empty() {
+            return Err(GuiError::new("Somebody needs a name to act as."));
+        }
+        let id = office.store().user_named(name, role)?;
+        self.acting_user = Some(ActingUser {
+            id,
+            display_name: name.to_owned(),
+            role: role.to_owned(),
+        });
+        Ok(format!("Acting as {name} ({role})."))
+    }
+
+    fn acting_user_id(&self) -> GuiResult<String> {
+        self.acting_user
+            .as_ref()
+            .map(|user| user.id.clone())
+            .ok_or_else(no_acting_user)
+    }
+
+    /// Clients as `(id, name)`, for a chooser.
+    pub fn office_clients(&self) -> GuiResult<Vec<(String, String)>> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        Ok(office.store().clients()?)
+    }
+
+    /// Courts as `(id, name)`, for a chooser.
+    pub fn office_courts(&self) -> GuiResult<Vec<(String, String)>> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        Ok(office.store().courts()?)
+    }
+
+    /// One client's matters as `(id, label)`, for a setting's matter list.
+    pub fn office_matters_of_client(&self, client_id: &str) -> GuiResult<Vec<(String, String)>> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        Ok(office
+            .store()
+            .client_profile(client_id)?
+            .matters
+            .into_iter()
+            .map(|matter| {
+                let label = match &matter.court_number {
+                    Some(number) => format!("{number} — {}", matter.caption),
+                    None => matter.caption.clone(),
+                };
+                (matter.id, label)
+            })
+            .collect())
+    }
+
+    /// Languages for the client form's chooser: the office's own answers
+    /// first, then the common ones it has not met yet. A list to pick from,
+    /// never a limit — any typed language is accepted.
+    pub fn office_languages(&self) -> GuiResult<Vec<String>> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        let mut languages = office.store().client_languages()?;
+        for candidate in COMMON_LANGUAGES {
+            if !languages.iter().any(|known| known == candidate) {
+                languages.push(candidate.to_owned());
+            }
+        }
+        Ok(languages)
+    }
+
+    /// Settings on one day as `(id, label)`, for filing a note under one.
+    pub fn office_settings_on(&self, date: &str) -> GuiResult<Vec<(String, String)>> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        Ok(office
+            .store()
+            .docket_day(date)?
+            .settings
+            .into_iter()
+            .map(|entry| {
+                let time = entry.time.as_deref().unwrap_or("time not set");
+                let label = format!("{time} · {} · {}", entry.appearance_type, entry.client);
+                (entry.id, label)
+            })
+            .collect())
+    }
+
+    /// People the office may already know under this name or these contacts.
+    ///
+    /// Advisory only: nothing is merged and nothing is written, whatever this
+    /// returns. The caller shows the candidates and a named person decides.
+    pub fn client_duplicates(
+        &self,
+        name: &str,
+        contacts: &[String],
+    ) -> GuiResult<Vec<PossiblePerson>> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        Ok(office
+            .store()
+            .possible_client_duplicates(name, contacts, None)?)
+    }
+
+    /// Opens a client record from the entry form.
+    pub fn create_client(&mut self, draft: &ClientDraft) -> GuiResult<String> {
+        let author = self.acting_user_id()?;
+        let office = self.office.as_mut().ok_or_else(no_office)?;
+        let mut contacts = Vec::new();
+        for (kind, value) in [
+            (ContactKind::Phone, &draft.phone),
+            (ContactKind::Email, &draft.email),
+            (ContactKind::Address, &draft.address),
+        ] {
+            if let Some(value) = value.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+                contacts.push(ProposedClientContact {
+                    kind,
+                    value: value.to_owned(),
+                    label: None,
+                    is_primary: true,
+                });
+            }
+        }
+        let profile = office.store_mut().create_client(&ProposedClient {
+            id: None,
+            display_name: draft.display_name.clone(),
+            date_of_birth: draft.date_of_birth.clone(),
+            sex: draft.sex,
+            preferred_language: draft.preferred_language.clone(),
+            notes: draft.notes.clone(),
+            aliases: draft.aliases.clone(),
+            contacts,
+            author_user_id: author,
+        })?;
+        formatted(&profile)
+    }
+
+    /// Opens a matter, and its evidence case in the same flow.
+    ///
+    /// The kernel case is opened first, prefilled from the matter itself —
+    /// caption as name, court number as reference, court as jurisdiction — so
+    /// nothing is typed twice. A failure between the two writes leaves a case
+    /// with no matter, which is visible on the case list and linkable by hand,
+    /// rather than a matter naming a case that was never opened.
+    pub fn open_matter(&mut self, draft: &MatterDraft) -> GuiResult<String> {
+        let author = self.acting_user_id()?;
+        if self.office.is_none() {
+            return Err(no_office());
+        }
+        let court_name = match draft.court_id.as_deref() {
+            Some(court_id) => {
+                let office = self.office.as_ref().ok_or_else(no_office)?;
+                office
+                    .store()
+                    .courts()?
+                    .into_iter()
+                    .find(|(id, _)| id == court_id)
+                    .map(|(_, name)| name)
+            }
+            None => None,
+        };
+        let evidence_case_id = match &draft.evidence {
+            EvidenceLink::None => None,
+            EvidenceLink::Existing(case) => Some(case.0.clone()),
+            EvidenceLink::OpenNewCase => Some(
+                self.store
+                    .open_case(&ProposedCase {
+                        id: None,
+                        name: draft.caption.clone(),
+                        reference: draft.court_number.clone(),
+                        jurisdiction: court_name.clone(),
+                        production: None,
+                    })?
+                    .id,
+            ),
+        };
+        let opened_new_case = matches!(draft.evidence, EvidenceLink::OpenNewCase);
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        let today = office.today()?;
+        let matter_id = office
+            .store()
+            .open_matter(&ProposedMatter {
+                id: None,
+                client_id: draft.client_id.clone(),
+                caption: draft.caption.clone(),
+                court_number: draft.court_number.clone(),
+                court_id: draft.court_id.clone(),
+                status: Some(draft.status),
+                custody_state: Some(draft.custody_state),
+                offer_state: Some(draft.offer_state),
+                offer_summary: None,
+                charge_summary: draft.charge_summary.clone(),
+                opened_on: Some(today),
+                last_contact_on: None,
+                evidence_case_id: evidence_case_id.clone(),
+                author_user_id: author,
+            })
+            .map_err(|error| {
+                if opened_new_case {
+                    GuiError::new(format!(
+                        "The evidence case opened but the matter did not: {error}. \
+                         The case is on the case list; link it from a matter by hand."
+                    ))
+                } else {
+                    error.into()
+                }
+            })?;
+        let profile = office.store().matter_profile(&matter_id)?;
+        self.refresh_cases()?;
+        if let Some(case_id) = &evidence_case_id
+            && let Some(index) = self
+                .cases
+                .iter()
+                .position(|(candidate, _)| &candidate.0 == case_id)
+        {
+            self.select_case(index)?;
+        }
+        self.refresh_court().ok();
+        formatted(&profile)
+    }
+
+    /// Records a court by name, for the matter form's "New court" row.
+    pub fn create_court_named(&mut self, name: &str) -> GuiResult<String> {
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        Ok(office.store().create_court(&ProposedCourt {
+            id: None,
+            name: name.to_owned(),
+            division: None,
+            address: None,
+            room: None,
+        })?)
+    }
+
+    /// Schedules one setting covering every named matter of one client.
+    pub fn schedule_setting(&mut self, draft: &SettingDraft) -> GuiResult<String> {
+        let author = self.acting_user_id()?;
+        let office = self.office.as_mut().ok_or_else(no_office)?;
+        let judge_id = match draft.judge.as_deref().map(str::trim) {
+            Some(name) if !name.is_empty() => Some(
+                office
+                    .store()
+                    .judge_named(draft.court_id.as_deref(), name)?,
+            ),
+            _ => None,
+        };
+        let scheduled = office
+            .store_mut()
+            .schedule_appearance(&ProposedAppearance {
+                id: None,
+                client_id: draft.client_id.clone(),
+                matter_ids: draft.matter_ids.clone(),
+                court_id: draft.court_id.clone(),
+                judge_id,
+                appearance_date: draft.date.clone(),
+                appearance_time: draft.time.clone(),
+                appearance_type: draft.appearance_type,
+                notes: draft.notes.clone(),
+                author_user_id: author,
+            })?;
+        let day = office.store().docket_day(&draft.date)?;
+        let entry = day.settings.into_iter().find(|entry| entry.id == scheduled);
+        self.refresh_court().ok();
+        match entry {
+            Some(entry) => formatted(&entry),
+            None => Ok(format!("Setting scheduled for {}.", draft.date)),
+        }
+    }
+
+    /// Records what is owed on a matter and when.
+    pub fn record_office_deadline(&mut self, draft: &DeadlineDraft) -> GuiResult<String> {
+        let author = self.acting_user_id()?;
+        let office = self.office.as_ref().ok_or_else(no_office)?;
+        office.store().record_deadline(&ProposedDeadline {
+            id: None,
+            matter_id: draft.matter_id.clone(),
+            description: draft.description.clone(),
+            due_date: draft.due_date.clone(),
+            origin: draft.origin,
+            author_user_id: author,
+        })?;
+        self.refresh_court().ok();
+        Ok(format!(
+            "Deadline recorded — {} due {}.",
+            draft.description, draft.due_date
+        ))
+    }
+
+    /// Files a note under exactly one client, matter, or setting.
+    pub fn write_office_note(&mut self, draft: &NoteDraft) -> GuiResult<String> {
+        let author = self.acting_user_id()?;
+        let office = self.office.as_mut().ok_or_else(no_office)?;
+        let subject = draft.subject_id.clone();
+        let (client_id, matter_id, appearance_id) = match draft.scope {
+            NoteScope::Client => (Some(subject), None, None),
+            NoteScope::Matter => (None, Some(subject), None),
+            NoteScope::Appearance => (None, None, Some(subject)),
+        };
+        let note = office.store_mut().write_note(&ProposedNote {
+            id: None,
+            client_id,
+            matter_id,
+            appearance_id,
+            body: draft.body.clone(),
+            author_user_id: author,
+        })?;
+        formatted(&note)
+    }
+}
+
+/// How far ahead the Court pane looks for what is owed.
+///
+/// A fortnight: far enough that a continuance set for next week is already
+/// visible, near enough that the list stays something a person reads rather
+/// than scrolls past.
+const DEADLINE_WINDOW_DAYS: u32 = 14;
+
+fn no_office() -> GuiError {
+    GuiError::new(
+        "No office database is open beside this case database. \
+         Open a database on disk, or seed the office caseload.",
+    )
+}
+
+fn no_acting_user() -> GuiError {
+    GuiError::new("Nobody is acting. Choose who is entering records before writing.")
+}
+
+/// The named person every office write in this session is attributed to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ActingUser {
+    /// User identifier.
+    pub id: String,
+    /// The name they act under.
+    pub display_name: String,
+    /// The role the office knows them by.
+    pub role: String,
+}
+
+/// What the client entry form collected. Carries no author: the workspace
+/// supplies the acting person, so a dialog cannot write anonymously.
+#[derive(Debug, Clone, Default)]
+pub struct ClientDraft {
+    /// The person's name as the office records it.
+    pub display_name: String,
+    /// Date of birth in `YYYY-MM-DD`, when known.
+    pub date_of_birth: Option<String>,
+    /// How the office records the person's sex. Absent means not recorded.
+    pub sex: Option<Sex>,
+    /// The language they ask to be spoken to in.
+    pub preferred_language: Option<String>,
+    /// Other names they go by.
+    pub aliases: Vec<String>,
+    /// A telephone number, when given.
+    pub phone: Option<String>,
+    /// An email address, when given.
+    pub email: Option<String>,
+    /// A postal address, when given.
+    pub address: Option<String>,
+    /// Anything worth recording about the person rather than a case.
+    pub notes: Option<String>,
+}
+
+impl ClientDraft {
+    /// The values the duplicate check compares on.
+    pub fn contact_values(&self) -> Vec<String> {
+        [&self.phone, &self.email, &self.address]
+            .into_iter()
+            .filter_map(|value| value.as_deref())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
+}
+
+/// What a new matter does about discovery. One flow, three honest answers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EvidenceLink {
+    /// Open a kernel case prefilled from the matter, and link it.
+    OpenNewCase,
+    /// Link a case the kernel already holds.
+    Existing(CaseId),
+    /// No discovery yet; the matter says "(no case)" until one is linked.
+    None,
+}
+
+/// What the matter entry form collected.
+#[derive(Debug, Clone)]
+pub struct MatterDraft {
+    /// The client the matter belongs to.
+    pub client_id: String,
+    /// How the matter is captioned.
+    pub caption: String,
+    /// The court's own number for it, when known.
+    pub court_number: Option<String>,
+    /// The court hearing it, when known.
+    pub court_id: Option<String>,
+    /// Where it stands in the office.
+    pub status: MatterStatus,
+    /// Where the client is.
+    pub custody_state: CustodyState,
+    /// Where negotiation stands.
+    pub offer_state: OfferState,
+    /// The charges, summarized.
+    pub charge_summary: Option<String>,
+    /// What the matter does about discovery.
+    pub evidence: EvidenceLink,
+}
+
+/// What the setting entry form collected.
+#[derive(Debug, Clone)]
+pub struct SettingDraft {
+    /// The client called.
+    pub client_id: String,
+    /// Every matter the one setting covers; at least one.
+    pub matter_ids: Vec<String>,
+    /// The court sitting, when known.
+    pub court_id: Option<String>,
+    /// The judge's name, found or recorded on the way in.
+    pub judge: Option<String>,
+    /// The day, in `YYYY-MM-DD`.
+    pub date: String,
+    /// The time in 24-hour `HH:MM`, when the docket gives one.
+    pub time: Option<String>,
+    /// What the setting is for.
+    pub appearance_type: AppearanceType,
+    /// Anything the calendar should carry.
+    pub notes: Option<String>,
+}
+
+/// What the deadline entry form collected.
+#[derive(Debug, Clone)]
+pub struct DeadlineDraft {
+    /// The matter it is owed on.
+    pub matter_id: String,
+    /// What is owed.
+    pub description: String,
+    /// When, in `YYYY-MM-DD`.
+    pub due_date: String,
+    /// Where the obligation comes from.
+    pub origin: DeadlineOrigin,
+}
+
+/// What the note entry form collected.
+#[derive(Debug, Clone)]
+pub struct NoteDraft {
+    /// What the note is filed under: a client, a matter, or a setting.
+    pub scope: NoteScope,
+    /// The one subject's identifier.
+    pub subject_id: String,
+    /// The note itself.
+    pub body: String,
+}
+
+/// Which half of the workspace is on screen.
+///
+/// Court opens first. The first question of a defender's day is where they
+/// have to be and for whom, not what is in one case file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Pane {
+    /// Today's settings, what is owed, and the posture of the linked cases.
+    Court,
+    /// The case file itself: intake, review, collation, authoring, export.
+    Office,
+}
+
+impl Pane {
+    /// Both panes, in the order the switch shows them.
+    pub const ALL: [Self; 2] = [Self::Court, Self::Office];
+
+    /// The caption on the pane switch.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Court => "Court",
+            Self::Office => "Office",
+        }
+    }
+}
+
+/// Which Court list is being read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CourtView {
+    /// Settings on the day on screen.
+    Docket,
+    /// What is owed, counted from the day on screen.
+    Deadlines,
+}
+
+/// One docket row, reduced to what a grid paints.
+///
+/// One row is one setting, however many matters it covers — the whole reason
+/// the office layer models a setting separately from a matter.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DocketGridRow {
+    /// When it is called, or `—` when the docket gives no time.
+    pub time: String,
+    /// What the setting is for.
+    pub what_for: String,
+    /// Court and room.
+    pub court: String,
+    /// Whose setting it is.
+    pub client: String,
+    /// Court numbers of every matter it covers, in the order they are called.
+    pub matters: String,
+    /// The charges, summarized.
+    pub charges: String,
+    /// Where the client is.
+    pub custody: String,
+    /// Where negotiation stands.
+    pub offer: String,
+    /// When the client was last spoken to.
+    pub last_contact: String,
+    /// What the linked cases rest on. Counts and absences, never a score.
+    pub posture: String,
+    /// What is open on the covered matters.
+    pub open_work: String,
+    /// The row as one copyable line, so a number never has to be retyped.
+    pub copy_text: String,
+}
+
+impl DocketGridRow {
+    fn of(row: &DocketRow) -> Self {
+        let entry = &row.entry;
+        let matters = joined(entry.matters.iter().map(|line| {
+            line.court_number
+                .clone()
+                .unwrap_or_else(|| line.caption.clone())
+        }));
+        let charges = joined(
+            entry
+                .matters
+                .iter()
+                .filter_map(|line| line.charge_summary.clone()),
+        );
+        let custody = distinct(
+            entry
+                .matters
+                .iter()
+                .map(|line| readable_key(&line.custody_state)),
+        );
+        let offer = distinct(
+            entry
+                .matters
+                .iter()
+                .map(|line| readable_key(&line.offer_state)),
+        );
+        let last_contact = entry
+            .last_contact
+            .clone()
+            .unwrap_or_else(|| "not recorded".to_owned());
+        let posture = row.posture_line();
+        let open_work = format!("{} owed · {} notes", entry.open_deadlines, entry.notes);
+        let time = entry.time.clone().unwrap_or_else(|| "—".to_owned());
+        let court = match (&entry.court, &entry.room) {
+            (Some(court), Some(room)) => format!("{court} · {room}"),
+            (Some(court), None) => court.clone(),
+            (None, _) => "not recorded".to_owned(),
+        };
+        let copy_text = format!(
+            "{time} {}  {}  {matters}  {charges}  {custody}  {court}",
+            readable_key(&entry.appearance_type),
+            entry.client
+        );
+        Self {
+            time,
+            what_for: readable_key(&entry.appearance_type),
+            court,
+            client: entry.client.clone(),
+            matters,
+            charges,
+            custody,
+            offer,
+            last_contact,
+            posture,
+            open_work,
+            copy_text,
+        }
+    }
+}
+
+/// One owed thing, reduced to what a grid paints.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DeadlineGridRow {
+    /// When it is owed, in `YYYY-MM-DD`.
+    pub due: String,
+    /// How long there is, or how long it has been overdue.
+    pub within: String,
+    /// The matter it falls on, by its court number where there is one.
+    pub matter: String,
+    /// Whose matter it is.
+    pub client: String,
+    /// What is owed.
+    pub what: String,
+    /// Where it comes from, which decides whether the date can move.
+    pub origin: String,
+    /// The row as one copyable line.
+    pub copy_text: String,
+}
+
+impl DeadlineGridRow {
+    fn of(row: &DeadlineRow) -> Self {
+        let within = match row.days_remaining {
+            0 => "today".to_owned(),
+            1 => "tomorrow".to_owned(),
+            -1 => "1 day overdue".to_owned(),
+            days if days < 0 => format!("{} days overdue", -days),
+            days => format!("in {days} days"),
+        };
+        let matter = row
+            .court_number
+            .clone()
+            .unwrap_or_else(|| row.matter.clone());
+        Self {
+            copy_text: format!(
+                "{} {matter} {} — {} ({})",
+                row.due_date,
+                row.client,
+                row.description,
+                readable_key(&row.origin)
+            ),
+            due: row.due_date.clone(),
+            within,
+            matter,
+            client: row.client.clone(),
+            what: row.description.clone(),
+            origin: readable_key(&row.origin),
+        }
+    }
+}
+
+/// Everything behind one docket row.
+#[derive(Debug, Clone, Serialize)]
+struct CourtDetail {
+    /// The setting itself.
+    setting: SettingHead,
+    /// The person, across every matter they have.
+    client: ClientProfile,
+    /// Each covered matter, and what its case rests on.
+    matters: Vec<MatterDetail>,
+}
+
+/// The setting, as the head of its own detail.
+#[derive(Debug, Clone, Serialize)]
+struct SettingHead {
+    date: String,
+    weekday: String,
+    time: Option<String>,
+    what_for: String,
+    court: Option<String>,
+    room: Option<String>,
+    judge: Option<String>,
+    outcome: Option<String>,
+    evidence_posture: String,
+}
+
+/// One matter under a setting, with its case when it has one.
+#[derive(Debug, Clone, Serialize)]
+struct MatterDetail {
+    matter: MatterProfile,
+    evidence: Option<MatterEvidence>,
+}
+
+/// The kernel's reading of one matter's case.
+#[derive(Debug, Clone, Serialize)]
+struct MatterEvidence {
+    standing: CaseStanding,
+    timeline: Vec<TimelineEntry>,
+    witnesses: Vec<WitnessStatement>,
+}
+
+/// Joins values with a middle dot, or says nothing is recorded.
+fn joined(values: impl Iterator<Item = String>) -> String {
+    let collected = values.collect::<Vec<_>>();
+    if collected.is_empty() {
+        "not recorded".to_owned()
+    } else {
+        collected.join(" · ")
+    }
+}
+
+/// Joins the distinct values, in the order they first appear.
+fn distinct(values: impl Iterator<Item = String>) -> String {
+    let mut seen: Vec<String> = Vec::new();
+    for value in values {
+        if !seen.contains(&value) {
+            seen.push(value);
+        }
+    }
+    joined(seen.into_iter())
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1531,6 +2554,120 @@ fn json(value: &impl Serialize) -> GuiResult<String> {
     Ok(serde_json::to_string_pretty(value)?)
 }
 
+/// Renders one read model as indented text a reader can scan, rather than as
+/// serialized JSON. The machine contract is unchanged — the CLI and the saved
+/// export files still speak JSON; this is only how a screen presents it.
+fn formatted(value: &impl Serialize) -> GuiResult<String> {
+    Ok(readable_text(&serde_json::to_value(value)?))
+}
+
+/// Turns presentation JSON into indented, human-readable text.
+///
+/// Keys become sentence-cased labels; values are kept verbatim, because they
+/// are the stable database vocabulary and a reader may quote them back into a
+/// review decision. Lists render as bullets, nested records indent, and an
+/// empty or null slot says `none` rather than disappearing — an absent value
+/// is information in this workspace.
+pub fn readable_text(value: &serde_json::Value) -> String {
+    let mut output = String::new();
+    match value {
+        serde_json::Value::Array(items) if items.is_empty() => {
+            output.push_str("Nothing to show.\n");
+        }
+        _ => write_readable(&mut output, value, 0, false),
+    }
+    output
+}
+
+fn write_readable(output: &mut String, value: &serde_json::Value, indent: usize, bullet: bool) {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut first = true;
+            for (key, item) in map {
+                let pad = readable_pad(indent, bullet && first);
+                first = false;
+                match item {
+                    serde_json::Value::Object(inner) if inner.is_empty() => {
+                        let _ = writeln!(output, "{pad}{}: none", readable_key(key));
+                    }
+                    serde_json::Value::Array(inner) if inner.is_empty() => {
+                        let _ = writeln!(output, "{pad}{}: none", readable_key(key));
+                    }
+                    serde_json::Value::Object(_) | serde_json::Value::Array(_) => {
+                        let _ = writeln!(output, "{pad}{}:", readable_key(key));
+                        write_readable(output, item, indent + 1, false);
+                    }
+                    scalar => {
+                        let _ = writeln!(
+                            output,
+                            "{pad}{}: {}",
+                            readable_key(key),
+                            readable_scalar(scalar)
+                        );
+                    }
+                }
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                match item {
+                    serde_json::Value::Object(_) => {
+                        write_readable(output, item, indent + 1, true);
+                    }
+                    serde_json::Value::Array(_) => {
+                        let _ = writeln!(output, "{}-", readable_pad(indent, false));
+                        write_readable(output, item, indent + 1, false);
+                    }
+                    scalar => {
+                        let _ = writeln!(
+                            output,
+                            "{}- {}",
+                            readable_pad(indent, false),
+                            readable_scalar(scalar)
+                        );
+                    }
+                }
+            }
+        }
+        scalar => {
+            let _ = writeln!(
+                output,
+                "{}{}",
+                readable_pad(indent, false),
+                readable_scalar(scalar)
+            );
+        }
+    }
+}
+
+/// A list element's first line carries the bullet in place of two pad spaces,
+/// so its fields line up under each other.
+fn readable_pad(indent: usize, bullet: bool) -> String {
+    if bullet {
+        format!("{}- ", "  ".repeat(indent.saturating_sub(1)))
+    } else {
+        "  ".repeat(indent)
+    }
+}
+
+fn readable_key(key: &str) -> String {
+    let spaced = key.replace('_', " ");
+    let mut characters = spaced.chars();
+    characters.next().map_or_else(String::new, |first| {
+        first.to_uppercase().collect::<String>() + characters.as_str()
+    })
+}
+
+fn readable_scalar(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Null => "none".to_owned(),
+        serde_json::Value::Bool(true) => "yes".to_owned(),
+        serde_json::Value::Bool(false) => "no".to_owned(),
+        serde_json::Value::String(text) => text.clone(),
+        other => other.to_string(),
+    }
+}
+
 fn collation_text(index: &CollationIndex) -> String {
     let mut output = String::new();
     let _ = writeln!(output, "TIME & PLACE INDEX");
@@ -1991,7 +3128,27 @@ mod tests {
         assert!(opened.contains("Initial production"));
         let overview = workspace.render(WorkspaceView::Overview).expect("overview");
         assert!(overview.contains("State v. Hall"));
-        assert!(overview.contains("\"productions\": 1"));
+        assert!(overview.contains("Productions: 1"));
+        assert!(
+            !overview.contains('{') && !overview.contains('"'),
+            "a read model presents as text, not serialized JSON: {overview}"
+        );
+    }
+
+    #[test]
+    fn read_models_present_as_indented_text_rather_than_json() {
+        let value = serde_json::json!({
+            "case_id": "case-1",
+            "counts": { "sources": 2 },
+            "items": [{ "kind": "edge", "flagged": true, "notes": null }],
+            "gaps": []
+        });
+        assert_eq!(
+            readable_text(&value),
+            "Case id: case-1\nCounts:\n  Sources: 2\nItems:\n  - Kind: edge\n    Flagged: yes\n    \
+             Notes: none\nGaps: none\n"
+        );
+        assert_eq!(readable_text(&serde_json::json!([])), "Nothing to show.\n");
     }
 
     #[test]
@@ -2035,5 +3192,484 @@ mod tests {
         }
         assert_eq!(review_target("edge"), Some(ReviewTarget::Edge));
         assert_eq!(review_target("advocacy"), None);
+    }
+
+    /// The Court pane renders a day with no widgets involved, which is what
+    /// makes the docket testable at all. One setting covering three matters is
+    /// one row here exactly as it is on screen.
+    #[test]
+    fn the_court_pane_renders_a_docket_without_a_frontend() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        assert_eq!(workspace.pane(), Pane::Court, "Court opens first");
+        assert!(workspace.has_office());
+        workspace.seed_office().expect("seed the office caseload");
+
+        // The fixture anchors on today's week, so walk to the Tuesday that
+        // carries the consolidated setting rather than assuming a weekday.
+        let anchor = CivilDate::parse(workspace.docket_date()).expect("a real day");
+        workspace
+            .set_docket_date(&anchor.week_start().add_days(1).to_text())
+            .expect("tuesday");
+
+        let rows = workspace.docket_rows();
+        assert!(!rows.is_empty(), "the seeded week has settings on it");
+        let consolidated = rows
+            .iter()
+            .find(|row| row.client == "Alex Rivera")
+            .expect("the client called on three related matters");
+        assert_eq!(
+            consolidated.matters.matches(" · ").count(),
+            2,
+            "three court numbers on one row: {}",
+            consolidated.matters
+        );
+        assert!(
+            rows.iter()
+                .filter(|row| row.client == "Alex Rivera")
+                .count()
+                == 1,
+            "one setting is one row, however many matters it covers"
+        );
+        assert!(
+            !consolidated.copy_text.is_empty(),
+            "every row can be lifted without retyping"
+        );
+
+        // A row says what its cases rest on, and never how they are going.
+        for row in &rows {
+            let posture = row.posture.to_lowercase();
+            for verdict in ["strong", "weak", "likely", "score", "recommend"] {
+                assert!(!posture.contains(verdict), "{}", row.posture);
+            }
+        }
+
+        let index = rows
+            .iter()
+            .position(|row| row.client == "Alex Rivera")
+            .expect("the row is on the docket");
+        let detail = workspace.court_detail(index).expect("the detail");
+        assert!(detail.contains("Alex Rivera"));
+        assert!(detail.contains("CR-2026-491"), "{detail}");
+        for privileged in ["advocacy", "annotation", "decision brief"] {
+            assert!(
+                !detail.to_lowercase().contains(privileged),
+                "the Court detail reads no privileged table, but found {privileged:?}"
+            );
+        }
+    }
+
+    /// Date navigation is arithmetic on a civil date, not a string edit, and a
+    /// day that does not exist is refused before it reaches the database.
+    #[test]
+    fn court_date_navigation_moves_by_days_and_weeks() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed");
+        workspace.set_docket_date("2026-02-27").expect("a real day");
+
+        workspace.docket_shift_days(1).expect("forward one day");
+        assert_eq!(workspace.docket_date(), "2026-02-28");
+        workspace.docket_shift_days(1).expect("into March");
+        assert_eq!(
+            workspace.docket_date(),
+            "2026-03-01",
+            "2026 is not a leap year"
+        );
+        workspace.docket_shift_weeks(-1).expect("back a week");
+        assert_eq!(workspace.docket_date(), "2026-02-22");
+
+        let refused = workspace
+            .set_docket_date("2026-02-30")
+            .expect_err("a day that does not exist is refused");
+        assert!(refused.to_string().contains("is not a day"));
+        assert_eq!(
+            workspace.docket_date(),
+            "2026-02-22",
+            "and the pane does not move"
+        );
+
+        workspace.docket_today().expect("today");
+        assert!(CivilDate::parse(workspace.docket_date()).is_some());
+    }
+
+    /// The Office pane reaches a case through a matter, and says plainly when
+    /// a matter cannot get there.
+    #[test]
+    fn the_office_pane_reaches_a_case_through_its_matter() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+
+        // The fixture's first Rivera matter names the hit-and-run case, which
+        // this evidence database does not hold yet. That is a broken link, and
+        // it reads differently from a matter that was never linked at all.
+        let dangling = workspace
+            .select_matter("matter-rivera-1")
+            .expect_err("the case is not in this database");
+        assert!(dangling.to_string().contains("does not hold"), "{dangling}");
+
+        let never_linked = workspace
+            .select_matter("matter-rivera-2")
+            .expect_err("this one has no case of its own");
+        assert!(
+            never_linked.to_string().contains("no evidence case linked"),
+            "{never_linked}"
+        );
+
+        let case = workspace.seed(DemoFixture::HitAndRun).expect("seed a case");
+        let reached = workspace
+            .select_matter("matter-rivera-1")
+            .expect("the matter reaches its case");
+        assert_eq!(reached, case);
+        assert_eq!(workspace.active_case().map(|(id, _)| id), Some(&case));
+
+        let matters = workspace.office_matters().expect("matters");
+        assert!(
+            matters
+                .iter()
+                .any(|(id, label)| id == "matter-rivera-1" && label.contains("CR-2026-491")),
+            "a matter is chosen by the number the court calls it by"
+        );
+        assert!(
+            matters.iter().any(|(_, label)| label.contains("(no case)")),
+            "and a matter with no discovery says so in the chooser"
+        );
+    }
+
+    fn acting(workspace: &mut Workspace) {
+        workspace
+            .set_acting_user("A. Defender", "attorney")
+            .expect("name the acting person");
+    }
+
+    fn client_draft(name: &str) -> ClientDraft {
+        ClientDraft {
+            display_name: name.to_owned(),
+            ..ClientDraft::default()
+        }
+    }
+
+    #[test]
+    fn office_writes_refuse_to_be_written_by_nobody() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+
+        let error = workspace
+            .create_client(&client_draft("Nameless Entry"))
+            .expect_err("no acting person has been named");
+        assert!(error.to_string().contains("Nobody is acting"), "{error}");
+    }
+
+    #[test]
+    fn the_acting_person_is_found_once_and_reused() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+        let before = workspace.office_users().expect("users").len();
+
+        // The fixture already has A. Defender; naming them twice more must
+        // not mint two more user rows.
+        acting(&mut workspace);
+        acting(&mut workspace);
+
+        assert_eq!(workspace.office_users().expect("users").len(), before);
+        assert_eq!(
+            workspace
+                .acting_user()
+                .map(|user| user.display_name.as_str()),
+            Some("A. Defender")
+        );
+    }
+
+    #[test]
+    fn a_client_form_records_sex_and_the_language_they_speak() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+        acting(&mut workspace);
+
+        let rendered = workspace
+            .create_client(&ClientDraft {
+                sex: Some(office_core::Sex::Female),
+                preferred_language: Some("Somali".to_owned()),
+                phone: Some("(555) 210-8891".to_owned()),
+                ..client_draft("Hodan Warsame")
+            })
+            .expect("open the client");
+
+        assert!(rendered.contains("female"), "{rendered}");
+        assert!(rendered.contains("Somali"), "{rendered}");
+        assert!(
+            workspace
+                .office_languages()
+                .expect("languages")
+                .first()
+                .is_some_and(|first| first == "Spanish" || first == "Somali"),
+            "the office's own answers head the chooser"
+        );
+    }
+
+    #[test]
+    fn a_second_client_with_the_same_number_is_offered_as_a_question_not_a_merge() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+        acting(&mut workspace);
+
+        let draft = ClientDraft {
+            phone: Some("555-481-2290".to_owned()),
+            ..client_draft("Alexander Rivera")
+        };
+        let candidates = workspace
+            .client_duplicates(&draft.display_name, &draft.contact_values())
+            .expect("the advisory check");
+        assert!(
+            candidates
+                .iter()
+                .any(|person| person.display_name == "Alex Rivera"),
+            "the fixture's Rivera shares that number: {candidates:?}"
+        );
+
+        // The question is advisory: the record is still written when a named
+        // person decides to write it, and nothing is merged either way.
+        let before = workspace.office_clients().expect("clients").len();
+        workspace.create_client(&draft).expect("create anyway");
+        assert_eq!(
+            workspace.office_clients().expect("clients").len(),
+            before + 1
+        );
+    }
+
+    #[test]
+    fn a_new_matter_opens_its_evidence_case_in_one_step() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+        acting(&mut workspace);
+
+        let rendered = workspace
+            .open_matter(&MatterDraft {
+                client_id: "client-okonkwo".to_owned(),
+                caption: "State v. Okonkwo".to_owned(),
+                court_number: Some("CR-2026-733".to_owned()),
+                court_id: None,
+                status: office_core::MatterStatus::Open,
+                custody_state: office_core::CustodyState::InCustody,
+                offer_state: office_core::OfferState::None,
+                charge_summary: Some("Obstruction".to_owned()),
+                evidence: EvidenceLink::OpenNewCase,
+            })
+            .expect("one flow opens both");
+        assert!(rendered.contains("State v. Okonkwo"), "{rendered}");
+
+        // The kernel case was prefilled from the matter and selected.
+        let (case_id, name) = workspace.active_case().expect("a case is selected");
+        assert_eq!(name, "State v. Okonkwo");
+        let case_id = case_id.clone();
+
+        // And the matter reaches it: the round trip the flow exists for.
+        let matters = workspace.office_matters().expect("matters");
+        let (matter_id, label) = matters
+            .iter()
+            .find(|(_, label)| label.contains("CR-2026-733"))
+            .expect("the new matter is on the chooser");
+        assert!(!label.contains("(no case)"), "{label}");
+        let reached = workspace
+            .select_matter(matter_id)
+            .expect("the matter reaches the case it opened");
+        assert_eq!(reached, case_id);
+    }
+
+    #[test]
+    fn a_new_matter_can_point_at_a_case_the_kernel_already_holds() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+        acting(&mut workspace);
+        let case = workspace.seed(DemoFixture::HitAndRun).expect("seed a case");
+        let cases_before = workspace.cases().len();
+
+        workspace
+            .open_matter(&MatterDraft {
+                client_id: "client-okonkwo".to_owned(),
+                caption: "State v. Okonkwo (refiled)".to_owned(),
+                court_number: Some("CR-2026-734".to_owned()),
+                court_id: None,
+                status: office_core::MatterStatus::Open,
+                custody_state: office_core::CustodyState::Unknown,
+                offer_state: office_core::OfferState::None,
+                charge_summary: None,
+                evidence: EvidenceLink::Existing(case.clone()),
+            })
+            .expect("link the case that exists");
+
+        assert_eq!(
+            workspace.cases().len(),
+            cases_before,
+            "no second case appears"
+        );
+        let matters = workspace.office_matters().expect("matters");
+        let (matter_id, _) = matters
+            .iter()
+            .find(|(_, label)| label.contains("CR-2026-734"))
+            .expect("the new matter is on the chooser");
+        assert_eq!(
+            workspace.select_matter(matter_id).expect("reaches it"),
+            case
+        );
+    }
+
+    #[test]
+    fn a_matter_with_no_case_says_so_rather_than_inventing_one() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+        acting(&mut workspace);
+        let cases_before = workspace.cases().len();
+
+        workspace
+            .open_matter(&MatterDraft {
+                client_id: "client-okonkwo".to_owned(),
+                caption: "State v. Okonkwo (no discovery yet)".to_owned(),
+                court_number: Some("CR-2026-735".to_owned()),
+                court_id: None,
+                status: office_core::MatterStatus::PendingAppointment,
+                custody_state: office_core::CustodyState::Unknown,
+                offer_state: office_core::OfferState::None,
+                charge_summary: None,
+                evidence: EvidenceLink::None,
+            })
+            .expect("open the matter alone");
+
+        assert_eq!(
+            workspace.cases().len(),
+            cases_before,
+            "no case was invented"
+        );
+        let matters = workspace.office_matters().expect("matters");
+        let (matter_id, label) = matters
+            .iter()
+            .find(|(_, label)| label.contains("CR-2026-735"))
+            .expect("the new matter is on the chooser");
+        assert!(label.contains("(no case)"), "{label}");
+        let error = workspace
+            .select_matter(matter_id)
+            .expect_err("nothing to reach");
+        assert!(
+            error.to_string().contains("no evidence case linked"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn a_setting_covers_every_matter_of_one_client_it_names() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+        acting(&mut workspace);
+
+        let matters = workspace
+            .office_matters_of_client("client-rivera")
+            .expect("Rivera's matters");
+        assert!(matters.len() >= 2, "{matters:?}");
+        let named: Vec<String> = matters.iter().take(2).map(|(id, _)| id.clone()).collect();
+
+        let date = workspace.docket_date().to_owned();
+        let rendered = workspace
+            .schedule_setting(&SettingDraft {
+                client_id: "client-rivera".to_owned(),
+                matter_ids: named,
+                court_id: None,
+                judge: Some("Hon. T. Alvarez".to_owned()),
+                date: date.clone(),
+                time: Some("09:00".to_owned()),
+                appearance_type: office_core::AppearanceType::Status,
+                notes: None,
+            })
+            .expect("schedule the setting");
+        assert!(rendered.contains("09:00"), "{rendered}");
+
+        // One row on the docket, both matters on it.
+        let row = workspace
+            .docket_rows()
+            .into_iter()
+            .find(|row| row.time.contains("09:00") && row.client.contains("Rivera"))
+            .expect("the setting is one docket row");
+        assert!(
+            row.matters.contains("·") || row.matters.contains("CR-"),
+            "{}",
+            row.matters
+        );
+    }
+
+    #[test]
+    fn a_setting_refuses_a_matter_belonging_to_somebody_else() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+        acting(&mut workspace);
+
+        let date = workspace.docket_date().to_owned();
+        let error = workspace
+            .schedule_setting(&SettingDraft {
+                client_id: "client-okonkwo".to_owned(),
+                matter_ids: vec!["matter-rivera-1".to_owned()],
+                court_id: None,
+                judge: None,
+                date,
+                time: None,
+                appearance_type: office_core::AppearanceType::Status,
+                notes: None,
+            })
+            .expect_err("that matter is Rivera's");
+        assert!(!error.to_string().is_empty());
+    }
+
+    #[test]
+    fn what_is_owed_appears_on_the_day_it_falls() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+        acting(&mut workspace);
+
+        let matters = workspace
+            .office_matters_of_client("client-rivera")
+            .expect("Rivera's matters");
+        let matter_id = matters
+            .first()
+            .map(|(id, _)| id.clone())
+            .expect("one matter");
+        let due = workspace.docket_date().to_owned();
+
+        workspace
+            .record_office_deadline(&DeadlineDraft {
+                matter_id,
+                description: "File the suppression motion".to_owned(),
+                due_date: due,
+                origin: office_core::DeadlineOrigin::CourtOrdered,
+            })
+            .expect("record what is owed");
+
+        assert!(
+            workspace
+                .deadline_rows()
+                .iter()
+                .any(|row| row.what.contains("suppression")),
+            "the deadline is on the Court pane"
+        );
+    }
+
+    #[test]
+    fn a_note_is_filed_under_exactly_one_thing() {
+        let mut workspace = Workspace::in_memory().expect("workspace");
+        workspace.seed_office().expect("seed the office");
+        acting(&mut workspace);
+
+        let rendered = workspace
+            .write_office_note(&NoteDraft {
+                scope: office_core::NoteScope::Client,
+                subject_id: "client-rivera".to_owned(),
+                body: "Prefers Spanish for anything technical.".to_owned(),
+            })
+            .expect("file the note");
+        assert!(rendered.contains("Spanish"), "{rendered}");
+
+        let error = workspace
+            .write_office_note(&NoteDraft {
+                scope: office_core::NoteScope::Matter,
+                subject_id: "client-rivera".to_owned(),
+                body: "Filed under the wrong thing.".to_owned(),
+            })
+            .expect_err("a client id is not a matter");
+        assert!(!error.to_string().is_empty());
     }
 }

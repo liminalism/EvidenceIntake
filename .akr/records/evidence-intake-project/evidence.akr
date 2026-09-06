@@ -1,6 +1,19 @@
 akr 0.1
 project evidence-intake-project
 
+record evidence-intake-project.assembly.gui-readable-presentation-quality/1 : evidence {
+    title "178 tests pass with gui-winsafe enabled, clippy clean under -D warnings, formatting clean, after switching GUI presentation to the readable-text formatter, adding the New Case dialog and title-bar case indicator."
+    state verified
+    result pass
+    method command
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    command "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
+    summary """
+        178 tests pass with gui-winsafe enabled, clippy clean under -D warnings, formatting clean, after switching GUI presentation to the readable-text formatter, adding the New Case dialog and title-bar case indicator.
+        """
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.collation.all-feature-quality/1 : evidence {
     title "All 201 workspace tests passed with optional features enabled; strict Clippy, formatting and diff whitespace checks passed."
     state verified
@@ -203,6 +216,45 @@ record evidence-intake-project.evidence.clock-raw-time-only/1 : evidence {
     summary """
         1 passed: reading lands as raw_time `overlay ...`, no normalized interval, no time_basis, suggested, extractor clock_overlay_ocr.
         """
+}
+
+record evidence-intake-project.evidence.conservative-identity-20260830/1 : evidence {
+    title "No identity is merged without a named person deciding"
+    state verified
+    result pass
+    method command
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    command "cargo test -p office-core --test identity"
+    summary """
+        Possible-duplicate candidates are computed live from name and contact overlap and stored nowhere; only a named person's decision is written, as linked or dismissed; a dismissed prompt is not offered again; declining leaves both records untouched; a decision must name its author.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.court-office-pane-split-20260830/1 : evidence {
+    title "The Court/Office split shows and hides two control groups intact"
+    state verified
+    result pass
+    method observation
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    artifact "artifacts/akr-evidence/gui-office-pane-restored.png"
+    summary """
+        The pane switch is two buttons over two shown-and-hidden control groups, not a gui::Tab, because a tab page repositions only on TCN::SELCHANGE and correcting that needs an unsafe SendMessage(tcm::AdjustRect) that unsafe_code = "forbid" rules out. Verified live by enumerating child windows: with Court showing, every Office control reports IsWindowVisible false and every Court control true, and switching back restores the rail, case chooser, output pane, search row and review panel intact with their original resize behavior. The new matter chooser is populated with 152 matters. paint_chrome skips invisible controls, so no Office chrome is painted under the Court pane.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.docket-first-court-pane-20260830/1 : evidence {
+    title "The Court pane answers the day without opening another program"
+    state verified
+    result pass
+    method observation
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    artifact "artifacts/akr-evidence/gui-court-docket-day.png"
+    summary """
+        The WinSafe workspace opens on the Court pane and answers the day from that pane alone. On the seeded misdemeanor caseload, 2026-08-25 renders twelve settings with time, what the setting is for, court and room, client, matter court numbers, charges, custody, offer, last contact, evidence posture and open work; the status line reads "2026-08-25 Tuesday · 12 settings · 14 matters · 27 owed within 14 days"; the deadline grid lists what is owed from that day; and selecting a setting fills the detail box in place without leaving the docket. One client called on three related matters is a single row. Posture columns read "1 contested, 1 sole-source", "1 case linked but not found" and "no evidence case linked" — counts and absences, never a score.
+        """
+    author "GitHub Uploader"
 }
 
 record evidence-intake-project.evidence.docket-lists-cases-separately/1 : evidence {
@@ -519,6 +571,19 @@ record evidence-intake-project.evidence.gui-workspace-after-chrome-pass/1 : evid
         """
 }
 
+record evidence-intake-project.evidence.immutable-note-authorship-20260830/1 : evidence {
+    title "Office notes cannot be altered or deleted in place"
+    state verified
+    result pass
+    method command
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    command "cargo test -p office-core --test notes"
+    summary """
+        Notes are append-only at the schema level: BEFORE UPDATE and BEFORE DELETE triggers refuse both, an edit writes a superseding version, every view filters superseded rows, and a second author cannot alter the first author's note. Author and creation time are immutable.
+        """
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.evidence.ingest-refuses-cross-case/1 : evidence {
     title "cargo test --test cases ingest_refuses_records_from_another_case passed: speaker and parent content from another case were refused with WrongCase."
     state verified
@@ -528,6 +593,19 @@ record evidence-intake-project.evidence.ingest-refuses-cross-case/1 : evidence {
     command "cargo test --test cases ingest_refuses_records_from_another_case"
     summary """
         cargo test --test cases ingest_refuses_records_from_another_case passed: speaker and parent content from another case were refused with WrongCase.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.kernel-unchanged-with-office-20260830/1 : evidence {
+    title "The evidence kernel is unchanged by the office layer"
+    state verified
+    result pass
+    method command
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    command "cargo test --workspace --all-features"
+    summary """
+        328 tests pass across the workspace with office-core in it. No evidence migration, kernel invariant test or kernel schema was touched by the office layer; cargo fmt --all and cargo clippy --all-targets --all-features -- -D warnings are clean.
         """
     author "GitHub Uploader"
 }
@@ -660,6 +738,72 @@ record evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/1 : evidenc
     summary """
         Linux built the lean TurboOCR CUDA/TensorRT text worker from source, passed its native runtime probe, compiled detector and recognizer engines on the RTX 4060, and passed the real Evidence broker OCR integration test in 99.17 seconds.
         """
+}
+
+record evidence-intake-project.evidence.office-core-suite-20260830/1 : evidence {
+    title "office-core crate and schema v1 pass their own suite"
+    state verified
+    result pass
+    method command
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    command "cargo test -p office-core --all-features"
+    summary """
+        office-core: 63 tests green across calendar, notes, search, identity, office and the in-crate schema module.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.office-entry-forms-suite-20260830/1 : evidence {
+    title "Office entry forms: full gate run green at schema v6"
+    state verified
+    result pass
+    method command
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    command "cargo test --workspace --all-features && cargo clippy --all-targets --all-features -- -D warnings && cargo fmt --all -- --check"
+    summary """
+        348 workspace tests pass (20 new: office schema v6 demographics incl. v5→v6 re-migration and search-by-language; 11 frontend-free Workspace write tests incl. authorless refusal, combined matter+case flow, advisory duplicates, multi-matter setting; winsafe table/chord/layout tests); clippy -D warnings and fmt clean.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.office-privileged-boundary-20260830/1 : evidence {
+    title "Privileged kernel material is unreachable from the office layer"
+    state verified
+    result pass
+    method command
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    command "cargo test --test office_bridge"
+    artifact "tests/office_bridge.rs"
+    summary """
+        office-core has no dependency on evidence-intake and no way to open an evidence database, so privileged material is unreachable rather than filtered. Nine bridge tests assert it from above: a serialized CourtDocket and MatterView carry no advocacy item, annotation or brief; the office index holds no kernel table; the posture reports counts only and never a verdict; and a matter naming a case the kernel does not hold is reported as a broken link rather than as zeroes.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.office-search-and-cli-20260830/1 : evidence {
+    title "Office search and the office CLI reach the layer without the GUI"
+    state verified
+    result pass
+    method command
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    command "evidence --office-database ./office.sqlite office search \"481-2290\""
+    summary """
+        Office search spans clients, aliases, contacts, matters, court numbers and note bodies, takes plain text rather than FTS5 query syntax, and finds a phone number both as typed and digits-only. The office CLI exercises the whole layer without the GUI: `office seed` created office.sqlite alone and opened no evidence database, and `office docket --date` renders the day with posture joined from the kernel.
+        """
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.one-appearance-many-matters-20260830/1 : evidence {
+    title "One appearance covers many matters and renders once"
+    state verified
+    result pass
+    method command
+    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    command "cargo test -p office-core --test calendar"
+    summary """
+        One setting spanning three related matters of one client renders as one docket row with three matter lines; a matter can be individually unlinked or overridden; a setting cannot be emptied of every matter. Confirmed on screen: the Court pane's 2026-08-25 docket shows Alex Rivera once, matters CR-2026-491 · CR-2026-492 · CR-2026-517.
+        """
+    author "GitHub Uploader"
 }
 
 record evidence-intake-project.evidence.optimization-pass-measured/1 : evidence {

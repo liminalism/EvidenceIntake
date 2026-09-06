@@ -116,6 +116,13 @@ pub enum Error {
         /// Locator the record actually points at.
         actual: String,
     },
+    /// The office layer refused a write or could not answer a read.
+    ///
+    /// Carried as text rather than as the office error itself: the kernel does
+    /// not depend on the office layer, and an error type that did would make
+    /// the dependency real in the direction the boundary forbids.
+    #[error("office error: {0}")]
+    Office(String),
     /// JSON output could not be produced.
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),

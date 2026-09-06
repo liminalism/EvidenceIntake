@@ -28,3 +28,9 @@ __pycache__/
 # repository artifacts. They may be large, sensitive, or both.
 /evidence-examples/
 /siglip/
+
+# The agent-pack binary and the handoff archives it writes are build output and
+# exports, not sources.
+/agent-pack
+/agent-pack.exe
+/Evidence-intake-project-agent-pack-*.7z

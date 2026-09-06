@@ -179,6 +179,29 @@ rule 35, that structure may be reported and a verdict may not. The first WinSafe
 workspace consumes them now; remaining product work is deeper native workflow
 polish and the modality adapters that feed `NormalizedBatch`.
 
+### The office layer
+
+The project is no longer only an evidence utility. An office layer — clients,
+matters, courts, settings, deadlines, notes, assignments, and a search that
+spans them — is built **beside** the kernel as the `office-core` crate, with its
+own `office.sqlite` next to `evidence.sqlite`. A defender opens the app on a
+**Court** pane and sees the day: one row per court setting, however many of a
+client's related matters it covers, with the structural posture of each linked
+evidence case beside it. The **Office** pane is every existing evidence surface,
+reached through a matter rather than through a bare case list.
+
+The boundary is structural, not a filter. `office-core` has no dependency on
+`evidence-intake` and no way to open an evidence database, so a docket row is
+built by code that cannot read `advocacy_items`, `annotations`, or
+`decision_briefs`. A matter carries an `evidence_case_id` as a bare identifier
+with no foreign key behind it; exactly one module in the workspace holds both
+databases open, and rule 35 governs what it may say about a case just as it
+governs the standing view. Domain rules 39–44 state the whole of it.
+
+This does not soften anything above. Nothing in the office layer scores a case,
+no machine confers a review state, no identity is merged without a named person
+deciding, and a note cannot be altered or deleted in place by anyone.
+
 One thing it deliberately still refuses: changing an element assessment. Reading
 evidence differently later is an honest act that should leave a trail, but
 whether that trail is the defender's own working record or an accountability

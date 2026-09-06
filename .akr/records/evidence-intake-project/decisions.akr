@@ -145,7 +145,7 @@ record evidence-intake-project.decision.keyframe-finder-is-an-index/1 : decision
 
 record evidence-intake-project.decision.not-a-case-management-system/1 : decision {
     title "The product is discovery collation, not a CMS, DEMS or time tracker; platform interop is at the export-folder level"
-    state proposed
+    state superseded
     scope [ all ]
     decision """
         The software reads a discovery production and produces the discovery review a defender otherwise writes by hand -- what the state has for each element, what contradicts, what is missing, what to raise, what to ask the client -- through the existing read models (Overview, CaseStanding, DecisionBrief, exports). It does not become a case-management system: no calendar, scheduling, notes-as-CMS, SMS, timekeeping, reporting for funders, client demographics, conflict checks, or document assembly. It does not become a digital evidence management system that hosts, streams, redacts or shares productions. Interoperability with the platforms discovery arrives on (Axon Evidence exports, prosecutor portals, USB dumps) is at the file level: ingest the exported folder -- media plus its metadata and audit CSV -- into a production; never integrate with the platform, log in to it, or hold credentials for it.
@@ -164,6 +164,61 @@ record evidence-intake-project.decision.not-a-case-management-system/1 : decisio
     claim not-a-cms {
         text """
             No calendar, scheduling, timekeeping, messaging, funder reporting, client demographics or document assembly is built into the kernel or its GUI.
+            """
+    }
+}
+
+record evidence-intake-project.decision.office-layer-around-the-kernel/1 : decision {
+    title "The product becomes a PD case system: an office layer wraps the evidence kernel, which itself stays collation-only"
+    state proposed
+    scope [ all ]
+    decision """
+        The product expands from an evidence-collation utility to an open-source public-defender case system: DefenderData rebuilt around the evidence itself. The expansion happens beside the kernel, never inside it. The evidence kernel (evidence_intake: sources, content, entities, propositions, events, charges, review, suggest, export) keeps every existing boundary: no calendar, office notes, tasks, messaging, demographics, timekeeping or reporting enters its schema; evidentiary events never become court-calendar events; advocacy items never become office tasks; entities stay case-scoped; machines still confer nothing. Case management is a sibling domain — an office-core workspace crate with its own store and database — holding users, clients (one person across many matters, with aliases and contacts), matters, assignments, courts, appearances and deadlines, custody and offer state, office notes with immutable authorship, tasks, and later reporting, custom fields and flags. A matter carries an optional evidence_case_id reference into the kernel; neither schema depends semantically on the other, and the boundary is enforced in the application layer. A client-to-evidence-entity identity link is made by a named person from a possible-match prompt, never inferred from a name. Privileged kernel material (advocacy items, annotations, decision briefs) is never readable from the office database or any office view or export. Platform interoperability stays at the exported-folder file level: the software never authenticates to Axon, a prosecutor portal, or any discovery platform. Still out of scope: billing and invoicing, trust accounting, payment processing, e-filing, legal research, video conferencing, generic CRM, platform API integration, and AI drafting.
+        """
+    context """
+        The 2026-08-30 outside review (source defenderdata-cms-expansion-review-2026-08-30) examined DefenderData marketing and r/publicdefenders practitioner usage and concluded the project already holds the hardest 25-35% of a DefenderData replacement — provenance, multimodal intake, review semantics, charge-element analysis — while the missing surface is broad but shallower: clients, matters, calendar, notes, office search, reporting, multi-user. The owner adopted the expansion on 2026-08-30 and chose a calendar-first presentation with the GUI split into a Court pane (daily schedule and responsibilities) and an Office pane (case and evidence intake, paralegal and PD review). This supersedes decision.not-a-case-management-system, whose kernel-protecting rationale survives here as the inner boundary rather than the product boundary.
+        """
+    consequences """
+        CMS-shaped feature requests are now planned into the office layer instead of declined. The docket graduates from a minimal case list to the primary daily surface. The GUI reorganizes into Court and Office panes. The workspace gains an office-core crate whose schema is written for eventual PostgreSQL portability behind a future evidence-server, while shipping local-first on SQLite. The evidence roadmap (case-assembly milestone, TensorRT intake) continues in parallel and becomes the differentiating feature surfaced inside the office layer, not a subordinate of it. The open distribution question gains urgency: the DefenderData-alternative positioning presumes open source, but distribution.open-source-for-public-defenders remains the record that decides it. Roadmap and boundary detail live in docs/office-layer-plan.md.
+        """
+    claim conservative-identity {
+        text """
+            A client is linked to an evidence entity only by a named person resolving a possible-match prompt; no automatic merge or link by name match.
+            """
+    }
+    claim file-level-interop {
+        text """
+            Discovery platforms are integrated only by ingesting their exported folders; the software never authenticates to a platform.
+            """
+    }
+    claim kernel-stays-clean {
+        text """
+            No office concern (calendar, notes, tasks, demographics, timekeeping, reporting) enters the evidence kernel schema; the only new kernel-facing surface is the explicit matter-to-evidence-case reference held on the office side.
+            """
+    }
+    claim privileged-boundary {
+        text """
+            Advocacy items, annotations and decision briefs remain structurally unreachable from the office database and every office-layer view and export.
+            """
+    }
+    claim sibling-domain {
+        text """
+            Case management lives in a separate office-core crate and database linked to the kernel by an optional evidence_case_id on a matter; neither schema depends semantically on the other.
+            """
+    }
+    claim still-out {
+        text """
+            Billing, trust accounting, payment processing, e-filing, legal research, video conferencing, generic CRM, platform API clients and AI drafting stay out of scope.
+            """
+    }
+    supersedes [ @evidence-intake-project.decision.not-a-case-management-system/1 ]
+    source {
+        kind external
+        role origin
+        document "defenderdata-cms-expansion-review-2026-08-30"
+        path "sources/external/defenderdata-cms-expansion-review-2026-08-30--d312bcf5.md"
+        use """
+            Adopted the sibling-domain architecture (office layer around a clean kernel), calendar-first ordering, one-appearance-many-matters, immutable note authorship, conservative office-wide identity, and the not-yet exclusion list; the owner's Court/Office two-pane presentation is layered on top.
             """
     }
 }

@@ -134,3 +134,83 @@ record evidence-intake-project.inference.universal-tensorrt-integration/1 : mile
         }
     }
 }
+
+record evidence-intake-project.office.court-office-foundation/1 : milestone {
+    title "Office layer foundation: clients, matters, calendar, and the Court/Office workspace"
+    state completed
+    scope [
+        path "docs/office-layer-plan.md",
+        path "migrations/**",
+        path "office-core/**",
+        path "src/**"
+    ]
+    intent """
+        Wrap the evidence kernel in the first slice of the public-defender office layer: an office-core crate with its own store (users, clients, matters, assignments, courts, appearances, deadlines, notes), the optional matter-to-evidence-case link, office-wide search with conservative conflict prompts, and the WinSafe GUI reorganized into a calendar-first Court pane and an Office pane hosting the existing intake and review surfaces. Corresponds to CMS-0 plus the calendar/docket core of CMS-1 in docs/office-layer-plan.md; reporting builder, custom fields, timekeeping, multi-user server, PWA and communications are later milestones.
+        """
+    note """
+        Local-first, single-machine, SQLite. Schema written for eventual PostgreSQL portability behind evidence-server, but no server, RBAC or sync in this milestone. GUI work happens in Windows sessions; schema, stores, read models and CLI are buildable on Linux.
+        """
+    acceptance {
+        check conservative-identity {
+            statement """
+                No client or person record is merged with, or linked to, an evidence entity automatically; the GUI only surfaces possible-match prompts that a named person resolves, and declining leaves both records untouched.
+                """
+            method manual
+            verified_by [ @evidence-intake-project.evidence.conservative-identity-20260830/1 ]
+        }
+        check docket-first {
+            statement """
+                From the Court pane alone, an attorney can answer what they must do today and tomorrow — client, matter, setting time and type, custody state, deadlines, evidence posture, open work — without opening another program or the Office pane.
+                """
+            method manual
+            verified_by [ @evidence-intake-project.evidence.docket-first-court-pane-20260830/1 ]
+        }
+        check immutable-note-authorship {
+            statement """
+                An office note records its author and time immutably; editing produces a visible revision that supersedes rather than overwrites, and no user can silently alter another author's note.
+                """
+            method manual
+            verified_by [
+                @evidence-intake-project.evidence.immutable-note-authorship-20260830/1
+            ]
+        }
+        check kernel-unchanged {
+            statement """
+                The evidence kernel schema and its invariant tests are untouched by the office layer, and the full suite passes with office-core in the workspace.
+                """
+            method command
+            command "cargo test --all-features"
+            verified_by [
+                @evidence-intake-project.evidence.kernel-unchanged-with-office-20260830/1
+            ]
+        }
+        check one-appearance-many-matters {
+            statement """
+                A single court appearance links every related matter of one client; the docket renders one row for it, not one per matter; a linked matter can be individually removed or overridden.
+                """
+            method manual
+            verified_by [
+                @evidence-intake-project.evidence.one-appearance-many-matters-20260830/1
+            ]
+        }
+        check privileged-boundary {
+            statement """
+                Advocacy items, annotations and decision briefs cannot be read through the office database, any office read model, or any office export.
+                """
+            method manual
+            verified_by [
+                @evidence-intake-project.evidence.office-privileged-boundary-20260830/1
+            ]
+        }
+    }
+    depends_on [ @evidence-intake-project.decision.office-layer-around-the-kernel ]
+    source {
+        kind external
+        role rationale
+        document "defenderdata-cms-expansion-review-2026-08-30"
+        path "sources/external/defenderdata-cms-expansion-review-2026-08-30--d312bcf5.md"
+        use """
+            Milestone slicing follows the review's CMS-0/CMS-1 ordering with calendar pulled forward per the owner's calendar-first direction; the docket-first gate adapts the review's 150-misdemeanor test.
+            """
+    }
+}

@@ -16,6 +16,7 @@ mod ingest;
 mod intake;
 mod interpretation;
 mod model;
+mod office;
 mod review;
 mod store;
 mod suggest;
@@ -57,6 +58,7 @@ pub use model::{
     AdvocacyKind, CaseId, ChargePosture, ContentKind, EdgeKind, ElementAssessment, EntityKind,
     NodeKind, NodeRef, ReviewState, SourceKind, TemporalRelation, TimelineLane,
 };
+pub use office::{CourtDocket, DocketRow, EvidencePosture, MatterView, OfficeDesk};
 pub use review::{ReviewDecision, ReviewEvent, ReviewQueueItem, ReviewTarget};
 pub use store::Store;
 pub use suggest::{AnalyzerReport, Finding, SuggestionKind, SuggestionRun};

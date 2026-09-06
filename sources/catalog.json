@@ -11,6 +11,17 @@
     "title": "External static review: the collation gap between the design plan and the live pipeline"
   },
   {
+    "added_at": "2026-08-30",
+    "availability": "full",
+    "byte_len": 22245,
+    "content_hash": "sha256:d312bcf54f97e51af919672faa155ce2fc9a7a7b5dec339eeed1aa644f0b1e04",
+    "id": "defenderdata-cms-expansion-review-2026-08-30",
+    "media_type": "text/markdown",
+    "origin": "external",
+    "path": "sources/external/defenderdata-cms-expansion-review-2026-08-30--d312bcf5.md",
+    "title": "Outside review: expand scope to an open-source DefenderData alternative built around the evidence kernel"
+  },
+  {
     "added_at": "2026-08-20",
     "availability": "full",
     "byte_len": 3756,

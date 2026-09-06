@@ -148,6 +148,19 @@ record evidence-intake-project.assembly.enrichment-workspace/1 : work {
     }
 }
 
+record evidence-intake-project.assembly.gui-readable-presentation/1 : work {
+    title "Present GUI read models as readable text and open cases through a typed dialog"
+    state completed
+    scope [ path "Cargo.toml", path "src/gui/**" ]
+    intent """
+        Every view, search result, review outcome, authored-record echo, export preview, processing-queue row and frame-finder hit in the native workspace renders as indented human-readable text (keys sentence-cased, database vocabulary values verbatim, empty slots shown as `none`) via one generic serde_json::Value formatter in src/gui/mod.rs, instead of raw pretty-printed JSON; exports written to disk stay JSON. Multi-case flow: the Untitled Case button becomes a New Case dialog (name, docket reference, jurisdiction) instead of reading the shared JSON payload box, and the title bar names the selected case. Paralegal-driven typed authoring templates remain unchanged by design.
+        """
+    note """
+        serde_json gains the preserve_order feature so read-model fields present in struct order. Collation, packets and digest keep their bespoke text renderers.
+        """
+    author "GitHub Uploader"
+}
+
 record evidence-intake-project.assembly.interpretation-schema/1 : work {
     title "Append-only semantic interpretation layer over immutable content"
     state proposed
@@ -1189,6 +1202,83 @@ record evidence-intake-project.mutation-api.versioned-work-product/1 : work {
             Advocacy items, annotations, and briefs carry no review state. Review asks whether an extraction faithfully represents an original; an attorney's own analysis is not an extraction and there is nothing to check it against.
             """
     }
+}
+
+record evidence-intake-project.office.calendar-and-docket/1 : work {
+    title "Calendar and docket model: courts, appearances spanning matters, deadlines, and the DocketDay read model"
+    state completed
+    scope [ path "office-core/**" ]
+    intent """
+        Model the court calendar in office-core: courts (and judges as plain reference rows), appearances with an appearance_matters link table so one setting spans every related matter of a client and renders once, deadlines with an origin (statutory, court-ordered, self-imposed), and per-matter custody and offer state surfaced beside settings. Build the read models the Court pane consumes: DocketDay (per setting: client, matters, charge summary, time and type, custody, offer, last contact, open work) and UpcomingDeadlines. Each docket row also carries an evidence-posture summary joined from the kernel's CaseStanding for the linked evidence case — disputed elements, sole-source support, missing referenced evidence, unreviewed count — reported as structure, never as a score, under the same rule that governs CaseStanding itself.
+        """
+    note """
+        Recurring events, office/team coverage views, external calendar sync and notification delivery are explicitly deferred to the office-adoption and communications milestones; this slice is the single-user daily and weekly docket.
+        """
+    depends_on [ @evidence-intake-project.office.office-core-crate ]
+    implements [ @evidence-intake-project.decision.office-layer-around-the-kernel ]
+    part_of [ @evidence-intake-project.office.court-office-foundation ]
+}
+
+record evidence-intake-project.office.court-office-gui/1 : work {
+    title "Reorganize the WinSafe workspace into a calendar-first Court pane and an Office pane"
+    state completed
+    scope [ path "src/gui/**" ]
+    intent """
+        Split the native workspace into two top-level panes. Court is the daily driver and opens first: the DocketDay table (client, charge, setting, custody, offer, last contact, evidence posture, open work), the deadline list, and day/week navigation; selecting a row expands in place into client, matters, charges, notes, and the linked evidence case's standing, timeline and witness views. Office is the working surface for paralegals and PD review: client and matter management, and the existing per-case surfaces — intake orchestration (document, audio, video), review queue, enrichment sweep, collation views — reached through the matter rather than a bare case list. Two UI rules govern both panes, taken from documented DefenderData complaints: show context and edit in place rather than navigating away from visible data, and make every case number, phone number, email, charge and name copyable wherever it is displayed.
+        """
+    note """
+        Windows-session work; the pane split rides on read models built on Linux. The existing case workspace is rehosted, not rewritten — the Office pane's evidence area is the current window content reached via matter.
+        """
+    depends_on [
+        @evidence-intake-project.office.calendar-and-docket,
+        @evidence-intake-project.office.notes-and-office-search
+    ]
+    implements [ @evidence-intake-project.decision.office-layer-around-the-kernel ]
+    part_of [ @evidence-intake-project.office.court-office-foundation ]
+}
+
+record evidence-intake-project.office.entry-forms/1 : work {
+    title "Keyboard-first office entry forms in the Office pane"
+    state active
+    scope [ path "office-core/**", path "src/gui/**", path "src/main.rs", path "src/office.rs" ]
+    intent """
+        Make the Office pane the appending backend: six keyboard-first modal dialogs (Acting As, New Client with a conservative duplicate prompt, New Matter that opens or links its evidence case in one flow, New Setting covering several matters, New Deadline, New Note) on Ctrl+Shift A/L/M/H/D/J, backed by typed Workspace write methods and office schema v6 adding nullable client sex and preferred_language. Court pane stays read-only; the acting person is asked once per session via user_named.
+        """
+    note """
+        Owner decisions: demographics migration approved; author once per session; duplicate prompt offers create-anyway/cancel only, never a merge. Plan file: ~/.claude/plans/majestic-soaring-teapot.md.
+        """
+    after [ @evidence-intake-project.office.court-office-foundation ]
+    derived_from [ @evidence-intake-project.decision.office-layer-around-the-kernel ]
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.office.notes-and-office-search/1 : work {
+    title "Office notes with immutable authorship, and office-wide search with conservative conflict prompts"
+    state completed
+    scope [ path "office-core/**" ]
+    intent """
+        Notes scoped to a client (follows the person across matters), a matter, or an appearance. Authorship and creation time are immutable; an edit writes a superseding revision and every view filters superseded rows, mirroring the kernel's work-product versioning; no user can silently alter another author's note. Office-wide search (FTS5 over office tables only) answers the retrieval questions evidence search deliberately cannot: a person's name across matters, a phone number, a court case number, a colleague's client, open matters by next setting. Representing clients, witnesses, officers and related persons at the office level makes conflict checking a search: on client intake, show 'possible existing person' candidates by name or contact overlap, and a named person resolves or dismisses each — never an automatic merge. Evidence FTS stays case-isolated and privileged kernel tables stay structurally outside the office index.
+        """
+    note """
+        Mentions and tag defaults (investigator, social work, immigration, supervisor) can ride on notes cheaply but favorites/office-defined categories belong to the adoption milestone.
+        """
+    depends_on [ @evidence-intake-project.office.office-core-crate ]
+    implements [ @evidence-intake-project.decision.office-layer-around-the-kernel ]
+    part_of [ @evidence-intake-project.office.court-office-foundation ]
+}
+
+record evidence-intake-project.office.office-core-crate/1 : work {
+    title "Create the office-core crate and schema v1: users, clients, matters, assignments, and the evidence-case link"
+    state completed
+    scope [ path "Cargo.toml", path "office-core/**" ]
+    intent """
+        Add an office-core workspace member with its own SQLite database (office.sqlite) and a store module following the kernel's discipline: STRICT tables, numbered idempotent migrations with a schema-version stamp, prepare_cached everywhere, append-only trails where authorship matters. Schema v1: users (modeled now even for a single-row installation), clients, client_aliases, client_contacts, matters (court numbers, status, custody and offer state, optional evidence_case_id), matter_links for related matters, and matter_assignments (attorney, investigator, paralegal roles). Avoid SQLite-only constructs where a portable equivalent is cheap, since this schema later moves behind evidence-server onto PostgreSQL. No cross-database foreign key: the evidence_case_id boundary is enforced in the application layer, and no office table stores kernel content.
+        """
+    note """
+        Buildable and testable on Linux. CLI grows office subcommands (client, matter, assign) mirroring the evidence CLI's pretty-JSON style so the layer is exercisable before the GUI lands.
+        """
+    implements [ @evidence-intake-project.decision.office-layer-around-the-kernel ]
+    part_of [ @evidence-intake-project.office.court-office-foundation ]
 }
 
 record evidence-intake-project.performance.read-path-optimization/1 : work {

@@ -98,6 +98,55 @@ The graph is node tables (`sources`, `source_segments`, `content`, `entities`, `
 `events`, `charges`/`elements`, `advocacy_items`) joined by one polymorphic `edges` table keyed
 `(source_kind, source_id, relation, target_kind, target_id)`. All tables are `STRICT`.
 
+### The office layer (`office-core`, `src/office.rs`, the Court pane)
+
+A sibling of the kernel, never a layer inside it. `office-core/` is a separate workspace member
+with its own `office.sqlite` beside `evidence.sqlite`: `users`, `clients`, `matters`, `courts`,
+`appearances`, `deadlines`, `notes`, `client_evidence_links`, and an FTS5 office search over a
+`search_documents` shadow table. It repeats the kernel's store discipline exactly — `STRICT`
+tables, numbered idempotent migrations behind a `SCHEMA_VERSION`/`PRAGMA user_version` stamp,
+`prepare_cached` on every query, enums whose `as_str` is mirrored by a `CHECK(... IN (...))`.
+Dates are TEXT `YYYY-MM-DD` with a hand-rolled `civil_date` module (no date crate); business
+dates are local, audit timestamps UTC.
+
+- **`office-core` must never depend on `evidence-intake`.** That dependency edge is what makes
+  the privileged boundary structural: a docket row is built by code that cannot open an evidence
+  database, so `advocacy_items`, `annotations`, and `decision_briefs` are unreachable rather than
+  filtered. `the_office_layer_cannot_reach_privileged_kernel_material` asserts it from above.
+- `src/office.rs` — `OfficeDesk`, the only module in the workspace holding both databases open.
+  It folds `CaseStanding` into `EvidencePosture` (counts and names, never a score — rule 35) and
+  builds `CourtDocket`. A matter with no linked case reports `None`; a matter naming a case the
+  kernel does not hold is a third state, `matters_with_a_missing_case`, and none of the three may
+  be collapsed into the others.
+- `src/gui/mod.rs` — `Pane { Court, Office }`, `DocketGridRow`, `DeadlineGridRow`, and the date
+  navigation. `Workspace` owns both halves. The Court pane is testable without a frontend.
+  Office data entry is typed, never JSON: `ClientDraft`/`MatterDraft`/`SettingDraft`/
+  `DeadlineDraft`/`NoteDraft` plus `EvidenceLink { OpenNewCase, Existing, None }` feed
+  `create_client`, `open_matter` (which opens the kernel case prefilled from the matter and
+  links it — the one combined-write flow), `schedule_setting`, `record_office_deadline`, and
+  `write_office_note`; every write is attributed to the session's `ActingUser`, set once via
+  `set_acting_user` (`user_named` underneath), and `client_duplicates` is the advisory
+  conservative-identity check the client form asks before writing.
+- `src/gui/winsafe.rs` — the pane switch is **two buttons plus `ShowWindow` over two control
+  groups**, not a `gui::Tab`: a tab page is repositioned only on `TCN::SELCHANGE` and fixing that
+  needs an unsafe `SendMessage(tcm::AdjustRect)`, which `unsafe_code = "forbid"` blocks. Every Alt
+  letter is claimed, so the pane switch, the Court commands, and the Office entry row carry
+  `Ctrl+Shift` chords only (`OFFICE_COMMANDS`: Acting As `A`, New Client `L`, New Matter `M`,
+  New Setting `H`, New Deadline `D`, New Note `J`, id block `0x0260`);
+  `every_command_has_its_own_accelerator` and `every_chord_reaches_its_own_virtual_key` keep the
+  namespaces unambiguous, and a new Office control must be listed in `office_windows()` or it
+  bleeds through the Court pane. Entry dialogs are keyboard-first: tab order is creation order,
+  vocabulary combos quick-select by first letter, and the generalized `enter_submits` accepts
+  Enter from edits, combos, and list boxes. `paint_chrome` skips invisible controls.
+- CLI: `evidence office <subcommand>`, with a global `--office-database` defaulting to
+  `office.sqlite` beside `--database`. Office commands are dispatched **before** `Store::open`, so
+  an office with no discovery yet still has a docket.
+
+Office-layer invariants are domain rules 39–44: kernel stays clean; two databases and no foreign
+key; privileged material unreachable rather than filtered; identity across the boundary is a named
+person's decision; notes are append-only with immutable authorship; operational time is not
+evidentiary time.
+
 ### Invariants that constrain almost every change
 
 `docs/domain-rules.md` is the normative list; the ones that bite most often:

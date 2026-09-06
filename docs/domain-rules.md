@@ -127,3 +127,37 @@ These rules are invariants for the kernel and future UI.
     the pool is ordered chronologically; the number is never reported.
     Retrieval writes no observation; only what a reviewer confirms is
     authored. The index is excluded from every export.
+39. The kernel stays clean. The office layer — clients, matters, calendar,
+    notes, assignments, office search — is built beside the evidence kernel and
+    never inside it. No office concern enters the evidence schema, and every
+    invariant above holds unchanged with the office layer present.
+40. Two databases, no foreign key. `office.sqlite` sits beside
+    `evidence.sqlite`; they never share a transaction. A matter carries an
+    `evidence_case_id` as a bare identifier that the office layer stores and
+    never resolves. Exactly one place in the workspace holds both open, and it
+    reports a matter naming a case the kernel does not hold as the broken link
+    it is — distinct both from a matter with no case and from a case with
+    nothing outstanding.
+41. Privileged material is unreachable from the office, not filtered out of it.
+    `office-core` has no dependency on the kernel and no way to open an evidence
+    database, so a docket row is built by code that cannot read `advocacy_items`,
+    `annotations`, or `decision_briefs`. This is rule 36's structural exclusion
+    applied one level up, and it is discharged by the dependency graph.
+42. Identity across the boundary is a person's decision. A client is tied to a
+    kernel entity only when a named person resolves a prompt; candidates are
+    computed live from name and contact overlap and are never stored. Only
+    `linked` and `dismissed` are written, and `dismissed` exists so a declined
+    prompt is not offered again. Nothing is ever merged — rule 7 extended
+    across the two databases.
+43. A note is append-only and its authorship is immutable. Notes cannot be
+    updated or deleted in place; the schema refuses both. An edit is a new
+    version superseding the old one, every view filters superseded rows, and
+    the author and creation time of a version can never change. Rule 24's
+    versioning applied to office writing, and made structural because "no user
+    can silently alter another author's note" is a stronger claim than "a
+    reader can see that it changed".
+44. Operational time is not evidentiary time. A court setting and a deadline
+    are scheduling, dated in the local civil calendar the courthouse keeps; a
+    kernel event is a competing account of what happened, and rule 6 governs
+    it. Audit timestamps on both sides are UTC, so an append-only trail stays
+    comparable. The two clocks never meet.
