@@ -42,6 +42,31 @@ record evidence-intake-project.decision.adapters-may-propose-structural-edges/1 
     depends_on [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
 }
 
+record evidence-intake-project.decision.akr-ledger-is-published/1 : decision {
+    title "The AKR ledger is published with the source"
+    state proposed
+    scope [ path ".akr/**", path ".gitignore", path "docs/generated/**", path "sources/**" ]
+    decision """
+        The .akr ledger, its generated views, and registered sources are part of the published repository. They are not private files. Gitignore covers working artifacts only: build output, local databases, model weights, vendored research checkouts, agent-pack binaries, agent scratch, and personal media such as Damion_1-2.jpg. .akr/cache stays ignored because it is rebuildable.
+        """
+    context """
+        A public export to github.com/liminalism/EvidenceIntake omitted .akr on the assumption it was private. The owner corrected that. Extraneous development artifacts should be gitignored so a normal push is clean.
+        """
+    consequences """
+        origin is github.com/liminalism/EvidenceIntake. A clone of the public repository receives the ledger. Cache, SQLite files, model packs, and local samples do not.
+        """
+    claim artifacts-are-ignored {
+        text """
+            Build output, databases, model weights, vendored research, agent-pack binaries, agent scratch, and personal media are gitignored.
+            """
+    }
+    claim ledger-is-published {
+        text """
+            .akr except cache, docs/generated, and sources/ ship with the source.
+            """
+    }
+}
+
 record evidence-intake-project.decision.analyzer-classes-are-disjoint/1 : decision {
     title "An analyzer proposes relationships, proposes interpretations, or reports findings — three disjoint classes"
     state proposed

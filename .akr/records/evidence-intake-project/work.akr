@@ -1239,7 +1239,7 @@ record evidence-intake-project.office.court-office-gui/1 : work {
 
 record evidence-intake-project.office.entry-forms/1 : work {
     title "Keyboard-first office entry forms in the Office pane"
-    state active
+    state superseded
     scope [ path "office-core/**", path "src/gui/**", path "src/main.rs", path "src/office.rs" ]
     intent """
         Make the Office pane the appending backend: six keyboard-first modal dialogs (Acting As, New Client with a conservative duplicate prompt, New Matter that opens or links its evidence case in one flow, New Setting covering several matters, New Deadline, New Note) on Ctrl+Shift A/L/M/H/D/J, backed by typed Workspace write methods and office schema v6 adding nullable client sex and preferred_language. Court pane stays read-only; the acting person is asked once per session via user_named.
@@ -1249,6 +1249,27 @@ record evidence-intake-project.office.entry-forms/1 : work {
         """
     after [ @evidence-intake-project.office.court-office-foundation ]
     derived_from [ @evidence-intake-project.decision.office-layer-around-the-kernel ]
+    author "GitHub Uploader"
+}
+
+record evidence-intake-project.office.entry-forms/2 : work {
+    title "Keyboard-first office entry forms in the Office pane"
+    state completed
+    scope [ path "office-core/**", path "src/gui/**", path "src/main.rs", path "src/office.rs" ]
+    intent """
+        Make the Office pane the appending backend: six keyboard-first modal dialogs (Acting As, New Client with a conservative duplicate prompt, New Matter that opens or links its evidence case in one flow, New Setting covering several matters, New Deadline, New Note) on Ctrl+Shift A/L/M/H/D/J, backed by typed Workspace write methods and office schema v6 adding nullable client sex and preferred_language. Court pane stays read-only; the acting person is asked once per session via user_named.
+        """
+    note """
+        Owner decisions: demographics migration approved; author once per session; duplicate prompt offers create-anyway/cancel only, never a merge. Plan file: ~/.claude/plans/majestic-soaring-teapot.md.
+
+        Completed at f4d1cab on source verification, not a live Windows run — see @evidence-intake-project.evidence.office-entry-forms-source-verified-20260908 for exactly what was and was not checked. One intent line did not survive contact with the code: "Court pane stays read-only" is true for docket work but not absolutely, because CourtCommand::SeedOffice ("Seed Office Caseload", src/gui/winsafe.rs:172/187/1194) is a Court-pane command that writes the misdemeanor fixture into the office store via Workspace::seed_office (src/gui/mod.rs:1366). It is a demo-seeding affordance, not a data-entry path, and every other Court command is navigation or clipboard. Left as-is deliberately; if the read-only boundary is meant to be structural rather than conventional, moving that one command to the Office pane is the whole fix.
+        """
+    after [ @evidence-intake-project.office.court-office-foundation ]
+    derived_from [ @evidence-intake-project.decision.office-layer-around-the-kernel ]
+    supersedes [ @evidence-intake-project.office.entry-forms/1 ]
+    verified_by [
+        @evidence-intake-project.evidence.office-entry-forms-source-verified-20260908/1
+    ]
     author "GitHub Uploader"
 }
 

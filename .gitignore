@@ -1,6 +1,10 @@
+# Build output
 /target/
 __pycache__/
 *.py[cod]
+*.pdb
+
+# Local databases
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
@@ -10,10 +14,11 @@ __pycache__/
 *.db-wal
 .DS_Store
 
-
-# AKR: a rebuildable cache and disposable agent notes.
+# AKR: the ledger is tracked. Only the rebuildable cache is local.
 .akr/cache/
-.agent/scratch/
+
+# Agent working notes. Not the ledger.
+.agent/
 
 # A rebuildable code index.
 /.codegraph/
@@ -24,13 +29,16 @@ __pycache__/
 /2503.06317v1.md
 /original-pdf-do-not-read-if-there-is-a-markdown-version/
 
-# Local discovery samples and downloaded model weights are working data, not
-# repository artifacts. They may be large, sensitive, or both.
+# Working data: discovery samples, downloaded weights, installed model packs.
 /evidence-examples/
 /siglip/
+/models/
 
-# The agent-pack binary and the handoff archives it writes are build output and
-# exports, not sources.
+# Personal / local media that is not part of the program.
+/Damion_1-2.jpg
+
+# The agent-pack binary and the handoff archives it writes are build output.
 /agent-pack
 /agent-pack.exe
 /Evidence-intake-project-agent-pack-*.7z
+*.7z

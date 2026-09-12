@@ -729,7 +729,7 @@ record evidence-intake-project.evidence.keyframe-workspace-gate/1 : evidence {
 
 record evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/1 : evidence {
     title "Linux built the lean TurboOCR CUDA/TensorRT text worker from source, passed its native runtime probe, compiled detector and recognizer engines on the RTX 4060, and passed the real Evidence broker OCR integration test in 99.17 seconds."
-    state verified
+    state superseded
     result pass
     method command
     observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
@@ -738,6 +738,22 @@ record evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/1 : evidenc
     summary """
         Linux built the lean TurboOCR CUDA/TensorRT text worker from source, passed its native runtime probe, compiled detector and recognizer engines on the RTX 4060, and passed the real Evidence broker OCR integration test in 99.17 seconds.
         """
+}
+
+record evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/2 : evidence {
+    title "Linux built the lean TurboOCR CUDA/TensorRT text worker from source, passed its native runtime probe, compiled detector and recognizer engines on the RTX 4060, and passed the real Evidence broker OCR integration test in 99.17 seconds."
+    state verified
+    result pass
+    method command
+    observed_at git:8218ede417a4d1c40a806c1ca0250e09ef2e49d5
+    command "cmake -S ../Lege-ecosystem/lege-document-ocr/turboocr -B <temporary> -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc -DTURBO_TRT_RUNTIME_ONLY=ON -DTURBO_TRT_TEXT_PIPELINE=ON && cmake --build <temporary> --target turboocr-text -j 4 && ctest --test-dir <temporary> --output-on-failure && EVIDENCE_TURBOOCR_WORKER=<temporary>/turboocr-text EVIDENCE_TURBOOCR_MODELS=../Lege-ecosystem/lege-document-ocr/turboocr/models cargo test -p evidence-trt broker_runs_real_turboocr_cuda_inference -- --ignored --nocapture"
+    artifact "runtime/tensorrt/tests/ocr_worker.rs"
+    summary """
+        Linux built the lean TurboOCR CUDA/TensorRT text worker from source, passed its native runtime probe, compiled detector and recognizer engines on the RTX 4060, and passed the real Evidence broker OCR integration test in 99.17 seconds.
+
+        Correction, 2026-09-08: `observed_at` was recorded as fc3212c7 and is now 8218ede4. It cannot have been fc3212c7 — this record's own command runs `cargo test -p evidence-trt` and its artifact is `runtime/tensorrt/tests/ocr_worker.rs`, and `git log --diff-filter=A` shows both the crate and that test file were first added by 8218ede4, one commit later. The run is unchanged; only the commit it is anchored to is corrected, so that the descendant-commit rule can use it.
+        """
+    supersedes [ @evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/1 ]
 }
 
 record evidence-intake-project.evidence.office-core-suite-20260830/1 : evidence {
@@ -751,6 +767,17 @@ record evidence-intake-project.evidence.office-core-suite-20260830/1 : evidence 
         office-core: 63 tests green across calendar, notes, search, identity, office and the in-crate schema module.
         """
     author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.office-entry-forms-source-verified-20260908/1 : evidence {
+    title "Source verification at f4d1cab, not a live Windows run: no GUI was launched and no cargo build was run, so this evidence covers what the code contains, not that the dialogs were driven end to end. Six of the seven claims in office.entry-forms hold. The six dialogs exist as new_client (src/gui/winsafe.rs:2652), new_matter (2900), new_setting (3144), new_deadline (3347), new_note (3454) and prompt_acting_user (2551), behind an OfficeCommand enum whose test-only ALL array holds all six. OFFICE_COMMANDS (winsafe.rs:225-231) binds exactly A/L/M/H/D/J and the accelerator table at line 459 builds each with VIRTKEY|CONTROL|SHIFT, so the chords are Ctrl+Shift as specified. The writes go through typed drafts, not JSON: Workspace::create_client/open_matter/schedule_setting/record_office_deadline/write_office_note in src/gui/mod.rs take ClientDraft/MatterDraft/SettingDraft/DeadlineDraft/NoteDraft and call office-core's typed Proposed* store methods. office-core/src/store.rs:42 declares SCHEMA_VERSION = 6 with migrations 0001-0006 present, and store.rs:102-103 adds clients.sex and clients.preferred_language as plain nullable TEXT columns. prompt_possible_duplicates (winsafe.rs:2829) offers exactly Cancel and 'Create Anyway' with Cancel on the first tabstop and no merge control. MatterDraft.evidence is an EvidenceLink enum of OpenNewCase/Existing(CaseId)/None consumed inside open_matter, which is the one-flow open-or-link. office-core/src/store.rs:234 provides user_named and office_command only prompts when acting_user() is none, so the author is asked once per session and reused. The seventh claim, 'Court pane stays read-only', is PARTIAL and is the one deviation worth carrying forward: CourtCommand::SeedOffice ('Seed Office Caseload', winsafe.rs:172/187, dispatched at 1194) sits in COURT_COMMANDS and calls Workspace::seed_office (src/gui/mod.rs:1366), which writes OfficeFixture::MisdemeanorDocket into the office store. It is a fixture-seeding affordance rather than a production data-entry path, and every other Court command is navigation or clipboard, but the pane is therefore read-only for docket work rather than read-only absolutely."
+    state verified
+    result pass
+    method observation
+    observed_at git:f4d1cabc9d4e0906c34b0ca049b35abbd0a6affd
+    summary """
+        Source verification at f4d1cab, not a live Windows run: no GUI was launched and no cargo build was run, so this evidence covers what the code contains, not that the dialogs were driven end to end. Six of the seven claims in office.entry-forms hold. The six dialogs exist as new_client (src/gui/winsafe.rs:2652), new_matter (2900), new_setting (3144), new_deadline (3347), new_note (3454) and prompt_acting_user (2551), behind an OfficeCommand enum whose test-only ALL array holds all six. OFFICE_COMMANDS (winsafe.rs:225-231) binds exactly A/L/M/H/D/J and the accelerator table at line 459 builds each with VIRTKEY|CONTROL|SHIFT, so the chords are Ctrl+Shift as specified. The writes go through typed drafts, not JSON: Workspace::create_client/open_matter/schedule_setting/record_office_deadline/write_office_note in src/gui/mod.rs take ClientDraft/MatterDraft/SettingDraft/DeadlineDraft/NoteDraft and call office-core's typed Proposed* store methods. office-core/src/store.rs:42 declares SCHEMA_VERSION = 6 with migrations 0001-0006 present, and store.rs:102-103 adds clients.sex and clients.preferred_language as plain nullable TEXT columns. prompt_possible_duplicates (winsafe.rs:2829) offers exactly Cancel and 'Create Anyway' with Cancel on the first tabstop and no merge control. MatterDraft.evidence is an EvidenceLink enum of OpenNewCase/Existing(CaseId)/None consumed inside open_matter, which is the one-flow open-or-link. office-core/src/store.rs:234 provides user_named and office_command only prompts when acting_user() is none, so the author is asked once per session and reused. The seventh claim, 'Court pane stays read-only', is PARTIAL and is the one deviation worth carrying forward: CourtCommand::SeedOffice ('Seed Office Caseload', winsafe.rs:172/187, dispatched at 1194) sits in COURT_COMMANDS and calls Workspace::seed_office (src/gui/mod.rs:1366), which writes OfficeFixture::MisdemeanorDocket into the office store. It is a fixture-seeding affordance rather than a production data-entry path, and every other Court command is navigation or clipboard, but the pane is therefore read-only for docket work rather than read-only absolutely.
+        """
 }
 
 record evidence-intake-project.evidence.office-entry-forms-suite-20260830/1 : evidence {
