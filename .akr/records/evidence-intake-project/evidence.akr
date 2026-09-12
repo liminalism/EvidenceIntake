@@ -6,7 +6,7 @@ record evidence-intake-project.assembly.gui-readable-presentation-quality/1 : ev
     state verified
     result pass
     method command
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     command "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features"
     summary """
         178 tests pass with gui-winsafe enabled, clippy clean under -D warnings, formatting clean, after switching GUI presentation to the readable-text formatter, adding the New Case dialog and title-bar case indicator.
@@ -113,7 +113,7 @@ record evidence-intake-project.evidence.assembly-occurrence-authoring-20260824/1
     state verified
     result pass
     method command
-    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    observed_at git:b84eec35dbe0395bdf14c8996606972d2af4dce8
     command "cargo test --all-features --test assembly"
     summary """
         Four tests over the vehicle-stop fixture: the event and every account_of edge enter unreviewed under the named author, an occurrence needs at least two accounts and a written reason, a normalized occurrence time requires its alignment basis, and a rejected candidate_same_occurrence edge between two chosen passages blocks the grouping. ProposedOccurrence and AuthoredOccurrence were exported but unimplemented before this.
@@ -223,7 +223,7 @@ record evidence-intake-project.evidence.conservative-identity-20260830/1 : evide
     state verified
     result pass
     method command
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     command "cargo test -p office-core --test identity"
     summary """
         Possible-duplicate candidates are computed live from name and contact overlap and stored nowhere; only a named person's decision is written, as linked or dismissed; a dismissed prompt is not offered again; declining leaves both records untouched; a decision must name its author.
@@ -236,7 +236,7 @@ record evidence-intake-project.evidence.court-office-pane-split-20260830/1 : evi
     state verified
     result pass
     method observation
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     artifact "artifacts/akr-evidence/gui-office-pane-restored.png"
     summary """
         The pane switch is two buttons over two shown-and-hidden control groups, not a gui::Tab, because a tab page repositions only on TCN::SELCHANGE and correcting that needs an unsafe SendMessage(tcm::AdjustRect) that unsafe_code = "forbid" rules out. Verified live by enumerating child windows: with Court showing, every Office control reports IsWindowVisible false and every Court control true, and switching back restores the rail, case chooser, output pane, search row and review panel intact with their original resize behavior. The new matter chooser is populated with 152 matters. paint_chrome skips invisible controls, so no Office chrome is painted under the Court pane.
@@ -249,7 +249,7 @@ record evidence-intake-project.evidence.docket-first-court-pane-20260830/1 : evi
     state verified
     result pass
     method observation
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     artifact "artifacts/akr-evidence/gui-court-docket-day.png"
     summary """
         The WinSafe workspace opens on the Court pane and answers the day from that pane alone. On the seeded misdemeanor caseload, 2026-08-25 renders twelve settings with time, what the setting is for, court and room, client, matter court numbers, charges, custody, offer, last contact, evidence posture and open work; the status line reads "2026-08-25 Tuesday · 12 settings · 14 matters · 27 owed within 14 days"; the deadline grid lists what is owed from that day; and selecting a setting fills the detail box in place without leaving the docket. One client called on three related matters is a single row. Posture columns read "1 contested, 1 sole-source", "1 case linked but not found" and "no evidence case linked" — counts and absences, never a score.
@@ -275,7 +275,7 @@ record evidence-intake-project.evidence.document-collation-strict-lints/1 : evid
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo clippy --workspace --all-targets -- -D warnings"
     summary """
         Clippy passed for every workspace target with warnings denied.
@@ -287,7 +287,7 @@ record evidence-intake-project.evidence.document-collation-synthetic-seam/1 : ev
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo test -p evidence-document synthetic_document_collates_reviews_and_exports_in_page_order -- --nocapture"
     artifact "adapters/document/tests/mapping.rs"
     summary """
@@ -300,7 +300,7 @@ record evidence-intake-project.evidence.document-collation-workspace-tests/1 : e
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo test --workspace"
     summary """
         Every workspace unit, integration, and documentation test passed; the native GPU OCR test remained explicitly ignored because it requires the external TensorRT build, models, and NVIDIA GPU.
@@ -372,7 +372,7 @@ record evidence-intake-project.evidence.gui-intake-broker-bridge-20260822/1 : ev
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo test -p evidence-document -p evidence-trt"
     summary """
         Document mapping, broker supervision, protocol v2, manifest checks, OCR worker, and the process-level Lege page-OCR bridge contract all passed; the real CUDA OCR smoke remained correctly ignored without its native payload.
@@ -385,7 +385,7 @@ record evidence-intake-project.evidence.gui-intake-persistence-20260822/1 : evid
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo test --workspace --no-fail-fast"
     summary """
         The full Evidence workspace passed, including adapter protocol version rejection, persistent intake lifecycle, atomic import, duplicate preflight, recovery, retry, artifact confinement, relinking, and chronological score-free keyframe search.
@@ -398,7 +398,7 @@ record evidence-intake-project.evidence.gui-intake-release-build-20260822/1 : ev
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo build --release -p evidence-trt -p evidence-document -p evidence-audio -p evidence-video -p evidence-intake --features gui-winsafe --bin evidence-gui"
     summary """
         Release builds completed for the broker, Lege bridge, all three adapters, and the WinSafe GUI.
@@ -411,7 +411,7 @@ record evidence-intake-project.evidence.gui-intake-static-20260822/1 : evidence 
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo clippy --workspace --all-targets --all-features -- -D warnings"
     summary """
         All Evidence workspace targets and features passed strict Clippy with warnings denied.
@@ -424,7 +424,7 @@ record evidence-intake-project.evidence.gui-intake-winsafe-20260822/1 : evidence
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo test -p evidence-intake --features gui-winsafe"
     summary """
         The WinSafe feature build and tests passed, including mnemonic uniqueness and layout boundary checks.
@@ -488,7 +488,7 @@ record evidence-intake-project.evidence.gui-sweep-keystroke-budget-20260824/1 : 
     state verified
     result pass
     method command
-    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    observed_at git:b84eec35dbe0395bdf14c8996606972d2af4dce8
     command "cargo test --all-features --test enrichment"
     summary """
         Eleven tests: inherited profile values classify every passage at no more than 1.6 keystrokes each and an attributed person with a reporting parent costs no more than four; the source picker's counts, entity autocomplete ordering, separate-record entity creation, profile superseding, the grid's value and provenance columns, one-key candidate acceptance, and cursor selection all hold. The budget is measured over the vehicle-stop fixture; the raw-file fixture of the plan's section 9 does not exist yet, so the milestone's keystroke-budget check is not satisfied by this.
@@ -501,7 +501,7 @@ record evidence-intake-project.evidence.gui-sweep-live-smoke-20260824/1 : eviden
     state verified
     result pass
     method observation
-    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    observed_at git:b84eec35dbe0395bdf14c8996606972d2af4dce8
     artifact "artifacts/akr-evidence/gui-sweep-one-key-entry.png"
     summary """
         Ran on Windows 11 against a seeded vehicle-stop database. The main window rendered twelve view controls above the action rail; Ctrl+E opened the sweep; the picker showed the report as three passages, three awaiting a person, one candidate; the deterministic evidence-reference rule's candidate rendered as MACHINE SUGGESTION carrying suggest:evidence-reference@1; pressing r on a grid row wrote reported_statement with provenance entered, repainted the badge as REPORT OF STATEMENT, advanced the cursor and dropped the outstanding count by one. The preview named the locator and refused to claim verified context for a fixture whose original is not on disk. Screenshots: artifacts/akr-evidence/gui-sweep-main-window.png, gui-sweep-workspace.png, gui-sweep-one-key-entry.png.
@@ -514,7 +514,7 @@ record evidence-intake-project.evidence.gui-sweep-static-20260824/1 : evidence {
     state verified
     result pass
     method command
-    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    observed_at git:b84eec35dbe0395bdf14c8996606972d2af4dce8
     command "cargo fmt --all --check && cargo clippy --all-targets --all-features -- -D warnings"
     summary """
         Observed on the working tree at this commit. Formatting is clean and Clippy reports nothing with warnings denied across all targets and all features, after clearing the nine warnings the interrupted session left behind (a panicking packet lookup, a needless clone, a by-value template, collapsible conditions, an item after statements).
@@ -527,7 +527,7 @@ record evidence-intake-project.evidence.gui-sweep-workspace-tests-20260824/1 : e
     state verified
     result pass
     method command
-    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    observed_at git:b84eec35dbe0395bdf14c8996606972d2af4dce8
     command "cargo test --all-features"
     summary """
         Observed on the working tree at this commit. The run also repaired the analyzer classification the interrupted session left broken: case_standing walked every analyzer and asked the eight interpretation rules for findings they do not report, which failed all eight tests in tests/standing.rs until the three analyzer classes were made disjoint.
@@ -576,7 +576,7 @@ record evidence-intake-project.evidence.immutable-note-authorship-20260830/1 : e
     state verified
     result pass
     method command
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     command "cargo test -p office-core --test notes"
     summary """
         Notes are append-only at the schema level: BEFORE UPDATE and BEFORE DELETE triggers refuse both, an edit writes a superseding version, every view filters superseded rows, and a second author cannot alter the first author's note. Author and creation time are immutable.
@@ -602,7 +602,7 @@ record evidence-intake-project.evidence.kernel-unchanged-with-office-20260830/1 
     state verified
     result pass
     method command
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     command "cargo test --workspace --all-features"
     summary """
         328 tests pass across the workspace with office-core in it. No evidence migration, kernel invariant test or kernel schema was touched by the office layer; cargo fmt --all and cargo clippy --all-targets --all-features -- -D warnings are clean.
@@ -732,7 +732,7 @@ record evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/1 : evidenc
     state superseded
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cmake -S ../Lege-ecosystem/lege-document-ocr/turboocr -B <temporary> -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc -DTURBO_TRT_RUNTIME_ONLY=ON -DTURBO_TRT_TEXT_PIPELINE=ON && cmake --build <temporary> --target turboocr-text -j 4 && ctest --test-dir <temporary> --output-on-failure && EVIDENCE_TURBOOCR_WORKER=<temporary>/turboocr-text EVIDENCE_TURBOOCR_MODELS=../Lege-ecosystem/lege-document-ocr/turboocr/models cargo test -p evidence-trt broker_runs_real_turboocr_cuda_inference -- --ignored --nocapture"
     artifact "runtime/tensorrt/tests/ocr_worker.rs"
     summary """
@@ -745,7 +745,7 @@ record evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/2 : evidenc
     state verified
     result pass
     method command
-    observed_at git:8218ede417a4d1c40a806c1ca0250e09ef2e49d5
+    observed_at git:107706a07786847b0c18ed54c3b5328c2facb73d
     command "cmake -S ../Lege-ecosystem/lege-document-ocr/turboocr -B <temporary> -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc -DTURBO_TRT_RUNTIME_ONLY=ON -DTURBO_TRT_TEXT_PIPELINE=ON && cmake --build <temporary> --target turboocr-text -j 4 && ctest --test-dir <temporary> --output-on-failure && EVIDENCE_TURBOOCR_WORKER=<temporary>/turboocr-text EVIDENCE_TURBOOCR_MODELS=../Lege-ecosystem/lege-document-ocr/turboocr/models cargo test -p evidence-trt broker_runs_real_turboocr_cuda_inference -- --ignored --nocapture"
     artifact "runtime/tensorrt/tests/ocr_worker.rs"
     summary """
@@ -761,7 +761,7 @@ record evidence-intake-project.evidence.office-core-suite-20260830/1 : evidence 
     state verified
     result pass
     method command
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     command "cargo test -p office-core --all-features"
     summary """
         office-core: 63 tests green across calendar, notes, search, identity, office and the in-crate schema module.
@@ -774,7 +774,7 @@ record evidence-intake-project.evidence.office-entry-forms-source-verified-20260
     state verified
     result pass
     method observation
-    observed_at git:f4d1cabc9d4e0906c34b0ca049b35abbd0a6affd
+    observed_at git:b5b6cdb5cb1653d65f7f851ee93320e64a17d4dc
     summary """
         Source verification at f4d1cab, not a live Windows run: no GUI was launched and no cargo build was run, so this evidence covers what the code contains, not that the dialogs were driven end to end. Six of the seven claims in office.entry-forms hold. The six dialogs exist as new_client (src/gui/winsafe.rs:2652), new_matter (2900), new_setting (3144), new_deadline (3347), new_note (3454) and prompt_acting_user (2551), behind an OfficeCommand enum whose test-only ALL array holds all six. OFFICE_COMMANDS (winsafe.rs:225-231) binds exactly A/L/M/H/D/J and the accelerator table at line 459 builds each with VIRTKEY|CONTROL|SHIFT, so the chords are Ctrl+Shift as specified. The writes go through typed drafts, not JSON: Workspace::create_client/open_matter/schedule_setting/record_office_deadline/write_office_note in src/gui/mod.rs take ClientDraft/MatterDraft/SettingDraft/DeadlineDraft/NoteDraft and call office-core's typed Proposed* store methods. office-core/src/store.rs:42 declares SCHEMA_VERSION = 6 with migrations 0001-0006 present, and store.rs:102-103 adds clients.sex and clients.preferred_language as plain nullable TEXT columns. prompt_possible_duplicates (winsafe.rs:2829) offers exactly Cancel and 'Create Anyway' with Cancel on the first tabstop and no merge control. MatterDraft.evidence is an EvidenceLink enum of OpenNewCase/Existing(CaseId)/None consumed inside open_matter, which is the one-flow open-or-link. office-core/src/store.rs:234 provides user_named and office_command only prompts when acting_user() is none, so the author is asked once per session and reused. The seventh claim, 'Court pane stays read-only', is PARTIAL and is the one deviation worth carrying forward: CourtCommand::SeedOffice ('Seed Office Caseload', winsafe.rs:172/187, dispatched at 1194) sits in COURT_COMMANDS and calls Workspace::seed_office (src/gui/mod.rs:1366), which writes OfficeFixture::MisdemeanorDocket into the office store. It is a fixture-seeding affordance rather than a production data-entry path, and every other Court command is navigation or clipboard, but the pane is therefore read-only for docket work rather than read-only absolutely.
         """
@@ -785,7 +785,7 @@ record evidence-intake-project.evidence.office-entry-forms-suite-20260830/1 : ev
     state verified
     result pass
     method command
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     command "cargo test --workspace --all-features && cargo clippy --all-targets --all-features -- -D warnings && cargo fmt --all -- --check"
     summary """
         348 workspace tests pass (20 new: office schema v6 demographics incl. v5→v6 re-migration and search-by-language; 11 frontend-free Workspace write tests incl. authorless refusal, combined matter+case flow, advisory duplicates, multi-matter setting; winsafe table/chord/layout tests); clippy -D warnings and fmt clean.
@@ -798,7 +798,7 @@ record evidence-intake-project.evidence.office-privileged-boundary-20260830/1 : 
     state verified
     result pass
     method command
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     command "cargo test --test office_bridge"
     artifact "tests/office_bridge.rs"
     summary """
@@ -812,7 +812,7 @@ record evidence-intake-project.evidence.office-search-and-cli-20260830/1 : evide
     state verified
     result pass
     method command
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     command "evidence --office-database ./office.sqlite office search \"481-2290\""
     summary """
         Office search spans clients, aliases, contacts, matters, court numbers and note bodies, takes plain text rather than FTS5 query syntax, and finds a phone number both as typed and digits-only. The office CLI exercises the whole layer without the GUI: `office seed` created office.sqlite alone and opened no evidence database, and `office docket --date` renders the day with posture joined from the kernel.
@@ -825,7 +825,7 @@ record evidence-intake-project.evidence.one-appearance-many-matters-20260830/1 :
     state verified
     result pass
     method command
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     command "cargo test -p office-core --test calendar"
     summary """
         One setting spanning three related matters of one client renders as one docket row with three matter lines; a matter can be individually unlinked or overridden; a setting cannot be emptied of every matter. Confirmed on screen: the Court pane's 2026-08-25 docket shows Alex Rivera once, matters CR-2026-491 · CR-2026-492 · CR-2026-517.
@@ -1103,7 +1103,7 @@ record evidence-intake-project.evidence.windows-broker-ocr-real-cuda-20260822/1 
     state verified
     result pass
     method command
-    observed_at git:f527d4215c6a3c3b6bf24fdd5b5724b99720d854
+    observed_at git:b2999f8da663e363bd842c7b4956785952d63cf9
     command "$env:EVIDENCE_TURBOOCR_WORKER='D:\\Rust-projects\\Lege-ecosystem\\lege-document-ocr\\turboocr\\build-windows-trt-text-ninja\\turboocr-text.exe'; $env:EVIDENCE_TURBOOCR_MODELS='D:\\Rust-projects\\Lege-ecosystem\\lege-document-ocr\\turboocr\\models'; cargo test -p evidence-trt broker_runs_real_turboocr_cuda_inference -- --ignored --nocapture"
     summary """
         On the Windows RTX 4060 host, the committed Evidence broker built and cached the PP-OCR detector and recognizer TensorRT engines, loaded both native engines and the dictionary, passed the CUDA inference probe, and returned typed PageOcr output in 657.85 seconds.
@@ -1140,7 +1140,7 @@ record evidence-intake-project.inference.evidence.broker-tests/1 : evidence {
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo test -p evidence-trt"
     summary """
         Broker protocol, manifest checksum, revision pinning, worker supervision, LRU residency and local transport tests passed.
@@ -1152,7 +1152,7 @@ record evidence-intake-project.inference.evidence.document-adapter-tests/1 : evi
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo test -p evidence-document"
     summary """
         Four document adapter tests passed, including packaged CLI artifact retention and raw DocIR mapping.
@@ -1164,7 +1164,7 @@ record evidence-intake-project.inference.evidence.ocr-broker-real-cuda/1 : evide
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "EVIDENCE_TURBOOCR_WORKER=.agent/scratch/turboocr-linux-trt-sm89/turboocr-text EVIDENCE_TURBOOCR_MODELS=/mnt/Samsung980_1TB/Rust-projects/Lege-ecosystem/lege-document-ocr/turboocr/models cargo test -p evidence-trt --test ocr_worker broker_runs_real_turboocr_cuda_inference -- --ignored --nocapture"
     artifact "runtime/tensorrt/tests/ocr_worker.rs"
     summary """
@@ -1177,7 +1177,7 @@ record evidence-intake-project.inference.evidence.workspace-clippy/1 : evidence 
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo clippy --workspace --all-targets -- -D warnings"
     summary """
         Strict workspace Clippy passed for all targets.
@@ -1189,7 +1189,7 @@ record evidence-intake-project.inference.evidence.workspace-tests/1 : evidence {
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo test --workspace --no-fail-fast"
     summary """
         Every workspace unit, integration and documentation test passed.
@@ -1201,7 +1201,7 @@ record evidence-intake-project.inference.evidence.workspace-tests-ocr-pass/1 : e
     state verified
     result pass
     method command
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     command "cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings"
     artifact "runtime/tensorrt/src/bin/evidence-trt-ocr-worker.rs"
     summary """

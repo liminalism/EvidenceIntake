@@ -7,7 +7,7 @@ record evidence-intake-project.assessment.mapping-boundary-follows-software-outp
     statement """
         The meaningful scope boundary follows what the software derives and claims, not whether its operator is a public defender. A map remains a collation read model when it plots only source-stated or reviewer-confirmed locations, preserves raw location language, provenance, exact locators and disagreement, labels address-to-coordinate conversion as derived and reviewable, and returns the reviewer to the underlying document, audio or video. It crosses the adopted forensic boundary when it authenticates media, infers location from pixels, measures depicted objects or distances, compares scenes or people to render an identification opinion, reconstructs routes or events, or asserts a common event across sources.
         """
-    as_of git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    as_of git:ea1c4c898764e8060ca697df5e19cb552d340843
     claim forensic-crossing {
         text """
             Image-derived geolocation or measurement, authentication, comparative identification and route or event reconstruction cross the adopted product boundary.

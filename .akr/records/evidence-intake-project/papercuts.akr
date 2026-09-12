@@ -7,7 +7,7 @@ record evidence-intake-project.papercut.a-broad-evidence-video-cli-migration-pat
     statement """
         A broad evidence-video CLI migration patch missed because a duplicated field appeared only in concatenated output, requiring a smaller exact-context retry.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     author "codex"
     created_at 2026-08-21
 }
@@ -29,7 +29,7 @@ record evidence-intake-project.papercut.a-follow-up-enrichment-rule-patch-missed
     statement """
         A follow-up enrichment-rule patch missed because rustfmt had reflowed the guarded match arm after the initial edit; splitting structural and helper edits into smaller patches avoids the fragile large context.
         """
-    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    observed_at git:b84eec35dbe0395bdf14c8996606972d2af4dce8
     author "codex"
     created_at 2026-08-23
 }
@@ -40,7 +40,7 @@ record evidence-intake-project.papercut.a-multi-file-documentation-cleanup-patch
     statement """
         A multi-file documentation cleanup patch missed because the Python README wrapped a target sentence differently; the edit needed smaller exact-context patches.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     author "codex"
     created_at 2026-08-21
 }
@@ -73,7 +73,7 @@ record evidence-intake-project.papercut.after-a-diagnostic-linux-build-in-a-vali
     statement """
         After a diagnostic Linux build in a validated mktemp directory, the command guard rejected cleanup because it classified an explicit `rm -f` as unsafe. The temporary build can be left for normal OS cleanup, but the rejection happens even after prefix and directory validation.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     about "Codex exec safety"
     author "codex"
     created_at 2026-08-21
@@ -85,7 +85,7 @@ record evidence-intake-project.papercut.after-knowledge-source-add-succeeded-the
     statement """
         After `knowledge.source_add` succeeded, the immediately following `knowledge.source_search` failed because the source index had not been built, but the add response did not provide the usual `akr build` next step. Having source_add report that required build would prevent an avoidable failed lookup.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     about "akr"
     author "gpt-5.6-codex"
     created_at 2026-08-20
@@ -130,7 +130,7 @@ record evidence-intake-project.papercut.capturing-the-winsafe-gui-for-evidence-t
     statement """
         Capturing the WinSafe GUI for evidence took three tries: PowerShell is DPI-unaware by default, so GetWindowRect and PrintWindow returned a downscaled, cropped view of a 150%-DPI window and the lower half of the layout appeared to be missing controls that were actually there. SetProcessDpiAwarenessContext(-4) at the top of the capture script fixes it. Also, GetWindowText across a process boundary returns empty for Edit controls, so a screenshot is the only way to read what the detail pane says. Worth a small scripts/screenshot.ps1 so the next GUI session does not rediscover both.
         """
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     author "claude"
     created_at 2026-08-30
 }
@@ -152,7 +152,7 @@ record evidence-intake-project.papercut.correcting-an-invalid-scratch-backed-evi
     statement """
         Correcting an invalid scratch-backed evidence artifact with knowledge.revise was rejected because the superseded invalid revision still had to validate. The required bridge was to `akr scratch keep` first, then revise to the durable artifact.
         """
-    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    observed_at git:b84eec35dbe0395bdf14c8996606972d2af4dce8
     about "akr"
     author "codex"
     created_at 2026-08-23
@@ -164,7 +164,7 @@ record evidence-intake-project.papercut.driving-the-winsafe-gui-for-verification
     statement """
         Driving the WinSafe GUI for verification via PowerShell SendKeys misfired: SetForegroundWindow from a background process is ignored by the Windows foreground lock, so keystrokes went to whatever app the user had focused. Any future GUI-driving script must verify GetForegroundWindow equals the target window before EVERY key send and abort otherwise; better, verify through headless Workspace tests and leave live-GUI passes to a human.
         """
-    observed_at git:397ed72357b1943c8e624271a43d410460824fd3
+    observed_at git:15f84a997f9c9c108341d58335ed1f04853861f2
     author "claude"
     created_at 2026-08-30
 }
@@ -175,9 +175,21 @@ record evidence-intake-project.papercut.external-ocr-repository-instructions-liv
     statement """
         External OCR repository instructions lived at the ecosystem parent, while the initial read assumed a project-local AGENTS.md and had to be retried.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     author "codex"
     created_at 2026-08-21
+}
+
+record evidence-intake-project.papercut.git-filter-repo-to-drop-damion-1-2-jpg-rewrote/1 : papercut {
+    title "git filter-repo to drop Damion_1-2.jpg rewrote 8 commit hashes and…"
+    state verified
+    statement """
+        git filter-repo to drop Damion_1-2.jpg rewrote 8 commit hashes and AKR-G011 failed on 63 observed_at pins. Remapped those SHAs through .git/filter-repo/commit-map; akr check is clean again. A rewrite that touches the root commit has to remap pins before the next akr check.
+        """
+    observed_at git:e3842c378c5b8f58f95e0e719c7428ac62120702
+    about "akr"
+    author "grok-4.6"
+    created_at 2026-09-12
 }
 
 record evidence-intake-project.papercut.i-passed-scope-terms-as-path-src-gui-winsafe-rs/1 : papercut {
@@ -234,7 +246,7 @@ record evidence-intake-project.papercut.knowledge-validate-returned-an-unexpecte
     statement """
         knowledge.validate returned an unexpected response type at handoff, so validation had to fall back to the equivalent CLI check.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     about "akr"
     author "codex"
     created_at 2026-08-21
@@ -246,7 +258,7 @@ record evidence-intake-project.papercut.proposing-records-with-line-based-citati
     statement """
         Proposing records with line-based citations into a registered source: every citation whose end_line fell on a blank line was accepted by knowledge.propose but then failed validation with AKR-S022 (byte range covers one line fewer). Eight revises to fix. Propose should either reject or normalise the range at write time.
         """
-    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    observed_at git:b84eec35dbe0395bdf14c8996606972d2af4dce8
     about "akr"
     author "claude"
     created_at 2026-08-23
@@ -293,7 +305,7 @@ record evidence-intake-project.papercut.strict-clippy-for-the-adapter-packages-a
     statement """
         Strict Clippy for the adapter packages also linted the root dependency and stopped on its pre-existing chunks_exact_to_as_chunks diagnostic; rerun with --no-deps is needed to isolate new adapter code.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     author "codex"
     created_at 2026-08-21
 }
@@ -304,7 +316,7 @@ record evidence-intake-project.papercut.the-advertised-codegraph-instructions-na
     statement """
         The advertised CodeGraph instructions name `codegraph_explore`, but this session exposes only node/callers/callees/impact/search; the first structural lookup failed and required tool-name discovery.
         """
-    observed_at git:773da01e6fae7215832a961fc7b852494268fc44
+    observed_at git:b84eec35dbe0395bdf14c8996606972d2af4dce8
     about "CodeGraph"
     author "codex"
     created_at 2026-08-23
@@ -338,7 +350,7 @@ record evidence-intake-project.papercut.the-evidence-video-package-test-suite-ca
     statement """
         The evidence-video package test suite cannot run live_embedding_cli_contract in the current interpreter because torch is absent; this is the legacy Python backend being replaced, while all other audio/video tests passed.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     author "codex"
     created_at 2026-08-21
 }
@@ -360,7 +372,7 @@ record evidence-intake-project.papercut.the-first-strict-clippy-pass-on-the-new-
     statement """
         The first strict Clippy pass on the new broker found documentation-markdown, exhaustive Debug, needless ownership and let-else style violations; the implementation needed a mechanical lint cleanup before the gate.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     author "codex"
     created_at 2026-08-21
 }
@@ -371,7 +383,7 @@ record evidence-intake-project.papercut.the-first-supervised-worker-integration-
     statement """
         The first supervised-worker integration test failed without printing the broker response, and its fixture also tripped cast_precision_loss; the assertion needed diagnostic output and a fixed test vector before the protocol failure could be localized.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     author "codex"
     created_at 2026-08-21
 }
@@ -382,7 +394,7 @@ record evidence-intake-project.papercut.the-interprocess-local-socket-stream-exp
     statement """
         The interprocess local-socket stream exposes try_clone through a non-prelude TryClone trait, so the first broker compile failed until the explicit import was added.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     author "codex"
     created_at 2026-08-21
 }
@@ -393,7 +405,7 @@ record evidence-intake-project.papercut.the-lean-linux-turboocr-tensorrt-build-f
     statement """
         The lean Linux TurboOCR TensorRT build found CUDA 13.3 libraries but CMake could not identify a CUDA compiler or default architecture; the native probe build needed an explicit compiler/toolkit diagnosis.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     about "TurboOCR build"
     author "codex"
     created_at 2026-08-21
@@ -416,7 +428,7 @@ record evidence-intake-project.papercut.this-local-repo-has-no-git-remote-a-push
     statement """
         This local repo has no git remote. A push of the README required a separate clone of github.com/liminalism/EvidenceIntake so the private .akr tree was not sent. A named public remote, or a documented export recipe, would make that boundary obvious.
         """
-    observed_at git:cc6d5153002d15f5ab1bfec714752567814359a5
+    observed_at git:6cd9b2e4951e18410070550d995b42a2585ea632
     about "git"
     author "grok-4.6"
     created_at 2026-09-12
@@ -475,7 +487,7 @@ record evidence-intake-project.papercut.while-proposing-a-decision-through-knowl
     statement """
         While proposing a decision through knowledge.propose I used the common `statement` slot; decisions instead require a `decision` slot, which is easy to miss without calling knowledge.explain first.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     about "akr"
     author "codex"
     created_at 2026-08-22
@@ -511,7 +523,7 @@ record evidence-intake-project.papercut.while-starting-architecture-planning-kno
     statement """
         While starting architecture planning, knowledge.start failed with an unexpected response type, requiring the CLI fallback.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     about "akr"
     author "codex"
     created_at 2026-08-21
@@ -523,7 +535,7 @@ record evidence-intake-project.papercut.workspace-strict-clippy-surfaced-the-new
     statement """
         Workspace strict Clippy surfaced the new document crate's missing doc_markdown allowance, which the existing adapter crates already carry; the package lint table needed alignment.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     author "codex"
     created_at 2026-08-21
 }

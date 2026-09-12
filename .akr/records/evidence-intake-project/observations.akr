@@ -8,7 +8,7 @@ record evidence-intake-project.inference.linux-tensorrt-ocr-build/1 : observatio
     statement """
         On the RTX 4060 Linux workstation, the TurboOCR lean CUDA/TensorRT text pipeline builds from source against TensorRT 11.0.0.114 and CUDA 13.3 when CMAKE_CUDA_COMPILER is supplied explicitly; its native TensorRT probe and the Evidence broker-to-real-OCR integration test both pass.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     watches [ "runtime/tensorrt/**", "adapters/document/**" ]
     verified_by [ @evidence-intake-project.evidence.linux-tensorrt-ocr-real-cuda/1 ]
@@ -21,7 +21,7 @@ record evidence-intake-project.inference.linux-tensorrt-ocr-build/2 : observatio
     statement """
         On the RTX 4060 Linux workstation, the TurboOCR lean CUDA/TensorRT text pipeline builds from source against TensorRT 11.0.0.114 and CUDA 13.3 when CMAKE_CUDA_COMPILER is supplied explicitly; its native TensorRT probe and the Evidence broker-to-real-OCR integration test both pass.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     watches [ "Cargo.toml" ]
     supersedes [ @evidence-intake-project.inference.linux-tensorrt-ocr-build/1 ]
@@ -39,7 +39,7 @@ record evidence-intake-project.inference.linux-tensorrt-ocr-build/3 : observatio
 
         `observed_at` is also corrected from fc3212c7 to 8218ede4 for the same reason as the backing evidence: `runtime/tensorrt` and its `tests/ocr_worker.rs` were both first added by 8218ede4, so the run cannot have happened at the earlier commit. The external pins the claim really rests on — TensorRT 11.0.0.114, CUDA 13.3, and the TurboOCR sources under ../Lege-ecosystem/lege-document-ocr — are outside this repository and no watch can see them change.
         """
-    observed_at git:8218ede417a4d1c40a806c1ca0250e09ef2e49d5
+    observed_at git:107706a07786847b0c18ed54c3b5328c2facb73d
     method command
     watches [ "runtime/tensorrt/**", "adapters/document/**" ]
     supersedes [ @evidence-intake-project.inference.linux-tensorrt-ocr-build/2 ]
@@ -82,7 +82,7 @@ record evidence-intake-project.video.cuda-local-vlm-captioning-fit/2 : observati
     statement """
         Inspection of ssheld/cuda-local-vlm-video-captioning at its sole initial public commit 3a354b5c5e44a55817f53a95182006b508ddeaff found a useful MIT-licensed alpha reference for load-once CUDA VLM runtimes, model-family adapters, browser smoke gates, structured JSONL provenance, and latency/peak-VRAM comparison. It is not a drop-in video intake module: its batch CLI uniformly samples a fixed count over the whole MP4 with OpenCV, deletes temporary frames, records a local path rather than an original hash and interval locator, follows unpinned model ids by default with trust_remote_code, and its animal-oriented schema asks for behavior, interaction and count fields that do not fit the project's point-never-assert contract. Reuse the runtime and benchmark patterns while retaining this project's bounded scene sampler, original-timeline locators, conservative suggested captions and pinned offline artifacts.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     watches [ "adapters/video/**" ]
     depends_on [ @evidence-intake-project.decision.video-intake-points-never-asserts/1 ]
@@ -115,7 +115,7 @@ record evidence-intake-project.video.cuda-local-vlm-captioning-fit/3 : observati
 
         A review of an external repository pinned at one immutable commit hash. Nothing in this repository can falsify it, so it carries no watches; the `adapters/video/**` glob it used to carry was tripped by 8218ede4's rewrite of our own adapter sources, which the statement says nothing about. The reference checkout is retained at .agent/scratch/external/cuda-local-vlm-video-captioning. What could change the conclusion is the upstream repository moving past that commit, which no watch here can see.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     depends_on [ @evidence-intake-project.decision.video-intake-points-never-asserts/1 ]
     derived_from [ @evidence-intake-project.video.real-embedding-benchmark/1 ]
@@ -171,7 +171,7 @@ record evidence-intake-project.video.lege-gpu-siglip2-fit/2 : observation {
     statement """
         Inspection of the clean lege-gpu source tree at sibling repository HEAD 3f520cc03211e48adaa77c1da9bc639c53d2d351 found a custom ONNX-to-wgpu document-vision runtime whose generic session accepts a hard-coded set of single FLOAT image inputs, represents runtime tensors only as f32, lacks SigLIP2 transformer requirements such as LayerNormalization/GELU and runtime integer token gathering, and recompiles the generic graph on every run_gpu call. A local hardware-policy test did successfully select the NVIDIA RTX 4060 Laptop GPU through DX12. lege-gpu can contribute proven adapter selection, resident-buffer planning, and wgpu kernels to a future native backend, but using it for SigLIP2 would first require model export, typed multi-input tensors, transformer operator lowering, tokenization/preprocessing, a persistent batched session, and parity/performance tests; it cannot replace the current PyTorch benchmark backend now.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     watches [ "adapters/video/src/embed.rs", "Cargo.toml", "Cargo.lock" ]
     review_after 2026-09-20
@@ -199,7 +199,7 @@ record evidence-intake-project.video.lege-gpu-siglip2-fit/3 : observation {
 
         A snapshot review of a sibling repository pinned at one commit hash, plus one local hardware-selection run. Nothing here can falsify it, so it carries no watches. Its old list — adapters/video/src/embed.rs, Cargo.toml, Cargo.lock — was tripped by 8218ede4, which removed an unrelated shell-out CliEmbeddingBackend from embed.rs and added workspace members; the Cargo.lock diff contains no onnx, wgpu or lege entries at all. What could change the conclusion is lege-gpu moving past 3f520cc0, which is a sibling repository and outside any watch this ledger can express.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     review_after 2026-09-20
     claim native-potential {
@@ -308,7 +308,7 @@ record evidence-intake-project.video.qwen2-vl-donetsk-caption-smoke/3 : observat
     statement """
         The replacement evidence sample jaf69w.mp4 (SHA-256 E92C56F7BD9E53B98866D1D79BC61358F0257C62409E29477D3A23D751B41140) fully decoded as 13:54.781 of 1280x720 H.264 at 25 fps with AAC audio. In an isolated Transformers 5.7.0 environment sharing torch 2.13.0+cu132, the Apache-2.0 Qwen/Qwen2-VL-2B-Instruct checkpoint pinned at 895c3a49bc3fa70a340399125c650a463535e71c loaded from two verified local weight shards totaling 4.13 GiB. A four-frame joint request completed in 44.6 seconds but peaked at 7469.5 MiB CUDA allocation on the 8 GiB RTX 4060; keeping the model resident and captioning 24 frames independently completed in 75.998 seconds and peaked at 4568.8 MiB. The integrated project-owned Rust-to-Python batch backend then processed 26 scene windows across the first 02:00.040 in one load-once process. It stored 26 suggested observations using only a deterministic bounded visible-feature vocabulary, stamped every caption with the pinned model revision, retained no free-form model prose, and produced zero matches for military, police, officer, firefighter, patient, riot, protest, attack, explosion, guilty or innocent. The 00:39.480-00:44.480 window is indexed as multiple people, camouflage clothing, vehicle, building and road, preserving directly visible appearance without assigning a military role. The adapter supports explicit null abstention, although this sample produced none. Qwen2-VL is therefore usable as a suggested visual skim index when run sequentially with a resident offline model, deterministic output reduction and human review; it is not a factual narrator and must not provide identity, role, event or legal conclusions.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     watches [ "adapters/video/**" ]
     depends_on [ @evidence-intake-project.decision.video-intake-points-never-asserts/1 ]
@@ -357,7 +357,7 @@ record evidence-intake-project.video.qwen2-vl-donetsk-caption-smoke/4 : observat
 
         Every number here is one run against one pinned video and one pinned checkpoint revision, so it carries no watches: a completed measurement at a fixed commit cannot be falsified by a later commit. Its old `adapters/video/**` glob was tripped by 8218ede4, which under adapters/video/python/ changed only README.md — no caption script, vocabulary or checkpoint. Reproducing it needs .agent/scratch/models/Qwen2-VL-2B-Instruct-895c3a49 and .agent/scratch/donetsk-jaf69w/, both of which are `akr scratch keep` for exactly that reason. The closing sentence — Qwen2-VL is a suggested index and never a factual narrator — is a normative claim owned by @evidence-intake-project.decision.video-intake-points-never-asserts, not by this measurement.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     depends_on [ @evidence-intake-project.decision.video-intake-points-never-asserts/1 ]
     derived_from [ @evidence-intake-project.video.real-embedding-benchmark/1 ]
@@ -433,7 +433,7 @@ record evidence-intake-project.video.sample-scene-coverage-gap/3 : observation {
     statement """
         Against the current local 18:34.986 H.264 sample, ffmpeg scene scoring at the adapter default 0.30 threshold produced 57 cuts (58 scenes). The median interval was 8.74 seconds, 15 intervals exceeded 30 seconds, 6 exceeded 60 seconds, and the maximum was 76.94 seconds. Because the adapter extracts only the frame at each scene start, the visual finder cannot retrieve anything visible only between those sampled instants.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     watches [ "adapters/video/src/scene.rs" ]
     derived_from [ @evidence-intake-project.video.scene-core/1 ]
@@ -494,7 +494,7 @@ record evidence-intake-project.video.siglip2-cut-distribution/4 : observation {
     statement """
         The local google/siglip2-base-patch16-384 checkpoint embedded 254 hybrid-sampled frames from the 18:34.986 local video into finite normalized 768-dimensional vectors. Across nine representative text queries, maximum cosine similarity ranged from 0.0766 to 0.1204 and zero frames met the synthetic KEYFRAME_SIMILARITY_CUT of 0.20. The fixed cut therefore makes the live visual finder return no candidates even though the model produces a usable relative ordering.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     watches [ "src/store.rs", "src/views.rs", "adapters/video/src/embed.rs" ]
     derived_from [ @evidence-intake-project.video.real-embedding-benchmark/1 ]
@@ -512,7 +512,7 @@ record evidence-intake-project.video.siglip2-cut-distribution/5 : observation {
 
         A one-shot measurement at a fixed commit against a fixed checkpoint and a fixed video; it cannot be falsified by a later commit, so it carries no watches. Two notes for anyone reading it as current behaviour. First, do not go looking for KEYFRAME_SIMILARITY_CUT: the constant lived at src/views.rs:267 as of 0a17a5d and was already gone by the commit this observation is anchored to, so the "synthetic cut" it names is the thing the measurement argued against, not code that shipped. `Store::find_stills_by_query_vector` in src/store.rs applies no threshold at all — it orders by cosine similarity and truncates to the limit. Second, this observation is the resolver for @evidence-intake-project.video.keyframe-candidate-selection-question, and that resolution stands: select the bounded pool by internal similarity, reorder chronologically, store and export no score, and add no fixed cut.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     derived_from [ @evidence-intake-project.video.real-embedding-benchmark/1 ]
     resolves [ @evidence-intake-project.video.keyframe-candidate-selection-question ]
@@ -562,7 +562,7 @@ record evidence-intake-project.video.siglip2-standalone-label-abstention-dvids-9
     statement """
         The highest-quality official DVIDS 966833 rendition (SHA-256 97F3FA71E8AC5572081837E7F778D2DD8AFB22B8E694C313F0D0B39578A925F0) was fully decoded and hybrid-sampled into 26 frames in [0,120000) ms. With the local google/siglip2-base-patch16-384 checkpoint, five neutral label groups, three paraphrases per label, the checkpoint's learned cosine scale and bias, and an availability rule requiring every paraphrase both to clear the native 0.5 sigmoid threshold and choose the same label, zero labels were available in every group on all 26 frames. Only five added-text prompt decisions and one vehicle prompt decision individually cleared 0.5; setting, people and view-quality had none. A forced-choice comparison had only 0-19.2% paraphrase agreement and zero vehicle agreement. This checkpoint therefore did not produce responsible standalone text identifications for this window and vocabulary, although the result does not disqualify it as a relative text-to-frame retrieval encoder.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     watches [ "adapters/video/**" ]
     derived_from [ @evidence-intake-project.video.real-embedding-benchmark/1 ]
@@ -580,7 +580,7 @@ record evidence-intake-project.video.siglip2-standalone-label-abstention-dvids-9
 
         A one-shot experiment over a fixed video, a fixed checkpoint and a fixed label vocabulary, so it carries no watches. Revision 1 listed exactly the six inputs the experiment consumed — embed_cli.py, label_probe.py, label_vocabulary.json, siglip/config.json, siglip/model.safetensors and the DVIDS mp4 — which was the right instinct but the wrong mechanism: those files are the experiment's inputs, and changing one does not make a past result false, it just means the next run will differ. A later revision replaced that list with a bare `adapters/video/**`, which then went stale on 8218ede4 for a commit that touched only README.md under adapters/video/python/. The labelled outputs are retained at .agent/scratch/dvids-966833-siglip via `akr scratch keep`. The forward-looking question this feeds — whether SigLIP 2 is good enough as a retrieval encoder even though it abstains as a labeller — lives in @evidence-intake-project.video.real-embedding-benchmark, which is still proposed with five of six checks unsatisfied.
         """
-    observed_at git:fc3212c7247aee4564d71eacd065a3d35d373de6
+    observed_at git:ea1c4c898764e8060ca697df5e19cb552d340843
     method command
     derived_from [ @evidence-intake-project.video.real-embedding-benchmark/1 ]
     supersedes [
