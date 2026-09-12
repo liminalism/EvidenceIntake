@@ -1,217 +1,366 @@
 # Evidence Intake
 
-A local-first, defender-oriented evidence collation kernel written entirely in
-Rust. This repository follows [`collation-first-plan.md`](collation-first-plan.md):
-the primary object is a contested proposition connected to source-grounded
-evidence, legal issues, people, and defense decisions. OCR, transcription, and
-video analysis are later ingestion adapters.
+Evidence Intake is a program for public defenders.
+The program keeps a case file on your computer.
+It does not send case data to a network.
 
-This initial milestone provides:
+The program helps you put evidence in order.
+It keeps different accounts of the same event.
+It does not decide which account is true.
 
-- immutable production, source, source-version, and exact-segment provenance;
-- statements, observations, document assertions, recording gaps, and nested
-  reporting chains;
-- unresolved entity mentions, raw and normalized times, events, and contested
-  propositions;
-- typed, reviewable evidence relationships that preserve disagreement;
-- a separate privileged advocacy layer with versioned annotations;
-- an append-only human review trail in which verification must cite the exact
-  original it was checked against;
-- human authoring of contested propositions and typed, reasoned evidence links,
-  which enter unreviewed because writing something down is not checking it;
-- charges recorded with their statutory elements, and attributed element
-  assessments that record a direction rather than a score;
-- privileged work product — issues, notes, and decision briefs — versioned by
-  superseding, so an earlier reading stays readable next to the current one;
-- audience-aware source-linked export, in which every factual line resolves to an
-  exact original and a disclosable export never reads the privileged tables;
-- deterministic assisted collation: eight analyzers that either propose a
-  relationship for review — overlaps, contradiction candidates, conflicting
-  attributions, possible duplicate people — or report a gap to close, each
-  stating a reason a defender can reconstruct;
-- a case-standing view answering what each element actually rests on: how many
-  distinct originals are behind it, whether one source alone carries it, what
-  nobody has checked, where evidence pulls both ways, and which gaps in the
-  record touch a charge — structure a defender can act on, never a score;
-- full-text search over extracted content, with the exact original locator on
-  every hit and privileged work product structurally out of reach;
-- text-to-frame retrieval over coverage- and scene-sampled keyframes, selecting
-  a bounded candidate pool internally and presenting it chronologically,
-  never reporting a similarity number, with vectors stored per case and
-  excluded from every export;
-- decision-oriented discovery, element, witness, timeline, issue, and brief
-  read models;
-- an adapter-neutral contract for already-OCRed documents, timestamped audio
-  transcripts, and scene-by-scene video observations;
-- hand-authored vehicle-stop and hit-and-run fixtures containing clock disagreement, a
-  superseding report, conflicting witness attributions, an interrupted
-  recording, referenced-but-missing evidence, later impairment observations,
-  and a charged-versus-lesser offense comparison.
+A person does the legal work.
+The program records the work and shows how the material is connected.
 
-The CLI remains the thinnest shell around the kernel. A native WinSafe workspace
-now exposes the same read models and mutations on Windows. WinSafe is an opt-in
-feature behind a platform-neutral application layer, so a future Linux shell can
-reuse the workflow without pulling Win32 into the default build.
+## What the program does
 
-## Run
+The program stores originals and the text that came from them.
+Each piece of text has an exact locator in the original.
+A locator is a page, a paragraph, or a time in a recording.
 
-The checked-in toolchain file selects current Rust nightly.
+You can:
+
+- Open a case and record each production of discovery
+- Keep statements, observations, document text, and gaps in recordings
+- Keep people, objects, and places as separate records
+- Write a proposition that stays contested
+- Link evidence to a proposition and give a written reason
+- Record a charge with its statutory elements
+- Map a proposition to an element as support, opposition, uncertain, or excluded
+- Search the extracted text and get the locator of each hit
+- Export a source-linked case file
+- Run analyzers that propose a relationship or report a gap
+- Review machine output and human writing in one queue.
+
+The program also keeps a separate office file.
+The office file holds clients, matters, courts, settings, deadlines, and notes.
+
+On Windows, a graphical program shows the same case file.
+The Court pane shows the day in court.
+The Office pane shows the evidence work for a matter.
+
+The program includes two demonstration cases:
+
+- A vehicle stop
+- A hit-and-run.
+
+These cases contain clock disagreement, a later report that replaces an earlier one, and witness accounts that do not agree.
+They also contain an interrupted recording, missing evidence that a source refers to, and a charged offense next to a lesser offense.
+
+## What the program does not do
+
+The program does not conclude the case.
+It does not tell you the answer.
+
+| The program does not | Why |
+| --- | --- |
+| Calculate a truth score or a confidence score for a proposition | Supporting evidence and evidence that contradicts it can exist together. A number hides that fact. |
+| Mark evidence as admissible or not for the whole case | Admissibility depends on purpose, foundation, and a ruling. That work belongs to the defender. |
+| Merge two person records because the names look the same | Two people can share a name. A named person must decide. |
+| Replace a device time or a spoken time with a normalized time | Raw time is the original. A normalized time is a hypothesis that a person can review. |
+| Collapse timeline lanes into one official sequence | A recording, a witness, a police report, and a client account can disagree. The program keeps each lane. |
+| Let a machine mark a record as reviewed or verified | Only a named person can do that. Machine output starts as `suggested`. |
+| Treat a proposition that you write as already checked | Authoring is not review. Written work enters `unreviewed` and waits in the same queue. |
+| Show privileged work in a disclosable export | Attorney analysis is not discovery. The export does not read those tables. |
+| Do OCR, speech recognition, or video analysis in the evidence store | Those steps are separate adapter programs. The store receives their output. |
+| Connect to Axon, a prosecutor portal, or another discovery platform | The program reads files that you already have. It does not log in to a platform. |
+| Do billing, e-filing, legal research, or AI drafting | Those tasks are out of scope. |
+
+The standing view reports structure, not a verdict.
+It can show that one source carries an element, that nobody opened the original, or that a gap touches a charge.
+It does not say that an element is weak, and it does not estimate an outcome.
+
+## Parts of the program
+
+The repository has these parts:
+
+- `evidence` — the command program for the evidence file and the office file
+- `evidence-gui` — the Windows graphical program
+- `office-core` — the office library (clients, matters, calendar, notes)
+- `evidence-document`, `evidence-audio`, `evidence-video` — optional adapters
+- `evidence-trt-broker` — optional local inference broker for the adapters.
+
+The evidence file is `evidence.sqlite` by default.
+The office file is `office.sqlite` beside it.
+The two files do not share a transaction.
+The office library cannot open the evidence file.
+This boundary keeps attorney work product out of the office views.
+
+## What you need
+
+You need:
+
+- [Rust](https://rustup.rs) (the project file selects nightly)
+- A C compiler, because the build compiles SQLite
+- Linux or Windows for the command program
+- Windows for the graphical program
+- Visual Studio Build Tools with C++ on Windows.
+
+You do not need a system SQLite package.
+You do not need a GPU to build or operate the command program.
+A GPU and a TensorRT package are necessary only when you run the adapters that do OCR, speech, or video analysis.
+
+## How to build the command program
+
+Do these steps:
+
+1. Install `rustup` from <https://rustup.rs>.
+2. Open a terminal in the project directory.
+3. Build the daily test binary.
 
 ```sh
-cargo run -- init
-cargo run -- new-case --name "State v. Hall" --reference PD-2026-0900
-cargo run -- new-production case-id-from-new-case --label "Brady disk 1" --from Prosecution
-cargo run -- seed vehicle-stop
-cargo run -- seed hit-and-run
-cargo run -- cases
-cargo run -- productions case-hit-run-001
-cargo run -- view case-vehicle-stop-001 overview
-cargo run -- view case-vehicle-stop-001 standing
-cargo run -- view case-vehicle-stop-001 discovery
-cargo run -- view case-vehicle-stop-001 elements
-cargo run -- view case-vehicle-stop-001 witness person-patel
-cargo run -- view case-vehicle-stop-001 timeline
-cargo run -- view case-vehicle-stop-001 collation
-cargo run -- view case-vehicle-stop-001 issues
-cargo run -- view case-vehicle-stop-001 brief motions
-cargo run -- view case-hit-run-001 offenses
-cargo run -- view case-hit-run-001 proposition hr-prop-impaired-driving
-cargo run -- review case-hit-run-001 queue
-cargo run -- review case-hit-run-001 history
-cargo run -- author case-hit-run-001 proposition \
-  --text "Morgan did not perceive the impact." --author "A. Reyes"
-cargo run -- author case-hit-run-001 link \
-  --from-kind content --from hr-content-client-driving --relation supports \
-  --to-kind proposition --to <proposition-id> \
-  --rationale "Morgan expressly disputes awareness of any impact." \
-  --author "A. Reyes"
-cargo run -- author case-hit-run-001 work \
-  --kind motion-issue --title "Timing of the stop" \
-  --body "First reading of the interval." --author "A. Reyes"
-cargo run -- view case-hit-run-001 work-history <item-id>
-cargo run -- view case-hit-run-001 notes content hr-content-911-injury
-cargo run -- export case-hit-run-001
-cargo run -- export case-hit-run-001 --audience work-file
-cargo run -- search case-hit-run-001 'hatchback'
-cargo run -- search case-hit-run-001 '"paint transfer"' --limit 5
-cargo run -- index-frames case-hit-run-001 embeddings.json
-cargo run -- find-frames case-hit-run-001 --model test-clip '[1.0, 0.0]'
-cargo run -- suggest case-vehicle-stop-001
-cargo run -- author case-vehicle-stop-001 entity --kind person --name "Patel"
+cargo build --profile debug-release --bin evidence
 ```
 
-`standing` is the view to open first: what each element rests on, how many
-distinct originals are behind it, which source alone carries it, and which gaps
-touch a charge. It reports structure and never a verdict — see
-[`docs/standing.md`](docs/standing.md). `search` finds a passage by its words and
-hands back the exact locator to open it in the original; see
-[`docs/search.md`](docs/search.md).
+The binary is `target/debug-release/evidence`.
+On Windows the name is `evidence.exe`.
 
-`export` produces the source-linked record: every factual line carries the exact
-original it rests on, and the default `disclosable` audience never reads the
-privileged tables. See [`docs/export.md`](docs/export.md).
+4. Build the release binary when you want the smaller program.
 
-Machine suggestions stay suggestions until a person acts on them. `review
-queue` lists what is waiting with the exact locator to open, and `review apply`
-records the decision; see [`docs/review-workflow.md`](docs/review-workflow.md)
-for what each state costs.
+```sh
+cargo build --profile release-final --bin evidence
+```
 
-`author` is how a person adds their own reading rather than an adapter's: a
-contested proposition, and typed relationships tying content to it. Both enter
-unreviewed and join the same queue, and every relationship carries a written
-rationale, because an edge spans sources and has no original of its own. See
-[`docs/authoring.md`](docs/authoring.md).
+The binary is `target/release-final/evidence`.
 
-Use `--database PATH` before the subcommand to select another case database.
-SQLite databases are ignored by Git.
+`debug-release` is the daily build.
+It uses release speed and keeps debug data.
+`release-final` is the ship build.
+It uses link-time optimization and strips debug data.
+The compile time is longer.
 
-### Windows GUI
+You can also start a command without a build first:
+
+```sh
+cargo run --bin evidence -- init
+```
+
+Always name the binary with `--bin evidence`.
+The repository has more than one binary.
+
+## How to build the Windows program
+
+Do this build on Windows:
 
 ```powershell
-cargo run --features gui-winsafe --bin evidence-gui -- evidence.db
+cargo build --profile debug-release --features gui-winsafe --bin evidence-gui
 ```
 
-The GUI is deliberately workflow-first: choose a case, navigate the standing,
-discovery, element, timeline, issue, review, search, collation, packet, digest,
-and export views, then use the lower action panel for named review decisions,
-normalized-batch intake, and typed authoring JSON. Buttons use Win32 mnemonic
-markers, so `Alt` plus the underlined letter activates the corresponding
-command; every view also carries a `Ctrl` accelerator, because the Alt
-namespace ran out before the views did. The safe export is `disclosable`; the
-privileged work-file export is a separate action. **Time & Place Index**
-presents time/location anchors and placement gaps as a readable review sheet
-rather than raw JSON; `Alt+G` opens it directly.
+The binary is `target/debug-release/evidence-gui.exe`.
 
-**Enrichment Sweep** (`Alt+X` or `Ctrl+E`) is where the semantic layer is
-entered. No adapter can say whether a sentence is an assertion, a quotation or
-a report of somebody else's words, so a person does — one source profile
-inherited by every passage in the file, then one keystroke per exception, with
-the original beside the grid. See [`docs/enrichment.md`](docs/enrichment.md).
+For the ship build:
 
-## Current boundary
+```powershell
+cargo build --profile release-final --features gui-winsafe --bin evidence-gui
+```
 
-This is the collation kernel and its first curated fixture, not an evidence
-conclusion engine. It deliberately does not:
+Start the program with the evidence file as the first argument:
 
-- compute a truth/confidence score for propositions;
-- label evidence globally admissible or inadmissible;
-- merge uncertain person mentions automatically;
-- overwrite device or spoken times with normalized time;
-- expose privileged advocacy records in the discovery ledger;
-- perform OCR, ASR, diarization, or video inference itself.
+```powershell
+.\target\debug-release\evidence-gui.exe evidence.sqlite
+```
 
-The input boundary assumes those modality pipelines already ran. Their outputs
-enter through `NormalizedBatch`; machine content must begin as `suggested` and
-preserves model version, confidence, original-source hash, and exact locator.
+If you omit the argument, the program opens `evidence.db`.
+The command program opens `evidence.sqlite` by default.
+Give the same path to both programs.
 
-Human review and human authoring are now first-class mutations, the first with
-its own immutable trail and the second with versioned work product that
-supersedes rather than overwrites. Source-linked export completed the
-defender workspace, and assisted collation now covers the Phase D
-analyzer set — deterministically, with no model and no score. Four analyzers
-propose relationships that wait on a person; four report gaps that are dismissed
-only by closing them.
+This feature compiles on Linux, but the Linux binary only prints a message.
+There is no Linux graphical program.
 
-The kernel now also answers the question the rest of it was built to serve:
-`standing` reports what each charge actually rests on, and `search` finds the
-passage behind it. Those are read models, not new claims — the line they hold is
-rule 35, that structure may be reported and a verdict may not. The first WinSafe
-workspace consumes them now; remaining product work is deeper native workflow
-polish and the modality adapters that feed `NormalizedBatch`.
+## How to build the adapters (optional)
 
-### The office layer
+The adapters are separate programs.
+You do not need them to open a demo case or to write review decisions.
 
-The project is no longer only an evidence utility. An office layer — clients,
-matters, courts, settings, deadlines, notes, assignments, and a search that
-spans them — is built **beside** the kernel as the `office-core` crate, with its
-own `office.sqlite` next to `evidence.sqlite`. A defender opens the app on a
-**Court** pane and sees the day: one row per court setting, however many of a
-client's related matters it covers, with the structural posture of each linked
-evidence case beside it. The **Office** pane is every existing evidence surface,
-reached through a matter rather than through a bare case list.
+```sh
+cargo build --profile debug-release -p evidence-document --bin evidence-document
+cargo build --profile debug-release -p evidence-audio --bin evidence-audio
+cargo build --profile debug-release -p evidence-video --bin evidence-video
+cargo build --profile debug-release -p evidence-trt --bin evidence-trt-broker
+```
 
-The boundary is structural, not a filter. `office-core` has no dependency on
-`evidence-intake` and no way to open an evidence database, so a docket row is
-built by code that cannot read `advocacy_items`, `annotations`, or
-`decision_briefs`. A matter carries an `evidence_case_id` as a bare identifier
-with no foreign key behind it; exactly one module in the workspace holds both
-databases open, and rule 35 governs what it may say about a case just as it
-governs the standing view. Domain rules 39–44 state the whole of it.
+On Windows, a packaged TensorRT runtime and model packs are also necessary.
+See `runtime/tensorrt/README.md` and `scripts/package_windows_tensorrt.ps1`.
 
-This does not soften anything above. Nothing in the office layer scores a case,
-no machine confers a review state, no identity is merged without a named person
-deciding, and a note cannot be altered or deleted in place by anyone.
+An adapter writes a `NormalizedBatch` JSON document.
+The command program imports that document.
+The evidence store does not run the model.
 
-One thing it deliberately still refuses: changing an element assessment. Reading
-evidence differently later is an honest act that should leave a trail, but
-whether that trail is the defender's own working record or an accountability
-audit log decides its schema, so it is recorded as an open question rather than
-guessed at.
+## How to start with a demo case
 
-## Development
+The command program prints JSON.
+
+1. Create or migrate the evidence file.
+2. Load a demonstration case.
+3. Open the standing view.
+
+```sh
+./target/debug-release/evidence init
+./target/debug-release/evidence seed hit-and-run
+./target/debug-release/evidence view case-hit-run-001 standing
+```
+
+For the vehicle-stop case:
+
+```sh
+./target/debug-release/evidence seed vehicle-stop
+./target/debug-release/evidence view case-vehicle-stop-001 standing
+```
+
+`seed` is safe to run more than one time.
+Open `standing` first.
+That view shows what each charge element rests on.
+
+To use a different evidence file, put `--database PATH` before the subcommand:
+
+```sh
+./target/debug-release/evidence --database /path/to/case.sqlite init
+```
+
+Git ignores SQLite files.
+
+## Daily commands
+
+Show all commands:
+
+```sh
+./target/debug-release/evidence --help
+./target/debug-release/evidence view --help
+```
+
+### Cases and productions
+
+```sh
+./target/debug-release/evidence new-case --name "State v. Hall" --reference PD-2026-0900
+./target/debug-release/evidence new-production CASE_ID --label "Brady disk 1" --from Prosecution
+./target/debug-release/evidence cases
+./target/debug-release/evidence productions CASE_ID
+```
+
+### Views
+
+```sh
+./target/debug-release/evidence view CASE_ID overview
+./target/debug-release/evidence view CASE_ID standing
+./target/debug-release/evidence view CASE_ID discovery
+./target/debug-release/evidence view CASE_ID elements
+./target/debug-release/evidence view CASE_ID timeline
+./target/debug-release/evidence view CASE_ID collation
+./target/debug-release/evidence view CASE_ID issues
+./target/debug-release/evidence view CASE_ID offenses
+```
+
+Other views take an extra identifier (`witness`, `proposition`, `brief`, `notes`, `work-history`).
+See [`docs/standing.md`](docs/standing.md).
+
+### Search, suggestions, review, and export
+
+```sh
+./target/debug-release/evidence search CASE_ID 'hatchback'
+./target/debug-release/evidence suggest CASE_ID
+./target/debug-release/evidence review CASE_ID queue
+./target/debug-release/evidence review CASE_ID apply --target content --id CONTENT_ID --state verified --actor "A. Reyes" --locator "LOCATOR"
+./target/debug-release/evidence export CASE_ID
+./target/debug-release/evidence export CASE_ID --audience work-file
+```
+
+`export` without `--audience` is the disclosable file.
+That file never reads privileged tables.
+`--audience work-file` is the defense team's complete file.
+See [`docs/export.md`](docs/export.md), [`docs/search.md`](docs/search.md), [`docs/review-workflow.md`](docs/review-workflow.md), and [`docs/suggestions.md`](docs/suggestions.md).
+
+### Authoring
+
+```sh
+./target/debug-release/evidence author CASE_ID proposition --text "Morgan did not perceive the impact." --author "A. Reyes"
+./target/debug-release/evidence author CASE_ID link \
+  --from-kind content --from CONTENT_ID --relation supports \
+  --to-kind proposition --to PROPOSITION_ID \
+  --rationale "Morgan disputes awareness of any impact." \
+  --author "A. Reyes"
+```
+
+Every link needs a written rationale.
+See [`docs/authoring.md`](docs/authoring.md).
+
+### Import
+
+```sh
+./target/debug-release/evidence ingest CASE_ID batch.json
+```
+
+The case identifier in the command must match the case identifier in the batch.
+See [`docs/normalized-input.md`](docs/normalized-input.md).
+
+## The office
+
+The office commands operate on `office.sqlite`.
+They do not open the evidence file, except `docket` and `matter show`.
+
+```sh
+./target/debug-release/evidence office init
+./target/debug-release/evidence office seed
+./target/debug-release/evidence office docket
+./target/debug-release/evidence office --help
+```
+
+Use `--office-database PATH` to select a different office file.
+
+A note in the office is append-only.
+An edit writes a new version.
+The earlier version stays readable.
+A named person must set the acting user before office writes.
+
+## The Windows program
+
+The window has two panes.
+
+- **Court** — one row for each court setting on the selected day
+- **Office** — the evidence views for the selected matter.
+
+`Ctrl+Shift+K` opens Court.
+`Ctrl+Shift+O` opens Office.
+
+In Office, choose a case.
+Then open a view: standing, discovery, elements, timeline, issues, review, search, collation, packet, digest, or export.
+The lower panel is for named review, intake of a normalized batch, and authoring.
+`Alt` plus the underlined letter starts the matching command.
+Each view also has a `Ctrl` shortcut.
+
+The safe export is disclosable.
+The work-file export is a separate action.
+
+Enrichment Sweep (`Alt+X` or `Ctrl+E`) is where a person classifies a passage.
+An adapter cannot say if a sentence is an assertion, a quotation, or a report of another person's words.
+A person does that work.
+See [`docs/enrichment.md`](docs/enrichment.md).
+
+## Tests and checks
 
 ```sh
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-features
 ```
+
+On Windows, include the graphical program:
+
+```powershell
+cargo test --all-features --features gui-winsafe
+```
+
+## License
+
+The license is AGPL-3.0-or-later.
+
+## More reading
+
+- [`docs/domain-rules.md`](docs/domain-rules.md) — the rules that constrain the program
+- [`docs/standing.md`](docs/standing.md) — what each charge element rests on
+- [`docs/review-workflow.md`](docs/review-workflow.md) — review states and what each decision costs
+- [`docs/authoring.md`](docs/authoring.md) — how a person writes into the case
+- [`docs/export.md`](docs/export.md) — disclosable export and work-file export
+- [`docs/search.md`](docs/search.md) — full-text search
+- [`docs/suggestions.md`](docs/suggestions.md) — the analyzers
+- [`docs/normalized-input.md`](docs/normalized-input.md) — the adapter input contract
+- [`docs/enrichment.md`](docs/enrichment.md) — the enrichment sweep
+- [`collation-first-plan.md`](collation-first-plan.md) — the design thesis
