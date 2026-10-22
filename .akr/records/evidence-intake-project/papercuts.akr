@@ -102,6 +102,18 @@ record evidence-intake-project.papercut.akr-check-strict-already-reports-18-pre/
     created_at 2026-10-22
 }
 
+record evidence-intake-project.papercut.akr-g024-flags-evidence-commands-like-cargo/1 : papercut {
+    title "AKR-G024 flags evidence commands like 'cargo test --test office_bridge'…"
+    state verified
+    statement """
+        AKR-G024 flags evidence commands like 'cargo test --test office_bridge' as naming nothing in tracked source although tests/office_bridge.rs exists and ran (9 passed): the heuristic appears to search file contents for the token, not file names, so every --test <file> gate reads as a dead filter under --strict. Same false positive on four older video evidence records.
+        """
+    observed_at git:c6841418c05d01c28fdc555fa465e2926584d7ef
+    about "akr"
+    author "claude"
+    created_at 2026-10-22
+}
+
 record evidence-intake-project.papercut.akr-mcp-timed-out-after-65s-on-the-first/1 : papercut {
     title "AKR MCP timed out after 65s on the first knowledge call; the CLI is kr…"
     state verified

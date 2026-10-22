@@ -5,7 +5,7 @@ build {
     tool "akr 0.5.1"
     grammar "0.1"
     vocabulary "0.2"
-    source_graph "sha256:896816a75ae25856a657cb843968b8a1868efbc1c2a6973b029cf1c091d8af03"
+    source_graph "sha256:3641e9b0dee65cae35b33d2ce11670d0f34d769d44de4ca67b1d107b7d559e66"
 }
 
 source ".akr/project.akr" {
@@ -44,8 +44,8 @@ source ".akr/records/evidence-intake-project/observations.akr" {
 }
 
 source ".akr/records/evidence-intake-project/papercuts.akr" {
-    hash "sha256:3fed40fea594e73fcc51bf328f80e3a6f42b761fdc19ee267cfa0f6db6606095"
-    records 50
+    hash "sha256:2ffd986b1b3c1c848f0d694f6dad747931d6a78633529463220f2380b1db84f9"
+    records 51
 }
 
 source ".akr/records/evidence-intake-project/questions.akr" {
@@ -1404,6 +1404,11 @@ seal @evidence-intake-project.papercut.after-knowledge-source-add-succeeded-the/
 seal @evidence-intake-project.papercut.akr-check-strict-already-reports-18-pre/1 {
     state verified
     hash "sha256:0873cda6ae7bf3c01d4f0066aa0d120ac216baec6e8f7f466d1965c1cd7f47cb"
+}
+
+seal @evidence-intake-project.papercut.akr-g024-flags-evidence-commands-like-cargo/1 {
+    state verified
+    hash "sha256:6dfbc55ff8022c279d00af6438f65300644a574a8edd0c8fa38770e031db554a"
 }
 
 seal @evidence-intake-project.papercut.akr-mcp-timed-out-after-65s-on-the-first/1 {
