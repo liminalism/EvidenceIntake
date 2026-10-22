@@ -5,7 +5,7 @@ build {
     tool "akr 0.5.1"
     grammar "0.1"
     vocabulary "0.2"
-    source_graph "sha256:a15669165c69856e87eb0ae0a669cd9ae6b4e04deecd03c701d71103250b82ac"
+    source_graph "sha256:896816a75ae25856a657cb843968b8a1868efbc1c2a6973b029cf1c091d8af03"
 }
 
 source ".akr/project.akr" {
@@ -54,8 +54,8 @@ source ".akr/records/evidence-intake-project/questions.akr" {
 }
 
 source ".akr/records/evidence-intake-project/work.akr" {
-    hash "sha256:a8854a8a02009bc4ffe022af284e98545fda9c7b23f5fdbe251df865d2460f7c"
-    records 49
+    hash "sha256:4d3e427c50f4f92d4c53697d95461c8f4b27510b69aa1a99c9fee979d520f30d"
+    records 50
 }
 
 resolution @evidence-intake-project.assembly.candidate-rules/1 {
@@ -248,6 +248,24 @@ resolution @evidence-intake-project.audio.intake-adapter/1 {
     slot implements
     to @evidence-intake-project.decision.video-intake-points-never-asserts/1
     hash "sha256:d820d07821a3d36c71b07d05e1c17037947fc23ed60b15b102cd0b1710db9875"
+}
+
+resolution @evidence-intake-project.audio.speaker-diarization-pack/1 {
+    slot depends_on
+    to @evidence-intake-project.decision.phonon-2-default-speech-pack/1
+    hash "sha256:dfbb0c4849544c499d919e25fa4cf42a69f05fbe0aa52134e03d83aa4b876e09"
+}
+
+resolution @evidence-intake-project.audio.speaker-diarization-pack/1 {
+    slot depends_on
+    to @evidence-intake-project.decision.single-broker-inference/1
+    hash "sha256:7c20dfb8a5deabd6cbcd6db438a44a9ee8cf91291d962c1b3bab1c59bf0748ae"
+}
+
+resolution @evidence-intake-project.audio.speaker-diarization-pack/1 {
+    slot part_of
+    to @evidence-intake-project.inference.universal-tensorrt-integration/1
+    hash "sha256:eb413d9a200f242c30ddc3727d71ffc5eba961975b6875585f314bb53cdd4569"
 }
 
 resolution @evidence-intake-project.collation.document-integration-pass/1 {
