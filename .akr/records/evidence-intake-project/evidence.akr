@@ -231,6 +231,19 @@ record evidence-intake-project.evidence.conservative-identity-20260830/1 : evide
     author "GitHub Uploader"
 }
 
+record evidence-intake-project.evidence.conservative-identity-20261022/1 : evidence {
+    title "No identity is merged without a named person deciding, re-run after the history rewrite"
+    state verified
+    result pass
+    method command
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    command "cargo test -p office-core --test identity"
+    summary """
+        The seven identity tests passed: duplicate candidates are computed live and stored nowhere, only a named person's link or dismissal is written, a dismissed prompt is not offered again, declining leaves both records untouched, and a decision must name its author.
+        """
+    author "Claude"
+}
+
 record evidence-intake-project.evidence.court-office-pane-split-20260830/1 : evidence {
     title "The Court/Office split shows and hides two control groups intact"
     state verified
@@ -255,6 +268,19 @@ record evidence-intake-project.evidence.docket-first-court-pane-20260830/1 : evi
         The WinSafe workspace opens on the Court pane and answers the day from that pane alone. On the seeded misdemeanor caseload, 2026-08-25 renders twelve settings with time, what the setting is for, court and room, client, matter court numbers, charges, custody, offer, last contact, evidence posture and open work; the status line reads "2026-08-25 Tuesday · 12 settings · 14 matters · 27 owed within 14 days"; the deadline grid lists what is owed from that day; and selecting a setting fills the detail box in place without leaving the docket. One client called on three related matters is a single row. Posture columns read "1 contested, 1 sole-source", "1 case linked but not found" and "no evidence case linked" — counts and absences, never a score.
         """
     author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.docket-first-court-pane-20261022/1 : evidence {
+    title "The Court pane answers the day without a frontend, re-run after the history rewrite"
+    state verified
+    result pass
+    method command
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    command "cargo test --lib gui::"
+    summary """
+        The nineteen gui module tests passed, among them the_court_pane_renders_a_docket_without_a_frontend, court_date_navigation_moves_by_days_and_weeks, a_setting_covers_every_matter_of_one_client_it_names and what_is_owed_appears_on_the_day_it_falls: the seeded docket day renders client, matter, setting time and type, custody, deadlines, evidence posture and open work from the Court pane alone. The on-screen Windows observation of 2026-08-30 (artifacts/akr-evidence/gui-court-docket-day.png) was not repeated on this Linux host.
+        """
+    author "Claude"
 }
 
 record evidence-intake-project.evidence.docket-lists-cases-separately/1 : evidence {
@@ -282,6 +308,19 @@ record evidence-intake-project.evidence.document-collation-strict-lints/1 : evid
         """
 }
 
+record evidence-intake-project.evidence.document-collation-strict-lints-20261022/1 : evidence {
+    title "Clippy passed for every workspace target with warnings denied, re-run after the history rewrite"
+    state verified
+    result pass
+    method command
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    command "cargo clippy --workspace --all-targets -- -D warnings"
+    summary """
+        Clippy passed for every workspace target with warnings denied on nightly 1.101 (2026-10-21), after the emptiness assertions the newer lint rejects were rewritten.
+        """
+    author "Claude"
+}
+
 record evidence-intake-project.evidence.document-collation-synthetic-seam/1 : evidence {
     title "The synthetic ten-page DocIR fixture traversed import, discovery, FTS, placement gaps, exact-locator verification, proposition evidence, and disclosable export in numeric page order."
     state verified
@@ -295,6 +334,20 @@ record evidence-intake-project.evidence.document-collation-synthetic-seam/1 : ev
         """
 }
 
+record evidence-intake-project.evidence.document-collation-synthetic-seam-20261022/1 : evidence {
+    title "The synthetic DocIR fixture still traverses import, search, collation, review, proposition evidence and disclosable export in page order"
+    state verified
+    result pass
+    method command
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    command "cargo test -p evidence-document synthetic_document_collates_reviews_and_exports_in_page_order -- --nocapture"
+    artifact "adapters/document/tests/mapping.rs"
+    summary """
+        synthetic_document_collates_reviews_and_exports_in_page_order passed (1 passed, 4 filtered out).
+        """
+    author "Claude"
+}
+
 record evidence-intake-project.evidence.document-collation-workspace-tests/1 : evidence {
     title "Every workspace unit, integration, and documentation test passed; the native GPU OCR test remained explicitly ignored because it requires the external TensorRT build, models, and NVIDIA GPU."
     state verified
@@ -305,6 +358,19 @@ record evidence-intake-project.evidence.document-collation-workspace-tests/1 : e
     summary """
         Every workspace unit, integration, and documentation test passed; the native GPU OCR test remained explicitly ignored because it requires the external TensorRT build, models, and NVIDIA GPU.
         """
+}
+
+record evidence-intake-project.evidence.document-collation-workspace-tests-20261022/1 : evidence {
+    title "Every workspace test passed after the shared ordering change, re-run after the history rewrite"
+    state verified
+    result pass
+    method command
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    command "cargo test --workspace"
+    summary """
+        Every unit, integration and documentation test across the workspace passed; the two ignored tests are the native TurboOCR CUDA probe and the real Phonon-2 engine run, both needing external runtimes.
+        """
+    author "Claude"
 }
 
 record evidence-intake-project.evidence.edges-alone-and-stills/1 : evidence {
@@ -584,6 +650,19 @@ record evidence-intake-project.evidence.immutable-note-authorship-20260830/1 : e
     author "GitHub Uploader"
 }
 
+record evidence-intake-project.evidence.immutable-note-authorship-20261022/1 : evidence {
+    title "Office notes cannot be altered or deleted in place, re-run after the history rewrite"
+    state verified
+    result pass
+    method command
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    command "cargo test -p office-core --test notes"
+    summary """
+        The eight note tests passed: BEFORE UPDATE and BEFORE DELETE triggers refuse both, an edit writes a superseding version, every view filters superseded rows, and a second author cannot alter the first author's note.
+        """
+    author "Claude"
+}
+
 record evidence-intake-project.evidence.ingest-refuses-cross-case/1 : evidence {
     title "cargo test --test cases ingest_refuses_records_from_another_case passed: speaker and parent content from another case were refused with WrongCase."
     state verified
@@ -608,6 +687,19 @@ record evidence-intake-project.evidence.kernel-unchanged-with-office-20260830/1 
         328 tests pass across the workspace with office-core in it. No evidence migration, kernel invariant test or kernel schema was touched by the office layer; cargo fmt --all and cargo clippy --all-targets --all-features -- -D warnings are clean.
         """
     author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.kernel-unchanged-with-office-20261022/1 : evidence {
+    title "The evidence kernel is unchanged by the office layer, re-run after the history rewrite"
+    state verified
+    result pass
+    method command
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    command "cargo test --all-features"
+    summary """
+        The full suite passed with office-core in the workspace; no evidence migration or kernel invariant test was touched by the office layer, and cargo fmt --all --check and cargo clippy --workspace --all-targets --all-features -- -D warnings are clean.
+        """
+    author "Claude"
 }
 
 record evidence-intake-project.evidence.keyframe-case-local/1 : evidence {
@@ -807,6 +899,20 @@ record evidence-intake-project.evidence.office-privileged-boundary-20260830/1 : 
     author "GitHub Uploader"
 }
 
+record evidence-intake-project.evidence.office-privileged-boundary-20261022/1 : evidence {
+    title "Privileged kernel material is unreachable from the office layer, re-run after the history rewrite"
+    state verified
+    result pass
+    method command
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    command "cargo test --test office_bridge"
+    artifact "tests/office_bridge.rs"
+    summary """
+        The nine bridge tests passed: office-core has no dependency on evidence-intake and no way to open an evidence database; a serialized CourtDocket and MatterView carry no advocacy item, annotation or brief; the posture reports counts only; and a matter naming a case the kernel does not hold is reported as a broken link rather than as zeroes.
+        """
+    author "Claude"
+}
+
 record evidence-intake-project.evidence.office-search-and-cli-20260830/1 : evidence {
     title "Office search and the office CLI reach the layer without the GUI"
     state verified
@@ -831,6 +937,19 @@ record evidence-intake-project.evidence.one-appearance-many-matters-20260830/1 :
         One setting spanning three related matters of one client renders as one docket row with three matter lines; a matter can be individually unlinked or overridden; a setting cannot be emptied of every matter. Confirmed on screen: the Court pane's 2026-08-25 docket shows Alex Rivera once, matters CR-2026-491 · CR-2026-492 · CR-2026-517.
         """
     author "GitHub Uploader"
+}
+
+record evidence-intake-project.evidence.one-appearance-many-matters-20261022/1 : evidence {
+    title "One appearance covers many matters and renders once, re-run after the history rewrite"
+    state verified
+    result pass
+    method command
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    command "cargo test -p office-core --test calendar"
+    summary """
+        The fourteen calendar tests passed: one setting spanning several related matters of one client renders as one docket row, a matter can be individually unlinked or overridden, and a setting cannot be emptied of every matter. The on-screen Windows observation of 2026-08-30 was not repeated on this Linux host.
+        """
+    author "Claude"
 }
 
 record evidence-intake-project.evidence.optimization-pass-measured/1 : evidence {

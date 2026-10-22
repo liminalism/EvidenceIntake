@@ -433,6 +433,17 @@ record evidence-intake-project.papercut.the-lean-linux-turboocr-tensorrt-build-f
     created_at 2026-08-21
 }
 
+record evidence-intake-project.papercut.the-nine-akr-r022-errors-on-collation-document/1 : papercut {
+    title "The nine AKR-R022 errors on collation.document-integration-pass and…"
+    state verified
+    statement """
+        The nine AKR-R022 errors on collation.document-integration-pass and office.court-office-foundation were not stale work: the history rewrite behind 1b10efb (remap AKR commit pins after dropping Damion from history) remapped every evidence observed_at to a commit older than the milestone's defining commit, so current evidence read as predating its record. Re-ran each acceptance check and recorded fresh evidence at HEAD.
+        """
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    author "claude"
+    created_at 2026-10-22
+}
+
 record evidence-intake-project.papercut.the-readme-s-demo-view-commands-fail-against/1 : papercut {
     title "The README's demo `view` commands fail against the default empty…"
     state verified

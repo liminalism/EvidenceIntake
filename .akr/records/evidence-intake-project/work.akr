@@ -492,7 +492,10 @@ record evidence-intake-project.collation.document-integration-pass/1 : work {
                 """
             method command
             command "cargo clippy --workspace --all-targets -- -D warnings"
-            verified_by [ @evidence-intake-project.evidence.document-collation-strict-lints/1 ]
+            verified_by [
+                @evidence-intake-project.evidence.document-collation-strict-lints/1,
+                @evidence-intake-project.evidence.document-collation-strict-lints-20261022/1
+            ]
         }
         check synthetic-document-seam {
             statement """
@@ -501,7 +504,8 @@ record evidence-intake-project.collation.document-integration-pass/1 : work {
             method command
             command "cargo test -p evidence-document synthetic_document_collates_reviews_and_exports_in_page_order -- --nocapture"
             verified_by [
-                @evidence-intake-project.evidence.document-collation-synthetic-seam/1
+                @evidence-intake-project.evidence.document-collation-synthetic-seam/1,
+                @evidence-intake-project.evidence.document-collation-synthetic-seam-20261022/1
             ]
         }
         check workspace-regression {
@@ -511,7 +515,8 @@ record evidence-intake-project.collation.document-integration-pass/1 : work {
             method command
             command "cargo test --workspace"
             verified_by [
-                @evidence-intake-project.evidence.document-collation-workspace-tests/1
+                @evidence-intake-project.evidence.document-collation-workspace-tests/1,
+                @evidence-intake-project.evidence.document-collation-workspace-tests-20261022/1
             ]
         }
     }

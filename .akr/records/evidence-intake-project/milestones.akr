@@ -156,14 +156,20 @@ record evidence-intake-project.office.court-office-foundation/1 : milestone {
                 No client or person record is merged with, or linked to, an evidence entity automatically; the GUI only surfaces possible-match prompts that a named person resolves, and declining leaves both records untouched.
                 """
             method manual
-            verified_by [ @evidence-intake-project.evidence.conservative-identity-20260830/1 ]
+            verified_by [
+                @evidence-intake-project.evidence.conservative-identity-20260830/1,
+                @evidence-intake-project.evidence.conservative-identity-20261022/1
+            ]
         }
         check docket-first {
             statement """
                 From the Court pane alone, an attorney can answer what they must do today and tomorrow — client, matter, setting time and type, custody state, deadlines, evidence posture, open work — without opening another program or the Office pane.
                 """
             method manual
-            verified_by [ @evidence-intake-project.evidence.docket-first-court-pane-20260830/1 ]
+            verified_by [
+                @evidence-intake-project.evidence.docket-first-court-pane-20260830/1,
+                @evidence-intake-project.evidence.docket-first-court-pane-20261022/1
+            ]
         }
         check immutable-note-authorship {
             statement """
@@ -171,7 +177,8 @@ record evidence-intake-project.office.court-office-foundation/1 : milestone {
                 """
             method manual
             verified_by [
-                @evidence-intake-project.evidence.immutable-note-authorship-20260830/1
+                @evidence-intake-project.evidence.immutable-note-authorship-20260830/1,
+                @evidence-intake-project.evidence.immutable-note-authorship-20261022/1
             ]
         }
         check kernel-unchanged {
@@ -181,7 +188,8 @@ record evidence-intake-project.office.court-office-foundation/1 : milestone {
             method command
             command "cargo test --all-features"
             verified_by [
-                @evidence-intake-project.evidence.kernel-unchanged-with-office-20260830/1
+                @evidence-intake-project.evidence.kernel-unchanged-with-office-20260830/1,
+                @evidence-intake-project.evidence.kernel-unchanged-with-office-20261022/1
             ]
         }
         check one-appearance-many-matters {
@@ -190,7 +198,8 @@ record evidence-intake-project.office.court-office-foundation/1 : milestone {
                 """
             method manual
             verified_by [
-                @evidence-intake-project.evidence.one-appearance-many-matters-20260830/1
+                @evidence-intake-project.evidence.one-appearance-many-matters-20260830/1,
+                @evidence-intake-project.evidence.one-appearance-many-matters-20261022/1
             ]
         }
         check privileged-boundary {
@@ -199,7 +208,8 @@ record evidence-intake-project.office.court-office-foundation/1 : milestone {
                 """
             method manual
             verified_by [
-                @evidence-intake-project.evidence.office-privileged-boundary-20260830/1
+                @evidence-intake-project.evidence.office-privileged-boundary-20260830/1,
+                @evidence-intake-project.evidence.office-privileged-boundary-20261022/1
             ]
         }
     }
