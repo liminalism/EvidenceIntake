@@ -222,11 +222,9 @@ fn an_analyzer_changes_no_record_a_person_owns() {
     );
 
     // And the trail records no decision, because no decision was made.
-    assert!(
-        store
-            .review_history(&case_id, None)
-            .expect("history")
-            .is_empty(),
+    assert_eq!(
+        store.review_history(&case_id, None).expect("history").len(),
+        0,
         "an analyzer writes nothing to the review trail"
     );
 }
@@ -356,18 +354,20 @@ fn people_who_may_be_one_person_are_proposed_without_merging() {
 
     // Both records survive as two records, and the witness dossier still
     // answers for the original one.
-    assert!(
-        !store
+    assert_ne!(
+        store
             .witness_dossier(&case_id, "person-patel")
             .expect("dossier")
-            .is_empty(),
+            .len(),
+        0,
         "nothing was collapsed into anything else"
     );
-    assert!(
+    assert_eq!(
         store
             .witness_dossier(&case_id, &surname_only)
             .expect("dossier")
-            .is_empty(),
+            .len(),
+        0,
         "the new record has its own, separate, empty dossier"
     );
 }

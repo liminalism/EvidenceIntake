@@ -20,6 +20,10 @@ pub enum RuntimeKind {
     TensorRt,
     /// Autoregressive `TensorRT-LLM` worker.
     TensorRtLlm,
+    /// Native CPU worker with no TensorRT engine, such as the Phonon-2 speech
+    /// pack. It is still checksummed, revision-pinned, supervised and admitted
+    /// against the resident-memory budget like every other pack.
+    NativeCpu,
 }
 
 /// One installed model pack.

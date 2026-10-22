@@ -3,7 +3,7 @@ name = "evidence-audio"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"
-description = "Audio and video-audio intake adapter: brokered TensorRT Whisper into a NormalizedBatch"
+description = "Audio and video-audio intake adapter: brokered speech recognition (Phonon-2 by default) into a NormalizedBatch"
 license = "AGPL-3.0-or-later"
 publish = false
 

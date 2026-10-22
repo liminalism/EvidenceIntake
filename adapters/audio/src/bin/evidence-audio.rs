@@ -7,9 +7,10 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence_adapter_protocol::{
     ADAPTER_PROTOCOL_VERSION, AdapterArtifact, AdapterEvent, AdapterEventKind, AdapterJobRequest,
-    AdapterProfile, AdapterResultManifest, AdapterSourceLocation, TemporalRelationArg,
+    AdapterProfile, AdapterResultManifest, AdapterSourceLocation, DEFAULT_SPEECH_MODEL,
+    TemporalRelationArg,
 };
-use evidence_audio::{IntakeRequest, TrtWhisperBackend, map_json_file, transcribe};
+use evidence_audio::{IntakeRequest, TrtSpeechBackend, map_json_file, transcribe};
 use evidence_intake::{CaseId, TemporalRelation};
 use sha2::{Digest, Sha256};
 
@@ -64,16 +65,16 @@ enum Command {
         /// Already-produced reference transcript JSON. Skips live inference.
         #[arg(long)]
         from_json: Option<PathBuf>,
-        /// Current-user TensorRT broker endpoint.
+        /// Current-user inference broker endpoint.
         #[arg(long, default_value = "evidence-trt")]
         trt_endpoint: String,
-        /// Installed TensorRT Whisper model pack.
-        #[arg(long, default_value = "whisper-large-v3")]
+        /// Installed speech model pack. Phonon-2 is the default.
+        #[arg(long, default_value = DEFAULT_SPEECH_MODEL)]
         trt_model: String,
         /// Immutable model/export revision stamped on statements.
         #[arg(long)]
         trt_revision: Option<String>,
-        /// Language hint passed to the TensorRT worker.
+        /// Language hint passed to the speech worker. Phonon-2 is English-only.
         #[arg(long, default_value = "en")]
         language: String,
         /// Minimum hole, in milliseconds, that becomes a recording_gap.
@@ -143,11 +144,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 map_json_file(&request, &json, "reference@from-json")?
             } else {
                 let trt_revision = trt_revision.ok_or(
-                    "--trt-revision is required when live TensorRT transcription is enabled",
+                    "--trt-revision is required when live broker transcription is enabled",
                 )?;
                 transcribe(
                     &request,
-                    &TrtWhisperBackend {
+                    &TrtSpeechBackend {
                         endpoint: trt_endpoint,
                         model: trt_model,
                         revision: trt_revision,
@@ -174,7 +175,7 @@ fn run_job(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     request.validate()?;
     let AdapterProfile::Audio {
         broker_endpoint,
-        whisper,
+        speech,
         language,
         phone_band,
         level_split,
@@ -206,10 +207,10 @@ fn run_job(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     };
     let batch = transcribe(
         &intake,
-        &TrtWhisperBackend {
+        &TrtSpeechBackend {
             endpoint: broker_endpoint.clone(),
-            model: whisper.id.clone(),
-            revision: whisper.revision.clone(),
+            model: speech.id.clone(),
+            revision: speech.revision.clone(),
             language: Some(language.clone()),
         },
     )?;

@@ -4,6 +4,13 @@
 //! original PCM, clean a working copy, transcribe it, and emit a
 //! [`NormalizedBatch`](evidence_intake::NormalizedBatch) whose locators address
 //! the original timeline. The kernel crate never depends on this one.
+//!
+//! Live transcription goes through the Evidence inference broker. The default
+//! pack is Phonon-2 (`FermionResearch/Phonon-2`, served by
+//! `evidence-trt-phonon-worker`): English only, word-timed, no diarization.
+//! Speaker hypotheses therefore come from the deterministic channel and level
+//! analysis in this crate, and a diarization observation appears only when an
+//! installed pack actually produces anonymous `SPEAKER_nn` labels.
 
 mod backend;
 mod channel;
@@ -29,7 +36,10 @@ pub use map::{
     transcript_to_batch,
 };
 pub use media::{MediaClass, OpenedMedia, classify, ffmpeg_available, media_type, open_media};
-pub use trt::{EXTRACTOR_TRT_WHISPER, TrtWhisperBackend};
+pub use trt::{
+    ASR_RATE, EXTRACTOR_BROKER_ASR, EXTRACTOR_TRT_WHISPER, TrtSpeechBackend,
+    transcript_from_segments,
+};
 pub use whisperx::{WhisperxSegment, WhisperxTranscript, WhisperxWord};
 
 use std::path::Path;

@@ -52,7 +52,7 @@ fn an_authored_proposition_enters_unreviewed_and_contested() {
     assert_eq!(authored.review_state, "unreviewed");
     assert_eq!(authored.status, "contested");
     assert_eq!(authored.created_by, "A. Reyes");
-    assert!(!authored.id.is_empty());
+    assert_ne!(authored.id, "");
 }
 
 #[test]
@@ -287,8 +287,9 @@ fn authored_evidence_appears_under_the_proposition_it_supports() {
         item.rationale.as_deref(),
         Some("Morgan expressly disputes awareness of any impact.")
     );
-    assert!(
-        !item.locator.trim().is_empty(),
+    assert_ne!(
+        item.locator.trim().len(),
+        0,
         "authored evidence must still resolve to an exact original"
     );
 }
@@ -602,11 +603,12 @@ fn two_people_may_share_a_name_without_being_one_person() {
         first.id, "hr-person-client",
         "a second record, not the existing one"
     );
-    assert!(
-        !store
+    assert_ne!(
+        store
             .witness_dossier(&case_id, "hr-person-client")
             .expect("dossier")
-            .is_empty(),
+            .len(),
+        0,
         "the original record is untouched"
     );
 }

@@ -119,7 +119,7 @@ fn maps_raw_regions_with_page_geometry_and_suggested_provenance() {
     let (_directory, request, docir) = fixture();
     let batch = from_docir(&request, &docir).unwrap();
     assert_eq!(batch.case_id, CaseId("case-1".to_owned()));
-    assert!(batch.edges.is_empty());
+    assert_eq!(batch.edges.len(), 0);
     let source = &batch.sources[0];
     assert_eq!(source.source_kind, SourceKind::Document);
     assert_eq!(source.logical_name, "report.pdf");
@@ -182,9 +182,9 @@ fn synthetic_document_collates_reviews_and_exports_in_page_order() {
     assert!(hits[0].machine_generated);
 
     let index = store.collation_index(&request.case_id).unwrap();
-    assert!(index.by_date.is_empty());
-    assert!(index.by_location.is_empty());
-    assert!(index.shared_anchor_unconfirmed.is_empty());
+    assert_eq!(index.by_date.len(), 0);
+    assert_eq!(index.by_location.len(), 0);
+    assert_eq!(index.shared_anchor_unconfirmed.len(), 0);
     assert_eq!(index.without_normalized_date, 3);
     assert_eq!(index.without_location, 3);
     assert_eq!(

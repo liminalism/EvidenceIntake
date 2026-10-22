@@ -76,7 +76,7 @@ fn a_disclosable_export_carries_no_privileged_material() {
         .expect("export");
 
     assert!(!export.includes_privileged);
-    assert!(export.privileged.is_empty());
+    assert_eq!(export.privileged.len(), 0);
     assert!(
         !rendered(&export).contains(PRIVILEGED_MARKER),
         "privileged material must not appear anywhere in a disclosable export"
@@ -111,21 +111,23 @@ fn every_exported_line_resolves_to_an_exact_original() {
         .export_case(&case_id, ExportAudience::Disclosable)
         .expect("export");
 
-    assert!(!export.propositions.is_empty());
+    assert_ne!(export.propositions.len(), 0);
     for proposition in &export.propositions {
-        assert!(
-            !proposition.evidence.is_empty(),
+        assert_ne!(
+            proposition.evidence.len(),
+            0,
             "`{}` was exported with nothing behind it",
             proposition.id
         );
         for item in &proposition.evidence {
-            assert!(
-                !item.locator.trim().is_empty(),
+            assert_ne!(
+                item.locator.trim().len(),
+                0,
                 "`{}` cites `{}` with no locator to open",
                 proposition.id,
                 item.source
             );
-            assert!(!item.source.trim().is_empty());
+            assert_ne!(item.source.trim().len(), 0);
         }
     }
 }
@@ -210,7 +212,7 @@ fn an_export_carries_the_production_ledger() {
         .expect("export");
 
     assert_eq!(export.case_id, case_id.0);
-    assert!(!export.case_name.is_empty());
+    assert_ne!(export.case_name.len(), 0);
     assert_eq!(export.audience, "disclosable");
     assert_eq!(
         export.productions,

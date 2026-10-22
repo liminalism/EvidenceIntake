@@ -43,8 +43,8 @@ fn request(root: &std::path::Path, production: &str, job: &str) -> AdapterJobReq
         artifacts_dir: root.join(job).join("attempt-0001"),
         profile: AdapterProfile::Audio {
             broker_endpoint: "evidence-trt".to_owned(),
-            whisper: ModelRef {
-                id: "whisper".to_owned(),
+            speech: ModelRef {
+                id: "phonon-2".to_owned(),
                 revision: "revision".to_owned(),
             },
             language: "en".to_owned(),
@@ -139,11 +139,12 @@ fn result_manifest_commits_source_location_artifacts_and_terminal_state_together
             .path,
         request.original_path
     );
-    assert!(
-        !store
+    assert_ne!(
+        store
             .intake_artifacts(&request.job_id)
             .expect("artifacts")
-            .is_empty()
+            .len(),
+        0
     );
 }
 

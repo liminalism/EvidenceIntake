@@ -150,11 +150,12 @@ fn verifying_a_relationship_refuses_a_cited_locator() {
         .apply_review(&case_id, &call)
         .expect_err("a relationship has no original to cite");
     assert!(error.to_string().contains("has no original to cite"));
-    assert!(
+    assert_eq!(
         store
             .review_history(&case_id, Some(&edge.target_id))
             .expect("history")
-            .is_empty(),
+            .len(),
+        0,
         "a refused decision must leave no trace in the trail"
     );
 }
@@ -274,7 +275,7 @@ fn an_unknown_record_is_not_silently_created() {
         .apply_review(&case_id, &call)
         .expect_err("unknown review target");
     assert!(error.to_string().contains("review target"));
-    assert!(store.review_history(&case_id, None).expect("h").is_empty());
+    assert_eq!(store.review_history(&case_id, None).expect("h").len(), 0);
 }
 
 /// A record belongs to one case; review must not reach across the boundary.

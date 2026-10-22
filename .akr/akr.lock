@@ -5,7 +5,7 @@ build {
     tool "akr 0.5.1"
     grammar "0.1"
     vocabulary "0.2"
-    source_graph "sha256:162fe697b4da0e3ef7ed56267b6b57cccd64041a0f48fddf85b103bdced10641"
+    source_graph "sha256:3936ecfa614296a7dfbad18daba21b234338952120893fce43304a4b25f31a89"
 }
 
 source ".akr/project.akr" {
@@ -24,8 +24,8 @@ source ".akr/records/evidence-intake-project/constraints.akr" {
 }
 
 source ".akr/records/evidence-intake-project/decisions.akr" {
-    hash "sha256:489683f94779b7ad84e98b32a2fa5784bfa5196e93729a7e0f1fcf84db88fdfb"
-    records 13
+    hash "sha256:77642ef2ede209822572ea2257355d45b487a5bca997f4784aa17a0a08cbca1f"
+    records 14
 }
 
 source ".akr/records/evidence-intake-project/evidence.akr" {
@@ -44,8 +44,8 @@ source ".akr/records/evidence-intake-project/observations.akr" {
 }
 
 source ".akr/records/evidence-intake-project/papercuts.akr" {
-    hash "sha256:b77dcc2be2db87febb8cc9c1dbdc75230d8bc43e11e980cb5da52cac57c86fd5"
-    records 47
+    hash "sha256:23ffcb036ad4e2181ce4e6171be0fd4c5bb906a9f580d485f76568b73cbda08f"
+    records 49
 }
 
 source ".akr/records/evidence-intake-project/questions.akr" {
@@ -1338,6 +1338,11 @@ seal @evidence-intake-project.papercut.after-knowledge-source-add-succeeded-the/
     hash "sha256:1f43a7d6f2965e9066994113d6e4d5cc5f74219b68aa9f65073df89b33d95aad"
 }
 
+seal @evidence-intake-project.papercut.akr-check-strict-already-reports-18-pre/1 {
+    state verified
+    hash "sha256:0873cda6ae7bf3c01d4f0066aa0d120ac216baec6e8f7f466d1965c1cd7f47cb"
+}
+
 seal @evidence-intake-project.papercut.akr-mcp-timed-out-after-65s-on-the-first/1 {
     state verified
     hash "sha256:3d2f52d54a3360a68d42a2619f682c2593bb2fe968afab59cbcb468a6624a73d"
@@ -1426,6 +1431,11 @@ seal @evidence-intake-project.papercut.rerunning-the-two-minute-video-describe-c
 seal @evidence-intake-project.papercut.resolving-a-question-from-a-new-observation/1 {
     state verified
     hash "sha256:da72f6a06e407c5adee6dbd78ec8e599f16a74a4b07915783691e6672d174b9e"
+}
+
+seal @evidence-intake-project.papercut.running-the-repo-s-own-gate-today-s-nightly/1 {
+    state verified
+    hash "sha256:5994eab738910f678277d64d556b08599c5ba4e21587227dd4fb8084ae384eb0"
 }
 
 seal @evidence-intake-project.papercut.strict-clippy-for-the-adapter-packages-also/1 {

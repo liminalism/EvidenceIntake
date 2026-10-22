@@ -166,11 +166,12 @@ fn entity_autocomplete_offers_the_cases_own_names_nearest_first() {
             > matches.len(),
         "an empty query offers every name the case holds"
     );
-    assert!(
+    assert_eq!(
         workspace
             .entity_candidates("no such person", 10)
             .expect("candidates")
-            .is_empty()
+            .len(),
+        0
     );
 }
 
@@ -253,7 +254,7 @@ fn the_grid_shows_the_swept_field_and_where_its_value_came_from() {
     );
     let first = &rows[0];
     assert_eq!(first.number, 1);
-    assert!(!first.locator.is_empty(), "every row cites its own locator");
+    assert_ne!(first.locator.len(), 0, "every row cites its own locator");
     assert_eq!(first.value, "authored_assertion");
     assert!(
         first.provenance.starts_with("inherited:"),

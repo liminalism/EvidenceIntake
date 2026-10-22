@@ -7,9 +7,10 @@ use std::path::{Path, PathBuf};
 use clap::{Parser, Subcommand, ValueEnum};
 use evidence_adapter_protocol::{
     ADAPTER_PROTOCOL_VERSION, AdapterArtifact, AdapterEvent, AdapterEventKind, AdapterJobRequest,
-    AdapterProfile, AdapterResultManifest, AdapterSourceLocation, TemporalRelationArg, VideoTier,
+    AdapterProfile, AdapterResultManifest, AdapterSourceLocation, DEFAULT_SPEECH_MODEL,
+    TemporalRelationArg, VideoTier,
 };
-use evidence_audio::TrtWhisperBackend;
+use evidence_audio::TrtSpeechBackend;
 use evidence_intake::NormalizedBatch;
 use evidence_intake::{CaseId, Store, TemporalRelation};
 use evidence_video::{
@@ -269,18 +270,18 @@ enum Command {
         /// Version stamped on statements read from `--transcript-json`.
         #[arg(long, default_value = "from-json")]
         transcript_version: String,
-        /// Transcribe the soundtrack with the shared TensorRT Whisper model.
+        /// Transcribe the soundtrack with the broker's speech model.
         #[arg(long)]
         transcribe: bool,
-        /// Checksum-pinned Whisper model-pack identifier.
-        #[arg(long, default_value = "whisper-large-v3")]
-        whisper_model: String,
-        /// Immutable Whisper export revision.
-        #[arg(long)]
-        whisper_revision: Option<String>,
-        /// Optional language hint for Whisper.
-        #[arg(long)]
-        whisper_language: Option<String>,
+        /// Checksum-pinned speech model-pack identifier. Phonon-2 is the default.
+        #[arg(long, default_value = DEFAULT_SPEECH_MODEL, alias = "whisper-model")]
+        speech_model: String,
+        /// Immutable speech model export revision.
+        #[arg(long, alias = "whisper-revision")]
+        speech_revision: Option<String>,
+        /// Optional language hint for the speech model. Phonon-2 is English-only.
+        #[arg(long, alias = "whisper-language")]
+        speech_language: Option<String>,
     },
     /// Measure the audio offset between two recordings of one scene.
     Sync {
@@ -589,9 +590,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             transcript_json,
             transcript_version,
             transcribe,
-            whisper_model,
-            whisper_revision,
-            whisper_language,
+            speech_model,
+            speech_revision,
+            speech_language,
         } => {
             let request = SceneRequest {
                 case_id: CaseId(case),
@@ -657,13 +658,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 ClockInput::None
             };
-            let whisper = (transcribe && transcript_json.is_none())
+            let speech = (transcribe && transcript_json.is_none())
                 .then(|| {
-                    Ok::<_, Box<dyn std::error::Error>>(TrtWhisperBackend {
+                    Ok::<_, Box<dyn std::error::Error>>(TrtSpeechBackend {
                         endpoint: trt_endpoint,
-                        model: whisper_model,
-                        revision: require_revision(whisper_revision, "--whisper-revision")?,
-                        language: whisper_language,
+                        model: speech_model,
+                        revision: require_revision(speech_revision, "--speech-revision")?,
+                        language: speech_language,
                     })
                 })
                 .transpose()?;
@@ -672,7 +673,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     path,
                     version: &transcript_version,
                 }
-            } else if let Some(backend) = whisper.as_ref() {
+            } else if let Some(backend) = speech.as_ref() {
                 SoundtrackInput::Live(backend)
             } else {
                 SoundtrackInput::None
@@ -799,7 +800,7 @@ fn run_job(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         broker_endpoint,
         tier,
         ocr,
-        whisper,
+        speech,
         embedding,
         detector,
         caption,
@@ -843,10 +844,10 @@ fn run_job(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         revision: ocr.revision.clone(),
         language: "eng".to_owned(),
     };
-    let speech = TrtWhisperBackend {
+    let speech = TrtSpeechBackend {
         endpoint: broker_endpoint.clone(),
-        model: whisper.id.clone(),
-        revision: whisper.revision.clone(),
+        model: speech.id.clone(),
+        revision: speech.revision.clone(),
         language: Some(language.clone()),
     };
     let detector_backend = detector.as_ref().map(|model| TrtVisionBackend {

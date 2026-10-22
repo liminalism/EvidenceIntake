@@ -77,7 +77,8 @@ The repository has these parts:
 - `evidence-gui` — the Windows graphical program
 - `office-core` — the office library (clients, matters, calendar, notes)
 - `evidence-document`, `evidence-audio`, `evidence-video` — optional adapters
-- `evidence-trt-broker` — optional local inference broker for the adapters.
+- `evidence-trt-broker` — optional local inference broker for the adapters
+- `evidence-trt-phonon-worker` — the broker's default speech worker, Phonon-2 on the CPU.
 
 The evidence file is `evidence.sqlite` by default.
 The office file is `office.sqlite` beside it.
@@ -97,7 +98,8 @@ You need:
 
 You do not need a system SQLite package.
 You do not need a GPU to build or operate the command program.
-A GPU and a TensorRT package are necessary only when you run the adapters that do OCR, speech, or video analysis.
+A GPU and a TensorRT package are necessary only when you run the adapters that do OCR or video analysis.
+Speech recognition runs on the CPU: the default model is Phonon-2 (`FermionResearch/Phonon-2`), a 164 MB English-only model that is lighter and faster than Whisper.
 
 ## How to build the command program
 
@@ -176,10 +178,25 @@ cargo build --profile debug-release -p evidence-document --bin evidence-document
 cargo build --profile debug-release -p evidence-audio --bin evidence-audio
 cargo build --profile debug-release -p evidence-video --bin evidence-video
 cargo build --profile debug-release -p evidence-trt --bin evidence-trt-broker
+cargo build --profile debug-release -p evidence-trt --bin evidence-trt-phonon-worker
 ```
 
-On Windows, a packaged TensorRT runtime and model packs are also necessary.
+On Windows, a packaged TensorRT runtime and model packs are also necessary for OCR and video.
 See `runtime/tensorrt/README.md` and `scripts/package_windows_tensorrt.ps1`.
+
+The speech pack needs no GPU.
+Download Phonon-2, install the `fermion-research` engine, and build the checksummed pack:
+
+```sh
+hf download FermionResearch/Phonon-2 --local-dir Phonon-2
+pip install fermion-research
+./target/debug-release/evidence-trt-phonon-worker pack \
+  --weights Phonon-2 --engine "$(command -v fermion)" --out models/phonon-2
+```
+
+`pack` refuses weights whose SHA-256 differs from the published archive, so a pack always names the exact bytes it transcribes with.
+Phonon-2 transcribes English only and does not label speakers.
+Speaker hypotheses on stereo recordings still come from the audio adapter's channel analysis.
 
 An adapter writes a `NormalizedBatch` JSON document.
 The command program imports that document.

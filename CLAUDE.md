@@ -31,6 +31,12 @@ cargo run -- review case-hit-run-001 queue
 A local-first, defender-oriented **evidence collation kernel**: one library crate
 (`evidence_intake`) plus a thin `evidence` CLI. There is no server, no network, no OCR/ASR/video
 model — those are external adapters that feed the kernel through a normalized contract.
+Live model inference for the adapters goes through `runtime/tensorrt` (`evidence-trt-broker`),
+which serves checksum-pinned model packs. The default `transcribe_audio` pack is Phonon-2
+(`FermionResearch/Phonon-2`, id `phonon-2`, `DEFAULT_SPEECH_MODEL` in `adapters/protocol`):
+a CPU pack served by `evidence-trt-phonon-worker` (`RuntimeKind::NativeCpu`), English-only, word-timed,
+no diarization, no confidence. The audio adapter stamps broker speech `broker_asr@<pack>/<revision>`;
+`whisper` in the durable job contract is only a read alias for the `speech` field now.
 
 Data flow: `NormalizedBatch` (ingest) → SQLite (store) → read-model structs (views) → JSON (main).
 

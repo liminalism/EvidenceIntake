@@ -22,10 +22,10 @@ fn a_hit_names_the_original_it_can_be_opened_in() {
     let (store, case) = hit_and_run();
     let hits = store.search(&case, "hatchback", 25).expect("search");
 
-    assert!(!hits.is_empty(), "the fixture describes a hatchback");
+    assert_ne!(hits.len(), 0, "the fixture describes a hatchback");
     for hit in &hits {
-        assert!(!hit.locator.trim().is_empty(), "every hit needs a locator");
-        assert!(!hit.source.trim().is_empty(), "every hit names its source");
+        assert_ne!(hit.locator.trim().len(), 0, "every hit needs a locator");
+        assert_ne!(hit.source.trim().len(), 0, "every hit names its source");
         assert!(
             hit.excerpt.contains('[') && hit.excerpt.contains(']'),
             "the matched words are marked in the excerpt: {}",
@@ -90,8 +90,9 @@ fn search_never_reaches_privileged_work_product() {
         .expect("brief");
 
     let hits = store.search(&case, CANARY, 25).expect("search");
-    assert!(
-        hits.is_empty(),
+    assert_eq!(
+        hits.len(),
+        0,
         "privileged text must not be reachable by search: {hits:?}"
     );
 }
@@ -105,15 +106,17 @@ fn search_is_scoped_to_its_case() {
     let elsewhere = store
         .search(&vehicle_stop, "hatchback", 25)
         .expect("search");
-    assert!(
-        elsewhere.is_empty(),
+    assert_eq!(
+        elsewhere.len(),
+        0,
         "the hatchback belongs to the other case: {elsewhere:?}"
     );
-    assert!(
-        !store
+    assert_ne!(
+        store
             .search(&hit_run, "hatchback", 25)
             .expect("search")
-            .is_empty(),
+            .len(),
+        0,
         "and it is findable in its own"
     );
 }
@@ -175,8 +178,9 @@ fn imported_content_is_findable_immediately() {
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].id, "search-content");
     assert_eq!(hits[0].locator, "00:04:12");
-    assert!(
-        hits[0].bears_on.is_empty(),
+    assert_eq!(
+        hits[0].bears_on.len(),
+        0,
         "nothing has been done with it yet, and that shows"
     );
 }

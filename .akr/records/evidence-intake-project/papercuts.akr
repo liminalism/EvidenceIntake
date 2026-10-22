@@ -91,6 +91,17 @@ record evidence-intake-project.papercut.after-knowledge-source-add-succeeded-the
     created_at 2026-08-20
 }
 
+record evidence-intake-project.papercut.akr-check-strict-already-reports-18-pre/1 : papercut {
+    title "akr check --strict already reports 18 pre-existing diagnostics…"
+    state verified
+    statement """
+        akr check --strict already reports 18 pre-existing diagnostics (AKR-R022 evidence predating milestone content changes, AKR-E011, G004/G024), so ledger work on the Phonon-2 decision had to run --lenient; the fixes belong to the milestone owners, not to this change.
+        """
+    observed_at git:1b10efb1d09a487bb6149cb6659ef8ddba77b52b
+    author "claude"
+    created_at 2026-10-22
+}
+
 record evidence-intake-project.papercut.akr-mcp-timed-out-after-65s-on-the-first/1 : papercut {
     title "AKR MCP timed out after 65s on the first knowledge call; the CLI is kr…"
     state verified
@@ -297,6 +308,17 @@ record evidence-intake-project.papercut.resolving-a-question-from-a-new-observat
     about "akr"
     author "gpt-5"
     created_at 2026-08-20
+}
+
+record evidence-intake-project.papercut.running-the-repo-s-own-gate-today-s-nightly/1 : papercut {
+    title "Running the repo's own gate: today's nightly clippy (1.101) rejects…"
+    state verified
+    statement """
+        Running the repo's own gate: today's nightly clippy (1.101) rejects assert!(x.is_empty()) and assert!(!x.is_empty()) across the existing tests and GUI module (manual_assert_is_empty-style lint), so cargo clippy -D warnings was red before any Phonon-2 change; rewrote them as assert_eq!/assert_ne!(x.len(), 0).
+        """
+    observed_at git:1b10efb1d09a487bb6149cb6659ef8ddba77b52b
+    author "claude"
+    created_at 2026-10-22
 }
 
 record evidence-intake-project.papercut.strict-clippy-for-the-adapter-packages-also/1 : papercut {
