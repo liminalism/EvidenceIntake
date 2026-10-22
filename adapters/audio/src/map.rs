@@ -50,7 +50,7 @@ pub struct SourceIdentity {
 /// How the mapper should attach optional analysis next to each statement.
 #[derive(Debug, Clone, Default)]
 pub struct MappingOptions {
-    /// Extractor name stored on each statement (for example `tensorrt_whisper` or `whisperx`).
+    /// Extractor name stored on each statement (for example `broker_asr` or `whisperx`).
     pub extractor: String,
     /// Exact model / binary version string stored on each statement.
     pub extractor_version: String,

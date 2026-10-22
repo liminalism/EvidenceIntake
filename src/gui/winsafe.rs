@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use evidence_adapter_protocol::{
-    ADAPTER_PROTOCOL_VERSION, AdapterJobRequest, AdapterProfile, ModelRef, TemporalRelationArg,
-    VideoTier,
+    ADAPTER_PROTOCOL_VERSION, AdapterJobRequest, AdapterProfile, DEFAULT_SPEECH_MODEL, ModelRef,
+    TemporalRelationArg, VideoTier,
 };
 use evidence_trt::{Client, InputMetadata, Operation, Request, ResultBody};
 use sha2::{Digest, Sha256};
@@ -1858,11 +1858,11 @@ impl MainWindow {
         )
         .then(|| models.required(Operation::PageOcr, "turbo-ocr"))
         .transpose()?;
-        let whisper = matches!(
+        let speech = matches!(
             selection.modality,
             IntakeModality::Audio | IntakeModality::Video
         )
-        .then(|| models.required(Operation::TranscribeAudio, "whisper-large-v3"))
+        .then(|| models.required(Operation::TranscribeAudio, DEFAULT_SPEECH_MODEL))
         .transpose()?;
         let (embedding, detector, caption) = if selection.overnight {
             (
@@ -1903,9 +1903,9 @@ impl MainWindow {
                 },
                 IntakeModality::Audio => AdapterProfile::Audio {
                     broker_endpoint: "evidence-trt".to_owned(),
-                    whisper: whisper
-                        .clone()
-                        .ok_or_else(|| GuiError::new("Audio intake requires broker Whisper."))?,
+                    speech: speech.clone().ok_or_else(|| {
+                        GuiError::new("Audio intake requires a broker speech model.")
+                    })?,
                     language: "en".to_owned(),
                     phone_band: selection.phone_band,
                     level_split: selection.level_split,
@@ -1921,9 +1921,9 @@ impl MainWindow {
                     ocr: ocr
                         .clone()
                         .ok_or_else(|| GuiError::new("Video intake requires broker OCR."))?,
-                    whisper: whisper
-                        .clone()
-                        .ok_or_else(|| GuiError::new("Video intake requires broker Whisper."))?,
+                    speech: speech.clone().ok_or_else(|| {
+                        GuiError::new("Video intake requires a broker speech model.")
+                    })?,
                     embedding: embedding.clone(),
                     detector: detector.clone(),
                     caption: caption.clone(),

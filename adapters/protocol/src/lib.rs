@@ -7,6 +7,12 @@ use serde::{Deserialize, Serialize};
 /// Current request/result schema.
 pub const ADAPTER_PROTOCOL_VERSION: u32 = 1;
 
+/// Installed pack identifier frontends prefer for `transcribe_audio` when the
+/// broker offers more than one: Phonon-2 (`FermionResearch/Phonon-2`), the
+/// English-only CPU model that replaced Whisper as the default because it is
+/// lighter (164 MB) and faster at a lower average word error rate.
+pub const DEFAULT_SPEECH_MODEL: &str = "phonon-2";
+
 /// Immutable identity of a checksum-pinned broker model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelRef {
@@ -63,8 +69,10 @@ pub enum AdapterProfile {
     Audio {
         /// Local Evidence broker endpoint.
         broker_endpoint: String,
-        /// Whisper/diarization model pack.
-        whisper: ModelRef,
+        /// Speech-recognition model pack. Durable requests written before the
+        /// Whisper default was retired still name this field `whisper`.
+        #[serde(alias = "whisper")]
+        speech: ModelRef,
         /// Language hint.
         language: String,
         /// Apply telephone band limiting to the working copy.
@@ -82,8 +90,9 @@ pub enum AdapterProfile {
         tier: VideoTier,
         /// Clock OCR model.
         ocr: ModelRef,
-        /// Soundtrack transcription model.
-        whisper: ModelRef,
+        /// Soundtrack speech-recognition model; `whisper` in older requests.
+        #[serde(alias = "whisper")]
+        speech: ModelRef,
         /// Embedding model required by the overnight tier.
         embedding: Option<ModelRef>,
         /// Detector model required by the overnight tier.
@@ -317,12 +326,12 @@ fn validate_profile(profile: &AdapterProfile) -> Result<()> {
     match profile {
         AdapterProfile::Document { ocr, .. } => validate_model(ocr),
         AdapterProfile::Audio {
-            whisper,
+            speech,
             language,
             gap_ms,
             ..
         } => {
-            validate_model(whisper)?;
+            validate_model(speech)?;
             if language.trim().is_empty() || *gap_ms == 0 {
                 return Err(Error::Invalid(
                     "audio language and nonzero gap are required".to_owned(),
@@ -333,7 +342,7 @@ fn validate_profile(profile: &AdapterProfile) -> Result<()> {
         AdapterProfile::Video {
             tier,
             ocr,
-            whisper,
+            speech,
             embedding,
             detector,
             caption,
@@ -344,7 +353,7 @@ fn validate_profile(profile: &AdapterProfile) -> Result<()> {
             ..
         } => {
             validate_model(ocr)?;
-            validate_model(whisper)?;
+            validate_model(speech)?;
             if *tier == VideoTier::Overnight {
                 for model in [embedding, detector, caption] {
                     validate_model(model.as_ref().ok_or_else(|| {
@@ -421,7 +430,7 @@ mod tests {
             broker_endpoint: "evidence-trt".into(),
             tier: VideoTier::Overnight,
             ocr: model("ocr"),
-            whisper: model("whisper"),
+            speech: model(DEFAULT_SPEECH_MODEL),
             embedding: Some(model("siglip")),
             detector: None,
             caption: Some(model("qwen")),
@@ -462,7 +471,7 @@ mod tests {
             artifacts_dir: temporary.path().join("artifacts"),
             profile: AdapterProfile::Audio {
                 broker_endpoint: "evidence-trt".into(),
-                whisper: model("whisper"),
+                speech: model(DEFAULT_SPEECH_MODEL),
                 language: "en".into(),
                 phone_band: false,
                 level_split: false,
@@ -479,5 +488,26 @@ mod tests {
             incompatible.validate(),
             Err(Error::IncompatibleVersion { .. })
         ));
+    }
+
+    #[test]
+    fn a_queued_request_that_still_says_whisper_reads_as_the_speech_model() {
+        let legacy = serde_json::json!({
+            "modality": "audio",
+            "broker_endpoint": "evidence-trt",
+            "whisper": {"id": "whisper-large-v3", "revision": "export-1"},
+            "language": "en",
+            "phone_band": false,
+            "level_split": false,
+            "gap_ms": 2000
+        });
+        let profile: AdapterProfile = serde_json::from_value(legacy).expect("legacy audio profile");
+        let AdapterProfile::Audio { speech, .. } = &profile else {
+            panic!("not an audio profile");
+        };
+        assert_eq!(speech.id, "whisper-large-v3");
+        let current = serde_json::to_value(&profile).expect("encode");
+        assert!(current.get("speech").is_some());
+        assert!(current.get("whisper").is_none());
     }
 }

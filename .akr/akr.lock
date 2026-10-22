@@ -5,7 +5,7 @@ build {
     tool "akr 0.5.1"
     grammar "0.1"
     vocabulary "0.2"
-    source_graph "sha256:162fe697b4da0e3ef7ed56267b6b57cccd64041a0f48fddf85b103bdced10641"
+    source_graph "sha256:3641e9b0dee65cae35b33d2ce11670d0f34d769d44de4ca67b1d107b7d559e66"
 }
 
 source ".akr/project.akr" {
@@ -24,17 +24,17 @@ source ".akr/records/evidence-intake-project/constraints.akr" {
 }
 
 source ".akr/records/evidence-intake-project/decisions.akr" {
-    hash "sha256:489683f94779b7ad84e98b32a2fa5784bfa5196e93729a7e0f1fcf84db88fdfb"
-    records 13
+    hash "sha256:77642ef2ede209822572ea2257355d45b487a5bca997f4784aa17a0a08cbca1f"
+    records 14
 }
 
 source ".akr/records/evidence-intake-project/evidence.akr" {
-    hash "sha256:83494c7d8c43c64870e70cc304b28d6f1f13437377e0efdfc00a9cda3b2fda44"
-    records 108
+    hash "sha256:24c3daf5ec5002ec86c623ca0e6ffaded27fef21eab7ba35eb3b69ca79cc4a55"
+    records 117
 }
 
 source ".akr/records/evidence-intake-project/milestones.akr" {
-    hash "sha256:87a44c357685092cdee9aed9e86ed399e263621c486f0fbec532db56b849fbbe"
+    hash "sha256:7ea30f0a7618dfe1679cd60a41d6bfd843389368ddb3190d521d824848e05761"
     records 3
 }
 
@@ -44,8 +44,8 @@ source ".akr/records/evidence-intake-project/observations.akr" {
 }
 
 source ".akr/records/evidence-intake-project/papercuts.akr" {
-    hash "sha256:b77dcc2be2db87febb8cc9c1dbdc75230d8bc43e11e980cb5da52cac57c86fd5"
-    records 47
+    hash "sha256:2ffd986b1b3c1c848f0d694f6dad747931d6a78633529463220f2380b1db84f9"
+    records 51
 }
 
 source ".akr/records/evidence-intake-project/questions.akr" {
@@ -54,8 +54,8 @@ source ".akr/records/evidence-intake-project/questions.akr" {
 }
 
 source ".akr/records/evidence-intake-project/work.akr" {
-    hash "sha256:93ed852a26613d9532ac8077d5f9731d33a74d7cb1e52f3038e4e92d86523613"
-    records 49
+    hash "sha256:4d3e427c50f4f92d4c53697d95461c8f4b27510b69aa1a99c9fee979d520f30d"
+    records 50
 }
 
 resolution @evidence-intake-project.assembly.candidate-rules/1 {
@@ -250,6 +250,24 @@ resolution @evidence-intake-project.audio.intake-adapter/1 {
     hash "sha256:d820d07821a3d36c71b07d05e1c17037947fc23ed60b15b102cd0b1710db9875"
 }
 
+resolution @evidence-intake-project.audio.speaker-diarization-pack/1 {
+    slot depends_on
+    to @evidence-intake-project.decision.phonon-2-default-speech-pack/1
+    hash "sha256:dfbb0c4849544c499d919e25fa4cf42a69f05fbe0aa52134e03d83aa4b876e09"
+}
+
+resolution @evidence-intake-project.audio.speaker-diarization-pack/1 {
+    slot depends_on
+    to @evidence-intake-project.decision.single-broker-inference/1
+    hash "sha256:7c20dfb8a5deabd6cbcd6db438a44a9ee8cf91291d962c1b3bab1c59bf0748ae"
+}
+
+resolution @evidence-intake-project.audio.speaker-diarization-pack/1 {
+    slot part_of
+    to @evidence-intake-project.inference.universal-tensorrt-integration/1
+    hash "sha256:eb413d9a200f242c30ddc3727d71ffc5eba961975b6875585f314bb53cdd4569"
+}
+
 resolution @evidence-intake-project.collation.document-integration-pass/1 {
     slot part_of
     to @evidence-intake-project.inference.universal-tensorrt-integration/1
@@ -349,7 +367,7 @@ resolution @evidence-intake-project.office.calendar-and-docket/1 {
 resolution @evidence-intake-project.office.calendar-and-docket/1 {
     slot part_of
     to @evidence-intake-project.office.court-office-foundation/1
-    hash "sha256:b915203bf62aba50938215fcceed1efd46918e837c295dfc3a5f6d14ef7615ef"
+    hash "sha256:99deb2a5cbf76f50fd43b3f965b723e4c4c58412e8fe4e86b9b8b1d6bed3d7f8"
 }
 
 resolution @evidence-intake-project.office.court-office-foundation/1 {
@@ -379,13 +397,13 @@ resolution @evidence-intake-project.office.court-office-gui/1 {
 resolution @evidence-intake-project.office.court-office-gui/1 {
     slot part_of
     to @evidence-intake-project.office.court-office-foundation/1
-    hash "sha256:b915203bf62aba50938215fcceed1efd46918e837c295dfc3a5f6d14ef7615ef"
+    hash "sha256:99deb2a5cbf76f50fd43b3f965b723e4c4c58412e8fe4e86b9b8b1d6bed3d7f8"
 }
 
 resolution @evidence-intake-project.office.entry-forms/1 {
     slot after
     to @evidence-intake-project.office.court-office-foundation/1
-    hash "sha256:b915203bf62aba50938215fcceed1efd46918e837c295dfc3a5f6d14ef7615ef"
+    hash "sha256:99deb2a5cbf76f50fd43b3f965b723e4c4c58412e8fe4e86b9b8b1d6bed3d7f8"
 }
 
 resolution @evidence-intake-project.office.entry-forms/1 {
@@ -397,7 +415,7 @@ resolution @evidence-intake-project.office.entry-forms/1 {
 resolution @evidence-intake-project.office.entry-forms/2 {
     slot after
     to @evidence-intake-project.office.court-office-foundation/1
-    hash "sha256:b915203bf62aba50938215fcceed1efd46918e837c295dfc3a5f6d14ef7615ef"
+    hash "sha256:99deb2a5cbf76f50fd43b3f965b723e4c4c58412e8fe4e86b9b8b1d6bed3d7f8"
 }
 
 resolution @evidence-intake-project.office.entry-forms/2 {
@@ -421,7 +439,7 @@ resolution @evidence-intake-project.office.notes-and-office-search/1 {
 resolution @evidence-intake-project.office.notes-and-office-search/1 {
     slot part_of
     to @evidence-intake-project.office.court-office-foundation/1
-    hash "sha256:b915203bf62aba50938215fcceed1efd46918e837c295dfc3a5f6d14ef7615ef"
+    hash "sha256:99deb2a5cbf76f50fd43b3f965b723e4c4c58412e8fe4e86b9b8b1d6bed3d7f8"
 }
 
 resolution @evidence-intake-project.office.office-core-crate/1 {
@@ -433,7 +451,7 @@ resolution @evidence-intake-project.office.office-core-crate/1 {
 resolution @evidence-intake-project.office.office-core-crate/1 {
     slot part_of
     to @evidence-intake-project.office.court-office-foundation/1
-    hash "sha256:b915203bf62aba50938215fcceed1efd46918e837c295dfc3a5f6d14ef7615ef"
+    hash "sha256:99deb2a5cbf76f50fd43b3f965b723e4c4c58412e8fe4e86b9b8b1d6bed3d7f8"
 }
 
 resolution @evidence-intake-project.video.analyze-job/1 {
@@ -685,7 +703,7 @@ seal @evidence-intake-project.collation.cli-smoke/1 {
 
 seal @evidence-intake-project.collation.document-integration-pass/1 {
     state completed
-    hash "sha256:01976a91b14f1aa72034a0ff09b58c38c8a7ed08eac1e63266b5edb9e1a5db1c"
+    hash "sha256:0b3ad880d3801e9bdeee627e23f894b0343ecc7e66718b610d8964286b039817"
 }
 
 seal @evidence-intake-project.collation.gui-anchor-coverage/1 {
@@ -803,6 +821,11 @@ seal @evidence-intake-project.evidence.conservative-identity-20260830/1 {
     hash "sha256:f4b5209489c10683c976131eab1afc77c52dd6db5184031ff0d033ca21de6ec6"
 }
 
+seal @evidence-intake-project.evidence.conservative-identity-20261022/1 {
+    state verified
+    hash "sha256:5f27f6cf2e86e78dd9e23f5533409ad0369da22a48c373ffbf7925304e79ca2e"
+}
+
 seal @evidence-intake-project.evidence.court-office-pane-split-20260830/1 {
     state verified
     hash "sha256:4ace87596d0a4779315e71d0b3ed1114ef012d70b35c64aaa74e9238a59c3ed1"
@@ -811,6 +834,11 @@ seal @evidence-intake-project.evidence.court-office-pane-split-20260830/1 {
 seal @evidence-intake-project.evidence.docket-first-court-pane-20260830/1 {
     state verified
     hash "sha256:eb72aba43d003a012b81e678f41f28c81baac346f47e5e9f2c94fb5b7fddd3ed"
+}
+
+seal @evidence-intake-project.evidence.docket-first-court-pane-20261022/1 {
+    state verified
+    hash "sha256:49abc6a64a6868e126da545a7c47c095ced73f00e655bb7db3f556893656278a"
 }
 
 seal @evidence-intake-project.evidence.docket-lists-cases-separately/1 {
@@ -823,14 +851,29 @@ seal @evidence-intake-project.evidence.document-collation-strict-lints/1 {
     hash "sha256:44739641a32dafdbb21e11df1144b66f14137ea60ff1d287731bec6357390a41"
 }
 
+seal @evidence-intake-project.evidence.document-collation-strict-lints-20261022/1 {
+    state verified
+    hash "sha256:28cfce8bd108c51cc7fc2944f21b154b47888fcd5311884ba88f1bb56b1205ab"
+}
+
 seal @evidence-intake-project.evidence.document-collation-synthetic-seam/1 {
     state verified
     hash "sha256:0890f42fcc215782c920dc5d02606f19750ad36177c096a8d97e3c0ea951e5f7"
 }
 
+seal @evidence-intake-project.evidence.document-collation-synthetic-seam-20261022/1 {
+    state verified
+    hash "sha256:3af0728466427cb69afb0eef76d04c1379b89f6f7e6d14883bc79b75b8596af2"
+}
+
 seal @evidence-intake-project.evidence.document-collation-workspace-tests/1 {
     state verified
     hash "sha256:19b1f7d829c33c9495d34e2b0abfaa88b20a308f4723bd8f55ad0878fa5b124d"
+}
+
+seal @evidence-intake-project.evidence.document-collation-workspace-tests-20261022/1 {
+    state verified
+    hash "sha256:adf5c3af14b60102e065bb846d7b0bced1ad878a06bb345aaf608f55a771492d"
 }
 
 seal @evidence-intake-project.evidence.edges-alone-and-stills/1 {
@@ -943,6 +986,11 @@ seal @evidence-intake-project.evidence.immutable-note-authorship-20260830/1 {
     hash "sha256:dfc198b930fb23c6768081759ee8003fa3cfc8ce4cc4af7f1af9b966ec7b4f68"
 }
 
+seal @evidence-intake-project.evidence.immutable-note-authorship-20261022/1 {
+    state verified
+    hash "sha256:58ffe1432397a7f8a46d0c4de43970eb4b3c401e788f882748de2796c55efd6b"
+}
+
 seal @evidence-intake-project.evidence.ingest-refuses-cross-case/1 {
     state verified
     hash "sha256:1abe5dc67ee418253ecda1e0d08e5d5546aa434c1210aa2c583a808217bf935a"
@@ -951,6 +999,11 @@ seal @evidence-intake-project.evidence.ingest-refuses-cross-case/1 {
 seal @evidence-intake-project.evidence.kernel-unchanged-with-office-20260830/1 {
     state verified
     hash "sha256:cb9304612352eecc7018a0724f2262b16b7916c643e47c106e378cdc2a043cdc"
+}
+
+seal @evidence-intake-project.evidence.kernel-unchanged-with-office-20261022/1 {
+    state verified
+    hash "sha256:704ffb98f5b506bf5719dffc269634da7d24e4690a107a293533a44851501944"
 }
 
 seal @evidence-intake-project.evidence.keyframe-case-local/1 {
@@ -1028,6 +1081,11 @@ seal @evidence-intake-project.evidence.office-privileged-boundary-20260830/1 {
     hash "sha256:f24ab007bc2c9b9efbe2639db25e7bb7b1c1e2367956baf892fcdcdf2c206bd7"
 }
 
+seal @evidence-intake-project.evidence.office-privileged-boundary-20261022/1 {
+    state verified
+    hash "sha256:1f1f8282a1b2244c4f459453c06a946b7c8da60d9883391e4a5f1b872b0f54b6"
+}
+
 seal @evidence-intake-project.evidence.office-search-and-cli-20260830/1 {
     state verified
     hash "sha256:36d78119ab6429678159c2403f05c83c945efcb930e19525f5ac8d1b5f74583c"
@@ -1036,6 +1094,11 @@ seal @evidence-intake-project.evidence.office-search-and-cli-20260830/1 {
 seal @evidence-intake-project.evidence.one-appearance-many-matters-20260830/1 {
     state verified
     hash "sha256:8bc0510819f669315d82e4602eff2e8b5c9e5f5ccdf8425b5bf328b95c254ac0"
+}
+
+seal @evidence-intake-project.evidence.one-appearance-many-matters-20261022/1 {
+    state verified
+    hash "sha256:05d90f888205a91edd9845ae16375667090a693ceb20462f427d5a05467b4133"
 }
 
 seal @evidence-intake-project.evidence.optimization-pass-measured/1 {
@@ -1270,7 +1333,7 @@ seal @evidence-intake-project.office.calendar-and-docket/1 {
 
 seal @evidence-intake-project.office.court-office-foundation/1 {
     state completed
-    hash "sha256:b915203bf62aba50938215fcceed1efd46918e837c295dfc3a5f6d14ef7615ef"
+    hash "sha256:99deb2a5cbf76f50fd43b3f965b723e4c4c58412e8fe4e86b9b8b1d6bed3d7f8"
 }
 
 seal @evidence-intake-project.office.court-office-gui/1 {
@@ -1336,6 +1399,16 @@ seal @evidence-intake-project.papercut.after-a-diagnostic-linux-build-in-a-valid
 seal @evidence-intake-project.papercut.after-knowledge-source-add-succeeded-the/1 {
     state verified
     hash "sha256:1f43a7d6f2965e9066994113d6e4d5cc5f74219b68aa9f65073df89b33d95aad"
+}
+
+seal @evidence-intake-project.papercut.akr-check-strict-already-reports-18-pre/1 {
+    state verified
+    hash "sha256:0873cda6ae7bf3c01d4f0066aa0d120ac216baec6e8f7f466d1965c1cd7f47cb"
+}
+
+seal @evidence-intake-project.papercut.akr-g024-flags-evidence-commands-like-cargo/1 {
+    state verified
+    hash "sha256:6dfbc55ff8022c279d00af6438f65300644a574a8edd0c8fa38770e031db554a"
 }
 
 seal @evidence-intake-project.papercut.akr-mcp-timed-out-after-65s-on-the-first/1 {
@@ -1428,6 +1501,11 @@ seal @evidence-intake-project.papercut.resolving-a-question-from-a-new-observati
     hash "sha256:da72f6a06e407c5adee6dbd78ec8e599f16a74a4b07915783691e6672d174b9e"
 }
 
+seal @evidence-intake-project.papercut.running-the-repo-s-own-gate-today-s-nightly/1 {
+    state verified
+    hash "sha256:5994eab738910f678277d64d556b08599c5ba4e21587227dd4fb8084ae384eb0"
+}
+
 seal @evidence-intake-project.papercut.strict-clippy-for-the-adapter-packages-also/1 {
     state verified
     hash "sha256:20997723b59472ede175fc097ef743d912da1c1b007273b3f75f3710776d156a"
@@ -1476,6 +1554,11 @@ seal @evidence-intake-project.papercut.the-interprocess-local-socket-stream-expo
 seal @evidence-intake-project.papercut.the-lean-linux-turboocr-tensorrt-build-found/1 {
     state verified
     hash "sha256:fe9149cdf15a8c90a97dc0202d1287945a59f502ce177001b5590ca403694df3"
+}
+
+seal @evidence-intake-project.papercut.the-nine-akr-r022-errors-on-collation-document/1 {
+    state verified
+    hash "sha256:3d5523b4c8b0a07a9294f431ba6b47a1a8eae1bc1dab4ecc331377cd0565e862"
 }
 
 seal @evidence-intake-project.papercut.the-readme-s-demo-view-commands-fail-against/1 {

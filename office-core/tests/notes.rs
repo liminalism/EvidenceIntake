@@ -251,11 +251,12 @@ fn mentions_ride_on_a_note_and_are_re_derived_on_revision() {
         .expect("notes mentioning a supervisor");
     assert_eq!(flagged.len(), 1);
     assert_eq!(flagged[0].id, "note-rivera-plan-v2");
-    assert!(
+    assert_eq!(
         store
             .notes_mentioning(office_core::MentionTag::Immigration)
             .expect("immigration mentions")
-            .is_empty(),
+            .len(),
+        0,
         "a role nobody called on has nothing waiting"
     );
 }

@@ -193,7 +193,7 @@ fn an_unparseable_overlay_yields_no_reading() {
         ],
     };
     let readings = read_clocks(&one_scene(), &backend).expect("read");
-    assert!(readings.is_empty(), "{readings:?}");
+    assert_eq!(readings.len(), 0, "{readings:?}");
 }
 
 #[test]

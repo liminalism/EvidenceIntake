@@ -5108,11 +5108,9 @@ mod schema {
         drop(store);
 
         let store = Store::open(&path).expect("reopen");
-        assert!(
-            !store
-                .search(&case, "hatchback", 25)
-                .expect("search")
-                .is_empty(),
+        assert_ne!(
+            store.search(&case, "hatchback", 25).expect("search").len(),
+            0,
             "evidence predating the index must be backfilled into it"
         );
     }

@@ -460,5 +460,5 @@ fn an_older_batch_document_without_edges_still_parses() {
     }"#;
     let parsed: NormalizedBatch = serde_json::from_str(document).expect("an older batch parses");
     assert_eq!(parsed.case_id.0, "case-legacy");
-    assert!(parsed.edges.is_empty());
+    assert_eq!(parsed.edges.len(), 0);
 }

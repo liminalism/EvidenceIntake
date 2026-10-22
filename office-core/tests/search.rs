@@ -178,7 +178,7 @@ fn punctuation_is_searched_for_rather_than_parsed_as_syntax() {
     let stray = store
         .search("\"unterminated", 10)
         .expect("a stray quote is text, not a syntax error");
-    assert!(stray.is_empty(), "and it matches nothing: {stray:#?}");
+    assert_eq!(stray.len(), 0, "and it matches nothing: {stray:#?}");
 
     // The characters that would otherwise be operators.
     for query in ["CR-2026-491", "(555) 481-2290", "State v. Rivera (theft)"] {

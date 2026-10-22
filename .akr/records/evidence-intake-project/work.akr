@@ -427,6 +427,32 @@ record evidence-intake-project.audio.intake-adapter/1 : work {
     implements [ @evidence-intake-project.decision.video-intake-points-never-asserts ]
 }
 
+record evidence-intake-project.audio.speaker-diarization-pack/1 : work {
+    title "Speaker diarization as a second broker pack: anonymous turns aligned to transcript segments"
+    state proposed
+    scope [
+        path "adapters/audio/**",
+        path "adapters/protocol/**",
+        path "adapters/video/**",
+        path "docs/diarization-plan.md",
+        path "runtime/tensorrt/**",
+        path "src/gui/**",
+        path "src/store/enrichment_rules.rs"
+    ]
+    intent """
+        Restore anonymous speaker labels on audio intake as a second broker pack, decoupled from the Phonon-2 speech pack, following docs/diarization-plan.md: a `diarize_audio` operation returning SPEAKER_nn turns; a native Rust worker (`evidence-trt-diarize-worker`) over pinned Silero VAD and WeSpeaker embedding ONNX graphs with agglomerative clustering and a pinned threshold; a `DiarizationBackend` in the audio adapter that aligns turns to transcript segments by majority overlap and labels nothing when no turn dominates; an optional, alias-safe `diarization` model ref in the job contract; CLI flags and GUI preference for a `speaker-turns` pack; and an evaluation gate on a hand-labelled sample set before the pack becomes the default. Distances, probabilities and speaker counts never cross the broker boundary; a label is a candidate, never an identity.
+        """
+    note """
+        Phase 0 is a runtime spike (tract versus ort) recorded as its own decision before the worker is written. Phases 1 to 4 are buildable on Linux with a fixture worker; phase 5 needs the Windows host and the labelled sample set. If no pretrained pack reaches a usable error rate on that set, intake keeps running without diarization and the model-free fallback is not built.
+        """
+    depends_on [
+        @evidence-intake-project.decision.phonon-2-default-speech-pack,
+        @evidence-intake-project.decision.single-broker-inference
+    ]
+    part_of [ @evidence-intake-project.inference.universal-tensorrt-integration ]
+    author "Claude"
+}
+
 record evidence-intake-project.case.isolation-and-lifecycle/1 : work {
     title "Case lifecycle and complete isolation between cases"
     state completed
@@ -492,7 +518,10 @@ record evidence-intake-project.collation.document-integration-pass/1 : work {
                 """
             method command
             command "cargo clippy --workspace --all-targets -- -D warnings"
-            verified_by [ @evidence-intake-project.evidence.document-collation-strict-lints/1 ]
+            verified_by [
+                @evidence-intake-project.evidence.document-collation-strict-lints/1,
+                @evidence-intake-project.evidence.document-collation-strict-lints-20261022/1
+            ]
         }
         check synthetic-document-seam {
             statement """
@@ -501,7 +530,8 @@ record evidence-intake-project.collation.document-integration-pass/1 : work {
             method command
             command "cargo test -p evidence-document synthetic_document_collates_reviews_and_exports_in_page_order -- --nocapture"
             verified_by [
-                @evidence-intake-project.evidence.document-collation-synthetic-seam/1
+                @evidence-intake-project.evidence.document-collation-synthetic-seam/1,
+                @evidence-intake-project.evidence.document-collation-synthetic-seam-20261022/1
             ]
         }
         check workspace-regression {
@@ -511,7 +541,8 @@ record evidence-intake-project.collation.document-integration-pass/1 : work {
             method command
             command "cargo test --workspace"
             verified_by [
-                @evidence-intake-project.evidence.document-collation-workspace-tests/1
+                @evidence-intake-project.evidence.document-collation-workspace-tests/1,
+                @evidence-intake-project.evidence.document-collation-workspace-tests-20261022/1
             ]
         }
     }

@@ -5,7 +5,11 @@ document, audio, and video adapters. On Windows its namespaced endpoint is a nam
 broker verifies every installed model pack before serving, supervises one
 native worker process per resident model, and evicts least-recently-used models
 to stay within the configured VRAM budget. It never selects another backend
-after an error.
+after an error. A pack's `runtime` names its worker family: `tensor_rt`,
+`tensor_rt_llm`, or `native_cpu` for a worker that owns no GPU engine at all
+(the speech pack). Every family is checksummed, revision-pinned, probed and
+admitted the same way; `estimated_vram_bytes` is simply resident memory for a
+CPU pack.
 
 Each worker speaks the versioned `evidence.trt` framed protocol over standard
 input/output. A frame is a little-endian `u32` JSON length, a little-endian
@@ -56,8 +60,50 @@ The intended installed packs are:
 - TurboOCR/PP-OCR for `page_ocr`;
 - SigLIP for `embed_image` and `embed_text`;
 - YOLO for `detect_image`;
-- Whisper for `transcribe_audio`;
+- Phonon-2 for `transcribe_audio` (default; a Whisper pack with the same
+  typed contract may be installed beside it);
 - Qwen-VL through TensorRT-LLM for `caption_image`.
+
+## Speech: the Phonon-2 pack
+
+`FermionResearch/Phonon-2` is a five-value quantization of NVIDIA's
+`parakeet-tdt-0.6b-v3`: 164 MB, English only, word timestamps, no
+diarization, no confidence scores, CC-BY-4.0 weights. It averages 5.21 % word
+error over the seven Open ASR Leaderboard sets against 6.58 % for Whisper
+large-v3-turbo at a tenth of the size, and transcribes an hour of audio in
+well under a minute on an ordinary CPU, so it is the default speech pack and
+needs no GPU.
+
+`evidence-trt-phonon-worker` serves it. The worker bridges the framed
+protocol to one `fermion transcribe <model> <wav> --json` call per request,
+pins the engine's cache inside the pack (`FERMION_CACHE_DIR`) with network
+lookups forbidden (`HF_HUB_OFFLINE=1`), refuses a non-English language hint
+with `unsupported_language`, refuses a transcript the engine marks
+`truncated`, and returns every segment with `speaker: None` and
+`confidence: None` because the engine reports neither. The load probe decodes
+one second of audio end to end before the broker admits the pack.
+
+Build the pack from the Hugging Face download and the `fermion` launcher of a
+`pip install fermion-research` environment (or any executable that behaves
+like `fermion transcribe MODEL AUDIO --json`, such as a Docker wrapper):
+
+```sh
+hf download FermionResearch/Phonon-2 --local-dir Phonon-2
+evidence-trt-phonon-worker pack \
+  --weights Phonon-2 \
+  --engine /path/to/venv/bin/fermion \
+  --out models/phonon-2
+```
+
+`pack` verifies `phonon-2.bps.tar.zst` against the published SHA-256
+(`98125795b6dd…`), copies the weights, `config.json`,
+`packed_manifest.json`, the licence files, the launcher and the worker into
+the pack, uses the archive hash as the manifest `revision`, writes
+`manifest.json` with `"runtime": "native_cpu"`, and re-reads the result the
+way the broker will. Pass `--weights-sha256` only to pin a different
+published revision on purpose, and `--threads N` to fix the engine's CPU
+thread count. The resulting directory is handed to
+`package_windows_tensorrt.ps1` through `-ModelPacks` like any other pack.
 
 ## Windows package
 
@@ -69,7 +115,7 @@ model packs:
 ```powershell
 .\scripts\package_windows_tensorrt.ps1 `
   -LegeOcrPayload D:\packages\lege-ocr `
-  -ModelPacks D:\models\siglip,D:\models\yolo,D:\models\whisper,D:\models\qwen `
+  -ModelPacks D:\models\siglip,D:\models\yolo,D:\models\phonon-2,D:\models\qwen `
   -TensorRTVersion 10.13 `
   -TensorRTLLMVersion 1.1 `
   -Gpu 'NVIDIA GeForce RTX 4060 Laptop GPU'

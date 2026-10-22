@@ -2798,6 +2798,15 @@ fn time_labels(entry: &CollationEntry) -> Vec<String> {
     labels
 }
 
+/// Whether an extractor name denotes machine speech recognition: the broker
+/// speech packs (`broker_asr`, Phonon-2 by default), the retired
+/// `tensorrt_whisper` stamp older databases carry, `WhisperX` reference JSON,
+/// and the adapter's own `asr-no-speech` intervals.
+pub fn is_transcript_extractor(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    name.contains("asr") || name.contains("whisper") || name.contains("phonon")
+}
+
 fn badge(entry: &CollationEntry) -> &'static str {
     if entry.machine_generated && entry.review_state == "suggested" {
         return "MACHINE SUGGESTION";
@@ -2805,7 +2814,7 @@ fn badge(entry: &CollationEntry) -> &'static str {
     if entry
         .extractor
         .as_deref()
-        .is_some_and(|name| name.contains("whisper") || name.contains("asr"))
+        .is_some_and(is_transcript_extractor)
     {
         return if entry.review_state == "verified" {
             "HUMAN-VERIFIED TRANSCRIPT"
@@ -3007,7 +3016,7 @@ fn passage_badge(row: &EnrichmentPassage) -> &'static str {
     if row
         .extractor
         .as_deref()
-        .is_some_and(|name| name.contains("whisper") || name.contains("asr"))
+        .is_some_and(is_transcript_extractor)
     {
         return if row.content_review_state == "verified" {
             "HUMAN-VERIFIED TRANSCRIPT"
@@ -3212,7 +3221,7 @@ mod tests {
             .expect("tuesday");
 
         let rows = workspace.docket_rows();
-        assert!(!rows.is_empty(), "the seeded week has settings on it");
+        assert_ne!(rows.len(), 0, "the seeded week has settings on it");
         let consolidated = rows
             .iter()
             .find(|row| row.client == "Alex Rivera")
@@ -3230,8 +3239,9 @@ mod tests {
                 == 1,
             "one setting is one row, however many matters it covers"
         );
-        assert!(
-            !consolidated.copy_text.is_empty(),
+        assert_ne!(
+            consolidated.copy_text.len(),
+            0,
             "every row can be lifted without retyping"
         );
 
@@ -3612,7 +3622,7 @@ mod tests {
                 notes: None,
             })
             .expect_err("that matter is Rivera's");
-        assert!(!error.to_string().is_empty());
+        assert_ne!(error.to_string(), "");
     }
 
     #[test]
@@ -3670,6 +3680,6 @@ mod tests {
                 body: "Filed under the wrong thing.".to_owned(),
             })
             .expect_err("a client id is not a matter");
-        assert!(!error.to_string().is_empty());
+        assert_ne!(error.to_string(), "");
     }
 }

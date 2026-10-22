@@ -91,6 +91,29 @@ record evidence-intake-project.papercut.after-knowledge-source-add-succeeded-the
     created_at 2026-08-20
 }
 
+record evidence-intake-project.papercut.akr-check-strict-already-reports-18-pre/1 : papercut {
+    title "akr check --strict already reports 18 pre-existing diagnostics…"
+    state verified
+    statement """
+        akr check --strict already reports 18 pre-existing diagnostics (AKR-R022 evidence predating milestone content changes, AKR-E011, G004/G024), so ledger work on the Phonon-2 decision had to run --lenient; the fixes belong to the milestone owners, not to this change.
+        """
+    observed_at git:1b10efb1d09a487bb6149cb6659ef8ddba77b52b
+    author "claude"
+    created_at 2026-10-22
+}
+
+record evidence-intake-project.papercut.akr-g024-flags-evidence-commands-like-cargo/1 : papercut {
+    title "AKR-G024 flags evidence commands like 'cargo test --test office_bridge'…"
+    state verified
+    statement """
+        AKR-G024 flags evidence commands like 'cargo test --test office_bridge' as naming nothing in tracked source although tests/office_bridge.rs exists and ran (9 passed): the heuristic appears to search file contents for the token, not file names, so every --test <file> gate reads as a dead filter under --strict. Same false positive on four older video evidence records.
+        """
+    observed_at git:c6841418c05d01c28fdc555fa465e2926584d7ef
+    about "akr"
+    author "claude"
+    created_at 2026-10-22
+}
+
 record evidence-intake-project.papercut.akr-mcp-timed-out-after-65s-on-the-first/1 : papercut {
     title "AKR MCP timed out after 65s on the first knowledge call; the CLI is kr…"
     state verified
@@ -299,6 +322,17 @@ record evidence-intake-project.papercut.resolving-a-question-from-a-new-observat
     created_at 2026-08-20
 }
 
+record evidence-intake-project.papercut.running-the-repo-s-own-gate-today-s-nightly/1 : papercut {
+    title "Running the repo's own gate: today's nightly clippy (1.101) rejects…"
+    state verified
+    statement """
+        Running the repo's own gate: today's nightly clippy (1.101) rejects assert!(x.is_empty()) and assert!(!x.is_empty()) across the existing tests and GUI module (manual_assert_is_empty-style lint), so cargo clippy -D warnings was red before any Phonon-2 change; rewrote them as assert_eq!/assert_ne!(x.len(), 0).
+        """
+    observed_at git:1b10efb1d09a487bb6149cb6659ef8ddba77b52b
+    author "claude"
+    created_at 2026-10-22
+}
+
 record evidence-intake-project.papercut.strict-clippy-for-the-adapter-packages-also/1 : papercut {
     title "Strict Clippy for the adapter packages also linted the root dependency…"
     state verified
@@ -409,6 +443,17 @@ record evidence-intake-project.papercut.the-lean-linux-turboocr-tensorrt-build-f
     about "TurboOCR build"
     author "codex"
     created_at 2026-08-21
+}
+
+record evidence-intake-project.papercut.the-nine-akr-r022-errors-on-collation-document/1 : papercut {
+    title "The nine AKR-R022 errors on collation.document-integration-pass and…"
+    state verified
+    statement """
+        The nine AKR-R022 errors on collation.document-integration-pass and office.court-office-foundation were not stale work: the history rewrite behind 1b10efb (remap AKR commit pins after dropping Damion from history) remapped every evidence observed_at to a commit older than the milestone's defining commit, so current evidence read as predating its record. Re-ran each acceptance check and recorded fresh evidence at HEAD.
+        """
+    observed_at git:79831cba7da47284b0ecbdaf4e795bb77b667285
+    author "claude"
+    created_at 2026-10-22
 }
 
 record evidence-intake-project.papercut.the-readme-s-demo-view-commands-fail-against/1 : papercut {

@@ -177,8 +177,9 @@ fn nothing_in_the_docket_posture_scores_the_case() {
     // The grid line a person actually reads is counts and absences only.
     for row in &docket.rows {
         let line = row.posture_line();
-        assert!(
-            !line.is_empty(),
+        assert_ne!(
+            line.len(),
+            0,
             "every row says something about what it rests on"
         );
         for verdict in ["strong", "weak", "likely", "should", "recommend"] {
@@ -303,7 +304,7 @@ fn a_setting_naming_a_case_the_kernel_does_not_hold_says_so() {
         .find(|row| row.entry.client_id == "client-okonkwo")
         .expect("the setting is on the day");
 
-    assert!(okonkwo.postures.is_empty());
+    assert_eq!(okonkwo.postures.len(), 0);
     assert_eq!(
         okonkwo.matters_with_a_missing_case, 1,
         "the broken link is counted"

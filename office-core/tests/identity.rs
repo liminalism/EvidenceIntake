@@ -146,11 +146,9 @@ fn declining_a_prompt_leaves_both_records_untouched() {
 
     let after = store.client_profile("client-rivera").expect("after");
     assert_eq!(before, after, "declining altered nothing about the client");
-    assert!(
-        store
-            .linked_entities("client-rivera")
-            .expect("links")
-            .is_empty(),
+    assert_eq!(
+        store.linked_entities("client-rivera").expect("links").len(),
+        0,
         "and tied it to nothing"
     );
 }
@@ -241,8 +239,9 @@ fn an_unrelated_person_raises_no_prompt() {
             None,
         )
         .expect("candidates");
-    assert!(
-        candidates.is_empty(),
+    assert_eq!(
+        candidates.len(),
+        0,
         "nothing obvious matched, and nothing was invented: {candidates:#?}"
     );
 }

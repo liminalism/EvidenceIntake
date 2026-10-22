@@ -388,10 +388,10 @@ fn the_fixture_carries_a_caseload_at_the_scale_the_gate_names() {
     );
 
     let day = store.docket_day("2026-09-01").expect("tuesday docket");
-    assert!(!day.settings.is_empty(), "a working day has settings on it");
+    assert_ne!(day.settings.len(), 0, "a working day has settings on it");
     for entry in &day.settings {
-        assert!(!entry.client.is_empty(), "every row names the client");
-        assert!(!entry.matters.is_empty(), "and what is being called");
+        assert_ne!(entry.client.len(), 0, "every row names the client");
+        assert_ne!(entry.matters.len(), 0, "and what is being called");
         assert!(
             entry
                 .matters

@@ -6,6 +6,9 @@ use crate::whisperx::WhisperxTranscript;
 use crate::{Error, Result};
 
 /// Something that can turn a wav into a WhisperX-shaped transcript.
+///
+/// The shape is the adapter's interchange format, not a commitment to any
+/// engine: the broker-backed Phonon-2 default and reference JSON both land here.
 pub trait TranscriptBackend {
     /// Transcribe `wav`. Times in the result are seconds of that file.
     fn transcribe(&self, wav: &Path) -> Result<WhisperxTranscript>;

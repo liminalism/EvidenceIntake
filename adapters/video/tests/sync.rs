@@ -184,8 +184,9 @@ fn the_sync_edge_names_both_originals_and_is_suggested() {
     let pair = pair(CaseId("case-hit-run-001".to_owned()));
     let batch = measurement_to_batch(&pair, &measurement(OFFSET_MS)).expect("map");
 
-    assert!(
-        batch.sources.is_empty(),
+    assert_eq!(
+        batch.sources.len(),
+        0,
         "an offset is not a new original; the batch must carry no sources"
     );
     assert_eq!(batch.edges.len(), 1);
